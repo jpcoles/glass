@@ -109,7 +109,7 @@ class Samplex:
             assert False, 'Bad function %s' % str(x[0])
 
         #self.eq_list.sort(key=eq_key)
-        print "Building matrix"
+        print "random seed =", ran_set_seed(0)
         #print self.data
 
         if 0:
@@ -121,11 +121,11 @@ class Samplex:
                 print >>out, fs, len(a), a
             out.close()
 
-        print "random seed =", ran_set_seed(0)
+        print "Building matrix"
         for f,a in self.eq_list:
             f(a)
 
-        print self.data
+        #print self.data
 
         print "    num eqs = %i" % len(self.eq_list)
         print "    N = %i" % self.nVars
@@ -184,9 +184,9 @@ class Samplex:
         else:
             return
 
-        print histogram(self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1],
-                        bins = logspace(-14, 4),
-                        new = False)
+#       print histogram(self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1],
+#                       bins = logspace(-14, 4),
+#                       new = False)
 
 ##      x = self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1].flatten()
 ##      hist(x, bins = 100, log=True)

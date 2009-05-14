@@ -929,7 +929,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
         if (lq < 0) 
         { 
-            fprintf(stderr, "\nREMOVING %ld\n\n", rpiv);
+            DBG(1) fprintf(stderr, "\nREMOVING %ld\n\n", rpiv);
             //------------------------------------------------------------------
             // Remove the column at rpiv
             //------------------------------------------------------------------
