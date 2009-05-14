@@ -287,7 +287,7 @@ if __name__ == "__main__":
     #Range of believeable data + outer slope limiter:
     imagemin = 1.
     imagemax = 20.
-    alphalim = 2.
+    alphalim = 4.
 
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
@@ -302,17 +302,18 @@ if __name__ == "__main__":
     aperture = 30.
 
     #Input files [sigma(R) and mass(R)]:
-    surffile = './Data/surftest.txt'
-    massfile = './Data/masstesthi.txt'
+    datadir = '../Data/'
+    surffile = datadir+'surftest.txt'
+    massfile = datadir+'masstesthi.txt'
     
     #Files containing correct answers:
-    surftest = './Data/surftest.txt'
-    rhotest = './Data/rhotest.txt'
-    masstest = './Data/massthreetest.txt'
-    sigtest = './Data/sigtest.txt'
+    surftest = datadir+'surftest.txt'
+    rhotest = datadir+'rhotest.txt'
+    masstest = datadir+'massthreetest.txt'
+    sigtest = datadir+'sigtest.txt'
 
     #Output directory:
-    outdir = './Data/'
+    outdir = datadir
     
     #-------------------------------------------------------------------------
     # Read in the surface density and mass profiles
