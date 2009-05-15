@@ -1,8 +1,28 @@
-import  numpy 
+import numpy, os
 from numpy import arctan2, pi, linspace, atleast_2d
 from potential import poten2d
 
-from solvers.samplex.samplex import Samplex as model_generator
+def _detect_cpus():
+    """
+    Detects the number of CPUs on a system.
+    From http://codeliberates.blogspot.com/2008/05/detecting-cpuscores-in-python.html
+    From http://www.artima.com/weblogs/viewpost.jsp?thread=230001
+    """
+    # Linux, Unix and MacOS:
+    if hasattr(os, "sysconf"):
+        if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):
+            # Linux & Unix:
+            ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
+            if isinstance(ncpus, int) and ncpus > 0:
+                return ncpus
+        else: # OSX:
+            return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+    # Windows:
+    if os.environ.has_key("NUMBER_OF_PROCESSORS"):
+        ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
+        if ncpus > 0:
+            return ncpus
+    return 1 # Default
 
 class Object:
 
@@ -27,6 +47,7 @@ class Object:
 
         self.maprad     = None
 
+
         self.basis = None
 
     def current_system(self):
@@ -38,6 +59,9 @@ class Object:
 
     def init(self):
         self.basis.init(self)
+
+        assert(self.maprad is not None)
+
         subdivision = 5.
 
         r = self.maprad
@@ -86,8 +110,11 @@ class Environment:
         self.objects = []
         self._current_object = None
         self.nmodels = 0
-        self.model_gen_class = model_generator
+        self.model_gen_factory = None #model_generator
         self.model_gen = None
+        self.models = None
+        self.accepted_models = None
+        self.ncpus = _detect_cpus()
 
     def current_object(self):
         return self._current_object

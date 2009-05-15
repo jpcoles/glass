@@ -27,11 +27,6 @@ def cosm(om, ol):
     cosmo.omega_matter = om
     cosmo.omega_lambda = ol
 
-def models(n):
-    n = int(n)
-    assert n > 0, "models: n must be > 0"
-    env.nmodels = n
-
 def lens(zsrc, img0, img0parity, *imgs):
 
     o = env.current_object()
@@ -79,3 +74,10 @@ def kann(theta):
 def maprad(r):
     env.current_object().maprad = r
 
+
+def postfilter(*fs):
+    models = env.models
+    for f in fs:
+        models = filter(f, models)
+
+    env.accepted_models = models
