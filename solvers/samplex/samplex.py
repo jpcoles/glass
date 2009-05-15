@@ -1,5 +1,6 @@
 import sys
-from numpy import isfortran, asfortranarray
+import numpy
+from numpy import isfortran, asfortranarray, sign, logical_and
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty
 from numpy import argwhere, argmin, inf, isinf
@@ -84,19 +85,18 @@ class Samplex:
         #print "%6s %6s %6s\n%6i %6i %6i" \
         #    % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
-
         print "N = %i" % self.nVars
         print "L = %i" % self.nLeft
         print "R = %i" % self.nRight
         print "S = %i" % self.nSlack
-        self.data = zeros((self.nLeft+1, self.nRight+1), order='Fortran', dtype='double')
+        self.data = zeros((self.nLeft+1, self.nRight+1), order='Fortran', dtype=numpy.float64)
 
         self.nLeft = 0
         self.nSlack = 0
         self.nTemp = 0
         self.nRight = self.nVars
 
-        self.lhv = [0]
+        self.lhv = [numpy.nan]
         self.rhv = range(self.nVars+1)
 
         self.geq_count = 0
@@ -138,8 +138,8 @@ class Samplex:
         print "%6s %6s %6s\n%6i %6i %6i" \
             % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
-        self.lhv = array(self.lhv, dtype='int')
-        self.rhv = array(self.rhv, dtype='int')
+        self.lhv = array(self.lhv, dtype=numpy.int32)
+        self.rhv = array(self.rhv, dtype=numpy.int32)
 
 
 #       for x in self.lhv: print x
@@ -234,7 +234,7 @@ class Samplex:
         s = SamplexSolution()
         #print "***", self.nVars+self.nSlack+1
         s.vertex = zeros(self.nVars+self.nSlack+1)
-        s.lhv    = zeros(self.nLeft+1, 'int')
+        s.lhv    = zeros(self.nLeft+1, numpy.int32)
 
         s.lhv[0] = self.lhv[0]
         for l in range(1,self.nLeft+1):
@@ -253,29 +253,45 @@ class Samplex:
         return s
 
     def start_new_objective(self):
-        self.obj = (random(1+self.nVars+self.nSlack) - 0.5)
-        # TODO:
-        w = abs(self.obj) < self.SML
-        while w.any():
-            n = flatnonzero(w)
-            self.obj[n] = random(len(n)) - 0.5
+        if 1:
+            self.obj = random(1+self.nVars+self.nSlack) - 0.5
+            t = abs(self.obj) * (1-2*self.SML)
+            t += self.SML
+            self.obj = t * sign(self.obj)
+        else:
+
+            self.obj = random(1+self.nVars+self.nSlack) - 0.5
+            # TODO:
             w = abs(self.obj) < self.SML
+            while w.any():
+                n = flatnonzero(w)
+                self.obj[n] = random(len(n)) - 0.5
+                w = abs(self.obj) < self.SML
 
         #self.obj[abs(self.obj) < self.EPS] = 0
         self.set_objective(self.obj)
 
     def set_objective(self, obj):
-        #print "obj", obj
-        for r in xrange(self.nRight+1):
-            col = self.data[:,r]
-            n   = self.rhv[r]
+        if 1:
+            lhv    = self.lhv[0:self.nLeft+1]
+            ks     = logical_and(0 <= lhv, lhv <= self.nVars)
+            obj_vs = obj[lhv[ks]]
+            for r in xrange(self.nRight+1):
+                col = self.data[:,r]
+                n   = self.rhv[r]
+                col[0] = sum(col[ks] * obj_vs)
+                col[0] += obj[n] if 0 <= n <= self.nVars else 0
+        else:
+            #print "obj", obj
+            for r in xrange(self.nRight+1):
+                col = self.data[:,r]
+                n   = self.rhv[r]
+                col[0] = obj[n] if 0 <= n <= self.nVars else 0
+                for k in xrange(1, self.nLeft+1):
+                    n = self.lhv[k]
+                    if 0 <= n <= self.nVars:
+                        col[0] += col[k] * obj[n]
 
-            col[0] = obj[n] if 0 <= n <= self.nVars else 0
-
-            for k in xrange(1, self.nLeft+1):
-                n = self.lhv[k]
-                if 0 <= n <= self.nVars:
-                    col[0] += col[k] * obj[n]
         #print self.data[:,0]
 
     def find_feasible(self):
@@ -308,8 +324,10 @@ class Samplex:
 
     def set_auxil_objective(self):
         # This is the same as below. Just wanted to check correctness
-        #sum(self.data[self.lhv < 0,:self.nRight+1], axis=0, out=self.data[0,:self.nRight+1])
-        #self.data[0,:self.nRight+1] *= -1
+        sum(self.data[self.lhv < 0,:self.nRight+1], axis=0, out=self.data[0,:self.nRight+1])
+        self.data[0,:self.nRight+1] *= -1
+        return
+
 
         #print self.data
         #print self.lhv

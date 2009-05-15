@@ -108,7 +108,7 @@ enum
     UNBOUNDED      = 4,
 };
 
-inline int min(int a, int b)
+inline int32_t min(int32_t a, int32_t b)
 {
     return (a < b) ? a : b;
 }
@@ -143,37 +143,21 @@ long total_alloc = 0;
 /*==========================================================================*/
 typedef struct
 {
-    int *data;
-    size_t size;
-    size_t space;
-} int_array;
-
-typedef struct
-{
-    size_t size;
-    size_t space;
-    size_t H;
-    dble_t **data;
-} dd_array;
-
-typedef struct
-{
-    int w,h;
+    uint32_t w,h;
     dble_t *data;
 } matrix_t;
-
 
 typedef struct pivot_thread_s
 {
     pthread_t thr_id;
 
-    int id;
-    size_t start, end;
+    int32_t id;
+    int32_t start, end;
 
     matrix_t *tabl;
-    int L;
+    long L;
     dble_t piv;
-    int lpiv, rpiv;
+    int32_t lpiv, rpiv;
 
     void (*action)(struct pivot_thread_s *thr);
 
@@ -181,9 +165,9 @@ typedef struct pivot_thread_s
 
 typedef struct 
 {
-    int nthreads;               // Total number of threads
-    int active_threads;         // Number of threads currently executing doPivot
-    int threads_initialized;
+    int32_t nthreads;               // Total number of threads
+    int32_t active_threads;         // Number of threads currently executing doPivot
+    int32_t threads_initialized;
     pivot_thread_t *thr;
     pthread_mutex_t lock;
     pthread_cond_t activate_all;
@@ -238,7 +222,7 @@ static long ran_seed=0;
 static thread_pool_t pool = EMPTY_POOL;
 
 /* Do we need to update the columns that each thread is working on? */
-static int need_assign_pivot_threads;
+static int32_t need_assign_pivot_threads;
 
 #if 0
 static double start_time, end_time, avg_time = 0;
@@ -247,10 +231,10 @@ static double start_time, end_time, avg_time = 0;
 PyObject *samplex_pivot(PyObject *self, PyObject *args);
 void doPivot(pivot_thread_t *thr);
 void doPivot0(matrix_t *tabl,
-    const int L,
+    const long L,
     const dble_t piv, 
-    const int lpiv, const int rpiv,
-    int start, const int end);
+    const int32_t lpiv, const int32_t rpiv,
+    int32_t start, const int32_t end);
 //int choosePivot(dble_t **tabl, size_t L, size_t R, size_t *lpiv0, size_t *rpiv0, size_t *piv0);
 
 static PyMethodDef csamplex_methods[] = 
@@ -323,7 +307,7 @@ inline static size_t next_power_of_2(size_t v)
 
 #if 1
 
-void pivot_thread_init(pivot_thread_t *pt, int id)
+void pivot_thread_init(pivot_thread_t *pt, int32_t id)
 {
     pt->thr_id   = 0;
     pt->id       = id;
@@ -332,7 +316,7 @@ void pivot_thread_init(pivot_thread_t *pt, int id)
     pt->action   = doPivot;
 }
 
-void pivot_thread_reset(pivot_thread_t *pt, size_t start, size_t end)
+void pivot_thread_reset(pivot_thread_t *pt, int32_t start, int32_t end)
 { 
     pt->start = start;
     pt->end   = end;
@@ -345,8 +329,8 @@ void *pivot_thread_run(void *arg)
 #if SET_THREAD_AFFINITY
     cpu_set_t mask;
 
-    int ncpus      = sysconf(_SC_NPROCESSORS_CONF);
-    int cpu_to_use = pt->id % ncpus;
+    int32_t ncpus      = sysconf(_SC_NPROCESSORS_CONF);
+    int32_t cpu_to_use = pt->id % ncpus;
 
     /* Try to fix the thread to a single CPU */
 
@@ -355,7 +339,7 @@ void *pivot_thread_run(void *arg)
 
     if (pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) < 0)
     {
-        int e = errno;
+        int32_t e = errno;
         fprintf(stderr, "Thread %i: %s\n", pt->id, strerror(e));
     }
     else DBG(2)
@@ -533,9 +517,9 @@ void init0(JNIEnv *env, jobject obj, jint N0)
 /*==========================================================================*/
 /* initPivotThreads                                                         */
 /*==========================================================================*/
-void init_threads(int n) 
+void init_threads(int32_t n) 
 {
-    size_t i;
+    int32_t i;
 
     if (pool.threads_initialized) return;
 
@@ -655,18 +639,18 @@ void finalize(JNIEnv *env, jobject obj)
 /*==========================================================================*/
 /* choosePivot                                                              */
 /*==========================================================================*/
-int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R, 
-                       size_t *lpiv0, size_t *rpiv0, dble_t *piv0)
+int32_t choose_pivot(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R, 
+                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 { 
-    size_t k, r;
+    int32_t k, r;
     dble_t *__restrict  bcol = &tabl->data[0];
-    int res = NOPIVOT; 
+    int32_t res = NOPIVOT; 
     dble_t coef=0,inc=0;
 
-    size_t lpivq = 0, 
-           rpivq = 0,
-           lpiv  = 0,
-           rpiv  = 0;
+    int32_t lpivq = 0, 
+            rpivq = 0,
+            lpiv  = 0,
+            rpiv  = 0;
 
     dble_t piv = 0;
 
@@ -676,7 +660,7 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
     {
         const dble_t * __restrict  col = &tabl->data[r * tabl->w + 0];
 
-        DBG(2) fprintf(stderr, "r=%ld\n", r);
+        DBG(2) fprintf(stderr, "r=%i\n", r);
 
         //fprintf(stderr, "rq=%i, r=%i, R=%i, ivo=%f, coef=%f  %i\n", rq, r, R, ivo, coef,ivo>coef);
 
@@ -691,8 +675,8 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
         // We now look for the column entry that causes the objective function
         // to increase the most.  Set |l,cleft,cpiv,cinc| for candidate pivot
         //----------------------------------------------------------------------
-        size_t l     = 0,
-               cleft = 0; 
+        int32_t l     = 0,
+                cleft = 0; 
         dble_t cpiv  = 0,
                cinc  = 0;
         for (k=1; k <= L; k++) 
@@ -723,7 +707,7 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
             //------------------------------------------------------------------
             // Accept this pivot element if we haven't found anything yet.
             //------------------------------------------------------------------
-            int accept = 0;
+            int32_t accept = 0;
             if (l==0) 
             {
                 accept = 1;
@@ -764,7 +748,7 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
         }
 
         //fprintf(stderr, "\n************* lpiv=%i\n", lpiv);
-        int accept = 0;
+        int32_t accept = 0;
         if (lpiv==0)
             accept = 1;
         else if (ABS(cinc-inc) < EPS)
@@ -789,10 +773,10 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
         //break; // Bland's Rule: Take the first one you find.
     }
 
-    DBG(1) fprintf(stderr, "< choosePivot() %ld %ld %e %e\n", lpiv, rpiv, piv, inc);
+    DBG(1) fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
     //assert(piv <  1e4);
     //assert(piv > -1e4);
-    //DBG(3) fprintf(stderr, "< choosePivot() %ld %ld %23.15Lf\n", lpiv, rpiv, (long double)piv);
+    //DBG(3) fprintf(stderr, "< choosePivot() %i %i %23.15Lf\n", lpiv, rpiv, (long double)piv);
 
     *lpiv0 = lpiv;
     *rpiv0 = rpiv;
@@ -800,10 +784,10 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
     return res;
 }
 
-void assign_threads(int R)
+void assign_threads(int32_t R)
 {
-    int i,n;
-    const int ncols = (int)ceil((double)(R+1) / pool.nthreads);
+    int32_t i,n;
+    const int32_t ncols = (int32_t)ceil((double)(R+1) / pool.nthreads);
 
     for (i=1; i < pool.nthreads; i++) 
         pivot_thread_reset(pool.thr+i, 0,0);
@@ -813,7 +797,7 @@ void assign_threads(int R)
         pivot_thread_reset(pool.thr+n, 
                            i, 
                            min(i + ncols, R+1));
-        DBG(1) fprintf(stderr, ">> assigned %i to (%ld,%ld) R=%i\n", n, pool.thr[n].start, pool.thr[n].end, R);
+        DBG(1) fprintf(stderr, ">> assigned %i to (%i,%i) R=%i\n", n, pool.thr[n].start, pool.thr[n].end, R);
     }
 
     DBG(1) fprintf(stderr, "> assign_threads() %i %i\n", ncols, pool.nthreads);
@@ -827,17 +811,17 @@ void assign_threads(int R)
 /*==========================================================================*/
 PyObject *samplex_pivot(PyObject *self, PyObject *args)
 {
-    int i,j;
+    int32_t i,j;
     matrix_t tabl;
 
     PyObject *o = args;
     DBG(3) fprintf(stderr, "5> pivot()\n");
 
-    int L = PyInt_AsLong(PyObject_GetAttrString(o, "nLeft")); /* # of constraints (rows)    */
-    int R = PyInt_AsLong(PyObject_GetAttrString(o, "nRight")); /* # of variables   (columns) */
-    int Z = PyInt_AsLong(PyObject_GetAttrString(o, "nTemp"));
+    long L = PyInt_AsLong(PyObject_GetAttrString(o, "nLeft")); /* # of constraints (rows)    */
+    long R = PyInt_AsLong(PyObject_GetAttrString(o, "nRight")); /* # of variables   (columns) */
+    long Z = PyInt_AsLong(PyObject_GetAttrString(o, "nTemp"));
 
-    int T = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
+    long T = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
 
     /* Remember, this is in FORTRAN order */
     PyObject *data = PyObject_GetAttrString(o, "data");
@@ -848,8 +832,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     PyObject *lhv = PyObject_GetAttrString(o, "lhv");
     PyObject *rhv = PyObject_GetAttrString(o, "rhv");
 
-    int *left  = (int *)PyArray_DATA(lhv), 
-        *right = (int *)PyArray_DATA(rhv);
+    int32_t *left  = (int32_t *)PyArray_DATA(lhv), 
+            *right = (int32_t *)PyArray_DATA(rhv);
 
     assert(PyArray_CHKFLAGS(data, NPY_F_CONTIGUOUS));
     assert(PyArray_CHKFLAGS(data, NPY_FORTRAN));
@@ -857,7 +841,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 #if 0
     fprintf(stderr, "tabl dims = %i : %ix%i\n"
                     "L=%i R=%i Z=%i\n"
-                    "len(left)=%ld, len(right)=%ld\n"
+                    "len(left)=%i, len(right)=%i\n"
                     "nthreads=%i\n", 
                     PyArray_NDIM(data), tabl.h, tabl.w,
                     L, R, Z,
@@ -867,8 +851,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
                     );
 #endif
 
-    size_t lpiv,    /* Pivot row              */
-           rpiv;    /* Pivot column           */
+    int32_t lpiv,    /* Pivot row              */
+            rpiv;    /* Pivot column           */
     dble_t piv;     /* Value of pivot element */
     dble_t *pcol;   /* Pivot column           */
 
@@ -879,7 +863,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         fprintf(stderr, "\n");
 #endif
 
-    int ret = choose_pivot(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+    int32_t ret = choose_pivot(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
     //fprintf(stderr, "piv=%f\n", piv);
     //assert(ABS(piv) < 1e6);
     if (ret == FOUND_PIVOT) 
@@ -925,8 +909,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         //----------------------------------------------------------------------
         // End pivot. Swap left and right variables.
         //----------------------------------------------------------------------
-        int lq = left[lpiv];
-        int rq = right[rpiv];
+        int32_t lq = left[lpiv];
+        int32_t rq = right[rpiv];
 
         left[lpiv]  = rq;
         right[rpiv] = lq;
@@ -950,7 +934,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
         if (lq < 0) 
         { 
-            DBG(1) fprintf(stderr, "\nREMOVING %ld\n\n", rpiv);
+            DBG(1) fprintf(stderr, "\nREMOVING %i\n\n", rpiv);
             //------------------------------------------------------------------
             // Remove the column at rpiv
             //------------------------------------------------------------------
@@ -1058,7 +1042,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         int lq = left.data[lpiv];
         int rq = right.data[rpiv];
 
-        DBG(3) fprintf(stderr, "lq=%i rq=%i lpiv=%ld rpiv=%ld\n", lq, rq, lpiv, rpiv);
+        DBG(3) fprintf(stderr, "lq=%i rq=%i lpiv=%i rpiv=%i\n", lq, rq, lpiv, rpiv);
         
         left.data[lpiv]  = rq;
         right.data[rpiv] = lq;
@@ -1123,9 +1107,9 @@ void doPivot(pivot_thread_t *thr)
 // objective function. We special-case this column to print error messages if
 // we find a negative value.
 //------------------------------------------------------------------------------
-inline void in0(const size_t r, 
-                ssize_t kp, 
-                const size_t lpiv0, 
+inline void in0(const int32_t r, 
+                int32_t kp, 
+                const int32_t lpiv0, 
                 const dble_t piv, 
                 dble_t *__restrict col, 
                 const dble_t *__restrict pcol)
@@ -1144,8 +1128,8 @@ inline void in0(const size_t r,
 
         if (kp != 0 && kp != lpiv0 && rtz(v) < 0) 
         {
-            fprintf(stderr, "**** \n lpiv=%ld pcol[%ld]=%.15e "
-                            "col_lpiv=%.15e col[%ld]=%.15e v=%.15e\n", 
+            fprintf(stderr, "**** \n lpiv=%i pcol[%i]=%.15e "
+                            "col_lpiv=%.15e col[%i]=%.15e v=%.15e\n", 
                             lpiv0, kp, pcol[kp], col_lpiv, kp, col[kp], v);
             assert(0);
         }
@@ -1163,14 +1147,14 @@ inline void in0(const size_t r,
     col[lpiv0] = rtz(col_lpiv / -piv);
     if (col[lpiv0] < 0)
     {
-        fprintf(stderr, "r=%ld lpiv0=%ld col_lpiv=%.15e piv=%.15f\n", r, lpiv0, col_lpiv, piv);
+        fprintf(stderr, "r=%i lpiv0=%i col_lpiv=%.15e piv=%.15f\n", r, lpiv0, col_lpiv, piv);
         assert(0);
     }
 }
 
-inline void in(const size_t r, 
-               ssize_t kp, 
-               const size_t lpiv0, 
+inline void in(const int32_t r, 
+               int32_t kp, 
+               const int32_t lpiv0, 
                const dble_t piv, 
                dble_t *__restrict col, 
                const dble_t *__restrict pcol)
@@ -1185,23 +1169,23 @@ inline void in(const size_t r,
         //col[kp] = rtz(col[kp] - (pcol[kp] * col_lpiv) / piv);
         //col[kp] = rtz(col[kp] - pcol[kp] * col_lpiv);
 //      if (r == 354 && kp == 917) {
-//          fprintf(stderr, "col[%ld]=%f col_lpiv=%f lpiv0=%ld\n", kp, col[kp], col_lpiv, lpiv0);
+//          fprintf(stderr, "col[%i]=%f col_lpiv=%f lpiv0=%i\n", kp, col[kp], col_lpiv, lpiv0);
 //      }
     }
     col[lpiv0] = rtz(col_lpiv / -piv);
 }
 
 void doPivot0(matrix_t *tabl,
-    const int L,
+    const long L,
     const dble_t piv, 
-    const int lpiv, const int rpiv,
-    int start, const int end)
+    const int32_t lpiv, const int32_t rpiv,
+    int32_t start, const int32_t end)
 {
 
     //DBG(3) fprintf(stderr, "> doPivot()\n");
-    //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%ld lpiv=%ld\n", start, end, L, R, rpiv, lpiv);
+    //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%i lpiv=%i\n", start, end, L, R, rpiv, lpiv);
 
-    size_t r=start;
+    int32_t r=start;
     const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->w + 0]; 
 
 #if 0
@@ -1224,7 +1208,7 @@ void doPivot0(matrix_t *tabl,
 
     DBG(2)
     {
-        int i,j;
+        int32_t i,j;
         for (i=1; i <= L; i++)
         {
             double v0 = tabl->data[0 * tabl->w + i];
