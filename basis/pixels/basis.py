@@ -1,9 +1,9 @@
 import numpy
-from numpy import zeros, min, max, abs, vectorize, negative, array, take, ndindex, empty, arange, empty_like
-from numpy import ogrid, round, where, unique, round, argwhere, asarray, lexsort, angle, floor, conj, arctan2
-from numpy import atleast_2d, linspace
+from numpy import zeros, min, max, abs, vectorize, negative, array, take,   \
+                  ndindex, empty, arange, empty_like, ogrid, round, where,  \
+                  unique, round, argwhere, asarray, lexsort, angle, floor,  \
+                  conj, arctan2, atleast_2d, linspace, cumsum, sum
 from math import hypot, atan2, pi
-
 from pylab import plot, show
 
 class PixelBasis: 
@@ -48,11 +48,11 @@ class PixelBasis:
         self.maprad = obj.maprad
         if self.maprad is None:
             self.maprad = min([rmax+rmin, 2*rmax-rmin])
-        print "maprad =",self.maprad
+        #print "maprad =",self.maprad
 
         self.cell_size = (L+1) * self.maprad / L**2
         print "cell_size =", self.cell_size
-        self.maprad = self.cell_size * L
+        #self.maprad = self.cell_size * L
 
         #---------------------------------------------------------------------
         # Create pixel map -- symm not supported
@@ -192,7 +192,7 @@ class PixelBasis:
         print "    ptmass     % 5i  % 5i" % (self.ptmass_start, self.ptmass_end)
         print "    srcpos     % 5i  % 5i" % (self.srcpos_start, self.srcpos_end)
         print "    timedelay  % 5i  % 5i" % (self.timedelay_start, self.timedelay_end)
-        print "    H0         % 5i" % self.H0
+        print "    H0         % 5i"       % (self.H0)
 
     def packaged_solution(self, obj, sol):
         o = obj.basis.array_offset
@@ -202,6 +202,9 @@ class PixelBasis:
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
         ps['src']    = sol[ o+self.srcpos_start : o+self.srcpos_end   ] - self.map_shift
         ps['H0']     = sol[ o+self.H0]
+
+        ps['sigma']   = array([len(r) * self.cell_size**2 for r in self.rings], numpy.float32)
+        ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
 
         return ps
 

@@ -23,15 +23,17 @@ def _expand_array(nvars, offs, f):
 
     return work
 
-def prepare_for_models(objs):
+def init_model_generator():
     """Construct the linear constraint equations by applying all the
        enabled priors."""
+
+    objs = env.objects
     lp = filter(lambda x: x.where == 'object_prior',  all_priors)
     gp = filter(lambda x: x.where == 'ensemble_prior', all_priors)
 
     nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0) - len(objs) + 1
 
-    mg = env.model_gen = env.model_gen_class(nvars)
+    mg = env.model_gen = env.model_gen_factory(nvars)
 
     print "nvars=",nvars
 

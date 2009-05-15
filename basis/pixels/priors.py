@@ -47,7 +47,7 @@ def image_pos(o, leq, eq, geq):
             rows[0,srcpos:srcpos+2] = -sys.zcap,     0
             rows[1,srcpos:srcpos+2] =     0,     -sys.zcap
 
-            print rows[0]
+#           print rows[0]
             map(eq, rows)
 
 @object_prior
@@ -291,7 +291,7 @@ def smoothness(o, leq, eq, geq):
 
     print "smoothness eqs =", c
 
-#@object_prior
+@object_prior
 def external_shear(o, leq, eq, geq):
     print "External Shear"
     for s in xrange(o.basis.shear_start, o.basis.shear_end):
@@ -305,8 +305,8 @@ def shared_h(objs, nvars, leq, eq, geq):
     print "Shared h"
     #for o1,o2,offs1,offs2 in zip(objs[:-1], objs[1:], obj_offs[:-1], obj_offs[1:]):
     for o1,o2 in izip(objs[:-1], objs[1:]):
-        offs1 = o1.array_offset
-        offs2 = o2.array_offset
+        offs1 = o1.basis.array_offset
+        offs2 = o2.basis.array_offset
         row = zeros(nvars)
         row[offs1 + o1.basis.H0] =  o1.tscale
         row[offs2 + o2.basis.H0] = -o2.tscale
