@@ -37,6 +37,7 @@
 /* 2x overall speed up.                                                     */
 /*==========================================================================*/
 #define REORGANIZE_TABLE_MEMORY 1
+#define SET_THREAD_AFFINITY     0
 
 /*==========================================================================*/
 /* Timing variables                                                         */
@@ -157,20 +158,39 @@ typedef struct
 
 typedef struct
 {
-    pthread_t thr_id;
-    sem_t done;
-    sem_t sem;
-
-    int id;
-    int action;
-    size_t startCol, endCol;
-} PivotThread;
-
-typedef struct
-{
     int w,h;
     dble_t *data;
 } matrix_t;
+
+
+typedef struct pivot_thread_s
+{
+    pthread_t thr_id;
+
+    int id;
+    size_t start, end;
+
+    matrix_t *tabl;
+    int L;
+    dble_t piv;
+    int lpiv, rpiv;
+
+    void (*action)(struct pivot_thread_s *thr);
+
+} pivot_thread_t;
+
+typedef struct 
+{
+    int nthreads;               // Total number of threads
+    int active_threads;         // Number of threads currently executing doPivot
+    int threads_initialized;
+    pivot_thread_t *thr;
+    pthread_mutex_t lock;
+    pthread_cond_t activate_all;
+    pthread_cond_t thread_finished;
+} thread_pool_t;
+#define EMPTY_POOL {0,0,0,NULL, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}
+
 
 /*==========================================================================*/
 /* The worker threads can be asked to do different things.                  */
@@ -196,9 +216,9 @@ inline void in(const size_t r,
                const size_t lpiv0, 
                dble_t *__restrict col, 
                const dble_t *__restrict pcol) __attribute__ ((always_inline));
-void steal_table_memory(size_t startCol, size_t endCol);
+void steal_table_memory(size_t start, size_t end);
 
-void doPivot0(const jint startCol, const jint endCol);
+void doPivot0(const jint start, const jint end);
 void startPivot();
 int finishPivot();
 jint choosePivot();
@@ -212,32 +232,25 @@ static dble_t sum_ln_k=0;
 
 /* Random number generator seed */
 static long ran_seed=0;    
+#endif
 
 /* The pivot threads */
-static PivotThread *pt   = NULL;
-
-/* Number of current pivot threads */
-static int numThreads;
+static thread_pool_t pool = EMPTY_POOL;
 
 /* Do we need to update the columns that each thread is working on? */
 static int need_assign_pivot_threads;
 
-
+#if 0
 static double start_time, end_time, avg_time = 0;
-
 #endif
 
 PyObject *samplex_pivot(PyObject *self, PyObject *args);
-void doPivot(matrix_t *tabl,
-    const int L,
-    const dble_t piv, 
-    const int lpiv, const int rpiv,
-    int startCol, const int endCol);
+void doPivot(pivot_thread_t *thr);
 void doPivot0(matrix_t *tabl,
     const int L,
     const dble_t piv, 
     const int lpiv, const int rpiv,
-    int startCol, const int endCol);
+    int start, const int end);
 //int choosePivot(dble_t **tabl, size_t L, size_t R, size_t *lpiv0, size_t *rpiv0, size_t *piv0);
 
 static PyMethodDef csamplex_methods[] = 
@@ -308,30 +321,28 @@ inline static size_t next_power_of_2(size_t v)
 /* PivotThread functions                                                    */
 /*==========================================================================*/
 
-#if 0
+#if 1
 
-void pivot_thread_init(PivotThread *pt, int id)
+void pivot_thread_init(pivot_thread_t *pt, int id)
 {
     pt->thr_id   = 0;
     pt->id       = id;
-    pt->startCol = 
-    pt->endCol   = 0;
-    pt->action   = PT_ACTION_DO_PIVOT;
-
-    sem_init(&(pt->sem),  0, 0);
-    sem_init(&(pt->done), 0, 0);
+    pt->start    = 
+    pt->end      = 0;
+    pt->action   = doPivot;
 }
 
-void pivot_thread_reset(PivotThread *pt, size_t startCol, size_t endCol)
-{
-    pt->startCol = startCol;
-    pt->endCol   = endCol;
+void pivot_thread_reset(pivot_thread_t *pt, size_t start, size_t end)
+{ 
+    pt->start = start;
+    pt->end   = end;
 }
 
 void *pivot_thread_run(void *arg)
 {
-    PivotThread *pt = (PivotThread *)arg;
+    pivot_thread_t *pt = (pivot_thread_t *)arg;
 
+#if SET_THREAD_AFFINITY
     cpu_set_t mask;
 
     int ncpus      = sysconf(_SC_NPROCESSORS_CONF);
@@ -352,25 +363,22 @@ void *pivot_thread_run(void *arg)
         pthread_getaffinity_np(pthread_self(), sizeof(mask), &mask);
         fprintf(stderr, "Thread %i on CPU%d\n", pt->id, cpu_to_use);
     }
-
-    /* Wait for the first startup call... */
-    sem_wait(&(pt->sem));
+#endif
 
     while (1)
     {
-        sem_post(&(pt->done));  /* Say we are done */
-        sem_wait(&(pt->sem));   /* Now wait for next instruction */
+        pthread_mutex_lock(&pool.lock);
+        pool.active_threads--;
+        DBG(1) fprintf(stderr, "THREAD %i done at=%i\n", pt->id, pool.active_threads);
 
-        switch (pt->action)
-        {
-            case PT_ACTION_DO_PIVOT:
-                doPivot0(pt->startCol, pt->endCol);
-                break;
-            case PT_ACTION_STEAL_TABLE_COLS:
-                DBG(2) fprintf(stderr, "Thread %i stealing table data.\n", pt->id);
-                steal_table_memory(pt->startCol, pt->endCol);
-                break;
-        }
+        pthread_cond_signal(&pool.thread_finished);
+        pthread_cond_wait(&pool.activate_all, &pool.lock);
+
+        DBG(1) fprintf(stderr, "THREAD %i starting\n", pt->id);
+        pthread_mutex_unlock(&pool.lock);
+
+        if (pt->action)
+            pt->action(pt);
     }
 
     return NULL;
@@ -378,16 +386,18 @@ void *pivot_thread_run(void *arg)
 
 static inline void startup_threads()
 {
-    int i;
-    for (i=1; i < numThreads; i++)
-        sem_post(&(pt[i].sem));
+    pthread_mutex_lock(&pool.lock);
+    pool.active_threads = pool.nthreads-1;
+    pthread_cond_broadcast(&pool.activate_all);
+    pthread_mutex_unlock(&pool.lock);
 }
 
 static inline void wait_for_threads()
 {
-    int i;
-    for (i=1; i < numThreads; i++)
-        sem_wait(&(pt[i].done));
+    pthread_mutex_lock(&pool.lock);
+    while (pool.active_threads != 0)
+        pthread_cond_wait(&pool.thread_finished, &pool.lock);
+    pthread_mutex_unlock(&pool.lock);
 }
 
 #endif
@@ -423,10 +433,10 @@ static void extendColumns(size_t l)
     DBG(3) fprintf(stderr, "< extendColumns() tabl.H=%ld\n", tabl.H);
 }
 
-void steal_table_memory(size_t startCol, size_t endCol)
+void steal_table_memory(size_t start, size_t end)
 {
     size_t X = tabl.H; 
-    int i, ncols = endCol - startCol;
+    int i, ncols = end- start;
     DBG(3) fprintf(stderr, "> steal_table_memory()\n");
 
     DBG(3) fprintf(stderr, "N=%ld L=%ld R=%ld Z=%ld S=%ld H=%ld X=%ld\n",
@@ -435,7 +445,7 @@ void steal_table_memory(size_t startCol, size_t endCol)
     dble_t *cols = MALLOC(dble_t, X * ncols); assert(cols != NULL);
 
     dble_t *col = cols;
-    for (i=startCol; i < endCol; i++)
+    for (i=start; i < end; i++)
     {
         memcpy(col, tabl.data[i], X * sizeof(dble_t));
         free(tabl.data[i]);
@@ -456,16 +466,16 @@ void reorganize_table_memory()
     if (need_assign_pivot_threads) assign_threads(); 
 
     /* Steal the table for the main thread */
-    steal_table_memory(pt[0].startCol, pt[0].endCol);
+    steal_table_memory(pt[0].start, pt[0].end);
 
     /* Now ask the worker threads to steal the table */
-    for (i=1; i < numThreads; i++)
+    for (i=1; i < nthreads; i++)
         pt[i].action = PT_ACTION_STEAL_TABLE_COLS;
 
     startup_threads();
     wait_for_threads();
     
-    for (i=1; i < numThreads; i++)
+    for (i=1; i < nthreads; i++)
         pt[i].action = PT_ACTION_DO_PIVOT;
 
     DBG(3) fprintf(stderr, "< reorganize_table_memory()\n");
@@ -518,23 +528,29 @@ void init0(JNIEnv *env, jobject obj, jint N0)
     DBG(3) fprintf(stderr, "< init0()\n");
 }
 
+#endif
+
 /*==========================================================================*/
 /* initPivotThreads                                                         */
 /*==========================================================================*/
-void initPivotThreads(JNIEnv *env, jobject obj, jint nthreads) 
+void init_threads(int n) 
 {
     size_t i;
 
-    DBG(3) fprintf(stderr, "> initPivotThreads() nthreads=%i\n", nthreads);
+    if (pool.threads_initialized) return;
+
+    DBG(1) fprintf(stderr, "> initPivotThreads() nthreads=%i\n", n);
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     pthread_attr_setschedpolicy(&attr, SCHED_RR);
 
-    numThreads = nthreads;
+    pool.nthreads       = n;
+    pool.active_threads = 0;
 
-    if (numThreads > 1)
+#if SET_THREAD_AFFINITY
+    if (nthreads > 1)
     {
         /* The main thread runs on the first CPU */
         cpu_set_t mask;
@@ -545,49 +561,34 @@ void initPivotThreads(JNIEnv *env, jobject obj, jint nthreads)
             fprintf(stderr, "%s\n", strerror(errno));
         sched_getaffinity(0, sizeof(mask), &mask);
     }
+#endif
 
-    dd_array_create(&tabl,   N+1);
-    int_array_create(&right, N+1);
-    int_array_create(&left,  N+1);
-
-    //===================================================================
-    // Initialize top row of simplex table
-    //===================================================================
-    int_array_add(&left, 0);
-
-    tabl.H = 1;
-    while (tabl.H < N+1) tabl.H *= 2;
-
-    for (i=0; i <= N; i++) 
-    { 
-        int_array_add(&right, i); 
-
-        dble_t *tmp = CALLOC(dble_t, tabl.H); assert(tmp != NULL);
-        dd_array_add(&tabl, tmp);
-    }
-    R = N;
-
-    //===================================================================
+    //--------------------------------------------------------------------------
     // Create the worker threads
-    //===================================================================
+    //--------------------------------------------------------------------------
+    pool.thr = CALLOC(pivot_thread_t, pool.nthreads); assert(pool.thr != NULL);
 
-    pt = CALLOC(PivotThread, numThreads); assert(pt != NULL);
-
-    /* Notice we start from 1 not 0, because we handle the first thread
-     * specially later on. */
-    for (i=1; i < numThreads; i++)
+    //--------------------------------------------------------------------------
+    // Notice we start from 1 not 0, because we handle the first thread
+    // specially later on. 
+    //--------------------------------------------------------------------------
+    pool.active_threads = pool.nthreads-1;
+    for (i=1; i < pool.nthreads; i++)
     {
-        pivot_thread_init(&(pt[i]), i);
-        pthread_create(&(pt[i].thr_id), &attr, pivot_thread_run, (void *)&(pt[i]));
+        pivot_thread_init(&pool.thr[i], i);
+        pthread_create(&pool.thr[i].thr_id, &attr, pivot_thread_run, (void *)&pool.thr[i]);
     }
 
-    startup_threads();
     wait_for_threads();
+    assert(pool.active_threads == 0);
+    pool.threads_initialized = 1;
 
     need_assign_pivot_threads = 1;
 
-    DBG(3) fprintf(stderr, "< initPivotThreads()\n");
+    DBG(1) fprintf(stderr, "< initPivotThreads()\n");
 }
+
+#if 0
 
 /*==========================================================================*/
 /* finalize                                                                 */
@@ -603,8 +604,8 @@ void finalize(JNIEnv *env, jobject obj)
     {
         if (tabl.data != NULL) 
         {
-            for (i=0; i < numThreads; i++)
-                free(tabl.data[pt[i].startCol]);
+            for (i=0; i < nthreads; i++)
+                free(tabl.data[pt[i].start]);
             free(tabl.data);
             tabl.data = NULL;
         }
@@ -625,7 +626,7 @@ void finalize(JNIEnv *env, jobject obj)
     if (prev != NULL) free(prev);
     if (hist != NULL) free(hist);
 
-    for (i=1; i < numThreads; i++)
+    for (i=1; i < nthreads; i++)
     {
         pthread_cancel(pt[i].thr_id);
         pthread_join(pt[i].thr_id, NULL);
@@ -799,33 +800,26 @@ int choose_pivot(matrix_t *tabl, int *left, int *right, size_t L, size_t R,
     return res;
 }
 
-#if 0
-void assign_threads()
+void assign_threads(int R)
 {
-    const int ncols = (int)ceil((double)(R+1) / numThreads);
+    int i,n;
+    const int ncols = (int)ceil((double)(R+1) / pool.nthreads);
 
-    int nthreads = 0;
+    for (i=1; i < pool.nthreads; i++) 
+        pivot_thread_reset(pool.thr+i, 0,0);
 
-    int n = 0, i;
-    for (i=0; i < R+1; i += ncols)
+    for (i=0,n=0; i < R+1; i += ncols, n++)
     {
-        n = min(i + ncols, R+1);
-        pivot_thread_reset(&(pt[nthreads++]), i, n);
+        pivot_thread_reset(pool.thr+n, 
+                           i, 
+                           min(i + ncols, R+1));
+        DBG(1) fprintf(stderr, ">> assigned %i to (%i,%i) R=%i\n", n, pool.thr[n].start, pool.thr[n].end, R);
     }
 
-    /* If the number of columns has been sufficiently reduced so that we 
-     * don't need all the threads, we stop the excess threads so that we
-     * don't accidently wake them up later. */
-    for (i=nthreads; i < numThreads; i++)
-        pthread_cancel(pt[i].thr_id);
-
-    DBG(3) fprintf(stderr, "> assign_threads() %i %i %i\n", ncols, nthreads, numThreads);
-
-    numThreads = nthreads;
+    DBG(1) fprintf(stderr, "> assign_threads() %i %i\n", ncols, pool.nthreads);
 
     need_assign_pivot_threads = 0;
 }
-#endif
 
 
 /*==========================================================================*/
@@ -842,6 +836,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     int L = PyInt_AsLong(PyObject_GetAttrString(o, "nLeft")); /* # of constraints (rows)    */
     int R = PyInt_AsLong(PyObject_GetAttrString(o, "nRight")); /* # of variables   (columns) */
     int Z = PyInt_AsLong(PyObject_GetAttrString(o, "nTemp"));
+
+    int T = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
 
     /* Remember, this is in FORTRAN order */
     PyObject *data = PyObject_GetAttrString(o, "data");
@@ -861,11 +857,13 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 #if 0
     fprintf(stderr, "tabl dims = %i : %ix%i\n"
                     "L=%i R=%i Z=%i\n"
-                    "len(left)=%ld, len(right)=%ld\n", 
+                    "len(left)=%ld, len(right)=%ld\n"
+                    "nthreads=%i\n", 
                     PyArray_NDIM(data), tabl.h, tabl.w,
                     L, R, Z,
                     PyArray_DIM(lhv,0),
-                    PyArray_DIM(rhv,0)
+                    PyArray_DIM(rhv,0),
+                    T
                     );
 #endif
 
@@ -889,7 +887,30 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         //----------------------------------------------------------------------
         // Actual pivot
         //----------------------------------------------------------------------
-        doPivot(&tabl, L, piv, lpiv, rpiv, 0, R+1);
+        //doPivot(&tabl, L, piv, lpiv, rpiv, 0, R+1);
+        //====================================================================
+        // Let the threads know they need to perform the pivot
+        //
+        // If there's only one thread, then just do the operation in the 
+        // current thread instead of using other worker threads.
+        //
+        // In any event, we do at least one pivot operation in this thread.
+        //====================================================================
+
+        init_threads(T); 
+        if (need_assign_pivot_threads) assign_threads(R); 
+        for (i=0; i < pool.nthreads; i++)
+        {
+            pool.thr[i].tabl = &tabl;
+            pool.thr[i].L    = L;
+            pool.thr[i].piv  = piv;
+            pool.thr[i].lpiv = lpiv;
+            pool.thr[i].rpiv = rpiv;
+        }
+
+        startup_threads();
+        doPivot(&pool.thr[0]);
+        wait_for_threads();
 
         //----------------------------------------------------------------------
         // Start pivot
@@ -943,8 +964,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
             Z--; 
             R--;
+            need_assign_pivot_threads = 1;
         }
-        //need_assign_pivot_threads = 1;
 
 
         DBG(1)
@@ -1027,7 +1048,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
         startup_threads();
 
-        doPivot0(pt[0].startCol, pt[0].endCol);
+        doPivot0(pt[0].start, pt[0].end);
 
         wait_for_threads();
 
@@ -1071,7 +1092,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     //DBG(1) end = CPUTIME;
 
-    //DBG(2) fprintf(stderr, "< pivot() %f\n", ((double)(end_tms.tms_utime - start_tms.tms_utime) / sysconf(_SC_CLK_TCK) / numThreads));
+    //DBG(2) fprintf(stderr, "< pivot() %f\n", ((double)(end_tms.tms_utime - start_tms.tms_utime) / sysconf(_SC_CLK_TCK) / nthreads));
 
     return ret;
 }
@@ -1084,13 +1105,17 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 /* Now the code to do the pivoting.  An artificial variable that leaves     */
 /* is removed.  If we are removing the last of these, we set |conv=true|.   */
 /*==========================================================================*/
-void doPivot(matrix_t *tabl,
-    const int L,
-    const dble_t piv, 
-    const int lpiv, const int rpiv,
-    int startCol, const int endCol) 
+void doPivot(pivot_thread_t *thr)
 {
-    doPivot0(tabl, L, piv, lpiv, rpiv, startCol, endCol);
+    if (thr->start == thr->end) return;
+
+    doPivot0(thr->tabl, 
+             thr->L, 
+             thr->piv, 
+             thr->lpiv, 
+             thr->rpiv, 
+             thr->start, 
+             thr->end);
 }
 
 //------------------------------------------------------------------------------
@@ -1170,31 +1195,31 @@ void doPivot0(matrix_t *tabl,
     const int L,
     const dble_t piv, 
     const int lpiv, const int rpiv,
-    int startCol, const int endCol)
+    int start, const int end)
 {
 
     //DBG(3) fprintf(stderr, "> doPivot()\n");
-    //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%ld lpiv=%ld\n", startCol, endCol, L, R, rpiv, lpiv);
+    //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%ld lpiv=%ld\n", start, end, L, R, rpiv, lpiv);
 
-    size_t r=startCol;
+    size_t r=start;
     const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->w + 0]; 
 
 #if 0
-    if (startCol == 0)
+    if (start== 0)
     {
         in0(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
-        startCol++;
+        start++;
     }
 #endif
 
-    if (startCol <= rpiv && rpiv < endCol)
+    if (start <= rpiv && rpiv < end)
     {
-        for (r=startCol; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
-        for (++r; r < endCol; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        for (r=start; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        for (++r; r < end; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
     }
     else
     {
-        for (r=startCol; r < endCol; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        for (r=start; r < end; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
     }
 
     DBG(2)
@@ -1205,7 +1230,7 @@ void doPivot0(matrix_t *tabl,
             double v0 = tabl->data[0 * tabl->w + i];
             if (v0 == 0)
             {
-                for (j=1; j < endCol; j++)
+                for (j=1; j < end; j++)
                 {
                     double v1 = tabl->data[j * tabl->w + i];
                     if (v1 == 0)

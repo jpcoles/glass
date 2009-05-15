@@ -61,7 +61,7 @@ class Samplex:
 
     n_solutions = 0
 
-    def __init__(self, ncols=None, rows=1):
+    def __init__(self, ncols=None, nthreads=1):
         print "Samplex created"
         #print "    ncols = %i" % ncols
         if ncols is not None:
@@ -70,6 +70,7 @@ class Samplex:
 
         print "random seed =", ran_set_seed(0)
 
+        self.nthreads = nthreads
         Samplex.pivot = lambda s: csamplex.pivot(s)
 
     def check_data_shape(self, len=None):
