@@ -54,4 +54,5 @@ lens(1.41, A,'min', B,'sad',0)
 
 #time_delay(A,C, 10)
 
+model(1)
 

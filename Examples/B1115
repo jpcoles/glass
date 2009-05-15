@@ -2,6 +2,7 @@ from basis.pixels import *
 
 globject('B1115+080')
 #symm()
+maprad(1.9637)
 pixrad(10)
 zlens(0.311)
 shear(-45)
@@ -15,3 +16,4 @@ lens(1.722, A,'min',
             C,'sad', 0,
             D,'sad', 11.7)
 
+model(1)
