@@ -1,0 +1,38 @@
+from basis.pixels import *
+
+globject('B0957+561')
+#symm() 
+maprad(6.2613)
+pixrad(12)
+zlens(0.356)
+shear(-30)
+#g(14)
+
+A=1.408,  5.034
+B=0.182, -1.018
+
+lens(1.41, A,'min', B,'sad',423)
+
+A= 2.860,  3.470
+B=-1.540, -0.050
+lens(1.41, A,'min', B,'sad',0)
+
+
+globject('B1115+080')
+#symm()
+maprad(1.7852)
+pixrad(10)
+zlens(0.311)
+shear(-45)
+A =  0.3550,  1.3220 
+B = -0.9090, -0.7140
+C = -1.0930, -0.2600
+D =  0.7170, -0.6270
+
+lens(1.722, A,'min', 
+            B,'min', 13.3,
+            C,'sad', 0,
+            D,'sad', 11.7)
+
+model(1)
+
