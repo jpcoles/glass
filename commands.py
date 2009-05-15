@@ -45,7 +45,6 @@ def lens(zsrc, img0, img0parity, *imgs):
         sys.add_image(image)
         sys.add_time_delay(prev,image, time_delay)
         prev = image
-        print "HI"
 
     o.add_system(sys)
 

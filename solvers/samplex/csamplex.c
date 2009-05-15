@@ -813,7 +813,7 @@ void assign_threads(int R)
         pivot_thread_reset(pool.thr+n, 
                            i, 
                            min(i + ncols, R+1));
-        DBG(1) fprintf(stderr, ">> assigned %i to (%i,%i) R=%i\n", n, pool.thr[n].start, pool.thr[n].end, R);
+        DBG(1) fprintf(stderr, ">> assigned %i to (%ld,%ld) R=%i\n", n, pool.thr[n].start, pool.thr[n].end, R);
     }
 
     DBG(1) fprintf(stderr, "> assign_threads() %i %i\n", ncols, pool.nthreads);
