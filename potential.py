@@ -1,3 +1,4 @@
+from __future__ import division
 from numpy import arctan, log, vectorize
 from math import pi, sin, cos
 
@@ -18,15 +19,15 @@ def poten(r, a):
     ym2 = ym**2
     yp2 = yp**2
 
-    v  = -3 * a**2
-    v += xm2*arctan(ym/xm) + ym2*arctan(xm/ym)
-    v += xp2*arctan(yp/xp) + yp2*arctan(xp/yp)
-    v -= xm2*arctan(yp/xm) - yp2*arctan(xm/yp)
-    v -= xp2*arctan(ym/xp) - ym2*arctan(xp/ym)
-    v += xm*ym*log(xm2 + ym2)
-    v += xp*yp*log(xp2 + yp2)
-    v -= xp*ym*log(xp2 + ym2)
-    v -= xm*yp*log(xm2 + yp2)
+    v = (-3 * a**2
+       + xm2*arctan(ym/xm) + ym2*arctan(xm/ym)
+       + xp2*arctan(yp/xp) + yp2*arctan(xp/yp)
+       - xm2*arctan(yp/xm) - yp2*arctan(xm/yp)
+       - xp2*arctan(ym/xp) - ym2*arctan(xp/ym)
+       + xm*ym*log(xm2 + ym2)
+       + xp*yp*log(xp2 + yp2)
+       - xp*ym*log(xp2 + ym2)
+       - xm*yp*log(xm2 + yp2))
     return v / (2*pi)
 
 @vectorize
@@ -42,14 +43,10 @@ def poten_x(r, a):
     ym2 = ym**2
     yp2 = yp**2
 
-    v  = xm*arctan(ym/xm)
-    v += xp*arctan(yp/xp)
-    v -= xm*arctan(yp/xm)
-    v -= xp*arctan(ym/xp)
-    v += ym*log(xm2 + ym2)/2
-    v += yp*log(xp2 + yp2)/2
-    v -= ym*log(xp2 + ym2)/2
-    v -= yp*log(xm2 + yp2)/2
+    v = (xm*arctan(ym/xm)    + xp*arctan(yp/xp)
+       - xm*arctan(yp/xm)    - xp*arctan(ym/xp)
+       + ym*log(xm2 + ym2)/2 + yp*log(xp2 + yp2)/2
+       - ym*log(xp2 + ym2)/2 - yp*log(xm2 + yp2)/2)
     return v / pi
 
 @vectorize
@@ -65,14 +62,10 @@ def poten_y(r, a):
     ym2 = ym**2
     yp2 = yp**2
 
-    v  = ym*arctan(xm/ym)
-    v += yp*arctan(xp/yp)
-    v -= ym*arctan(xp/ym)
-    v -= yp*arctan(xm/yp)
-    v += xm*log(xm2 + ym2)/2 
-    v += xp*log(xp2 + yp2)/2
-    v -= xm*log(xm2 + yp2)/2 
-    v -= xp*log(xp2 + ym2)/2
+    v = (ym*arctan(xm/ym)    + yp*arctan(xp/yp)
+       - ym*arctan(xp/ym)    - yp*arctan(xm/yp)
+       + xm*log(xm2 + ym2)/2 + xp*log(xp2 + yp2)/2
+       - xm*log(xm2 + yp2)/2 - xp*log(xp2 + ym2)/2)
     return v / pi
 
 @vectorize
