@@ -1,14 +1,11 @@
+from __future__ import division
 from math import sinh, sqrt
 from numpy import abs
-
-omega_matter = 0.3
-omega_lambda = 0.7
-filled_beam = True
+from environment import env
 
 def angdist(z1, z2):
-    global omega_matter, omega_lambda
-    M = omega_matter
-    L = omega_lambda
+    M = env.omega_matter
+    L = env.omega_lambda
     k = 0
     if M+L < 0: k = -1
     if M+L > 0: k =  1
@@ -16,7 +13,7 @@ def angdist(z1, z2):
     dz = 5e-4
     if    z1 < z2: zi,zf = z1,z2
     else:          zi,zf = z2,z1
-    if filled_beam:
+    if env.filled_beam:
         z = zi + dz/2.
         factor = 0
         while z <= zf:

@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy, os
 from numpy import arctan2, pi, linspace, atleast_2d
 from potential import poten2d
@@ -33,15 +34,16 @@ class Object:
 
         self.S          = 0
         self.shear      = None
-        self.zlens      = 0
-        self.tscale     = 0
-        self.tscalebg   = 0
-        self.dlscale    = 0
-        self.cdscale    = 0
-        self.kann_spec  = 0
-        self.h_spec     = 0
+        self.zlens      = 0.0
+        self.tscale     = 0.0
+        self.tscalebg   = 0.0
+        self.dlscale    = 0.0
+        self.cdscale    = 0.0
+        self.kann_spec  = 0.0
+        self.h_spec     = 0.0
         self.minsteep   = 0.5
-        self.maxsteep   = self.minsteep
+        self.maxsteep   = 0.0
+        #self.maxsteep   = self.minsteep # TODO: This should be right, but setting to 0 skips a test in priors
         self.cen_ang    = pi/4
         self.symm       = False
 
@@ -60,17 +62,17 @@ class Object:
     def init(self):
         self.basis.init(self)
 
-        assert(self.maprad is not None)
+#       assert(self.maprad is not None)
 
-        subdivision = 5.
+#       subdivision = 5.
 
-        r = self.maprad
-        w = (2*r+1) / subdivision
+#       r = self.maprad
+#       w = (2*r+1) / subdivision
 
-        gx = linspace(-r,r, (2*r+1) * subdivision)
-        gy = atleast_2d(linspace(-r,r, (2*r+1) * subdivision)).T
+#       gx = linspace(-r,r, (2*r+1) * subdivision)
+#       gy = atleast_2d(linspace(-r,r, (2*r+1) * subdivision)).T
 
-        self.lnr = poten2d(gx, gy, w)
+#       self.lnr = poten2d(gx, gy, w)
 
 
 class Image:
@@ -114,7 +116,14 @@ class Environment:
         self.model_gen = None
         self.models = None
         self.accepted_models = None
+
+        # For use in cosmo.py
+        self.omega_matter = 0.3
+        self.omega_lambda = 0.7
+        self.filled_beam = True
+
         self.ncpus = _detect_cpus()
+        self.ncpus = 1
 
     def current_object(self):
         return self._current_object
