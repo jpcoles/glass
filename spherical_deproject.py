@@ -27,6 +27,7 @@
        mean dispersion value rms averaged over some aperture
      - aperture must be passed with the same units as rin'''
 
+from __future__ import division
 import sys
 from operator import isNumberType
 from numpy import loadtxt

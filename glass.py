@@ -1,3 +1,4 @@
+from __future__ import division
 import sys
 from environment import env
 from plots import mass_plot, potential_plot

@@ -1,3 +1,4 @@
+from __future__ import division
 import math
 from environment import env, Image, System
 from shear import Shear

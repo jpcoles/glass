@@ -1,3 +1,4 @@
+from __future__ import division
 from numpy import array, empty_like, amin, amax, repeat
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
 from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel

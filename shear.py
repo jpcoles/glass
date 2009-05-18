@@ -1,3 +1,4 @@
+from __future__ import division
 from numpy import vectorize
 from math import pi, cos, sin
 
