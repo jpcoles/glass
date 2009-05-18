@@ -41,8 +41,8 @@ class Object:
         self.cdscale    = 0.0
         self.kann_spec  = 0.0
         self.h_spec     = 0.0
-        self.minsteep   = 0.5
-        self.maxsteep   = 0.0
+        self.minsteep   = None
+        self.maxsteep   = None
         #self.maxsteep   = self.minsteep # TODO: This should be right, but setting to 0 skips a test in priors
         self.cen_ang    = pi/4
         self.symm       = False
@@ -123,7 +123,7 @@ class Environment:
         self.filled_beam = True
 
         self.ncpus = _detect_cpus()
-        self.ncpus = 1
+        #self.ncpus = 1
 
     def current_object(self):
         return self._current_object

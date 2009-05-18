@@ -1,7 +1,9 @@
 from __future__ import division
 import sys
 from environment import env
-from plots import mass_plot, potential_plot
+from plots import mass_plot, potential_plot, encmass_plot
+
+from pylab import figure, show
 
 def help():
     print >>sys.stderr, "Usage: glass.py <input>"
@@ -28,8 +30,11 @@ def model(nmodels):
 
     env.models = []
     for i,m in enumerate(generate_models(env.objects, nmodels)): 
+        encmass_plot(m[1][0])
+        #mass_plot(m[1][0])
+        #mass_plot([env.objects[0], {'mass':None}])
+        show()
         env.models.append(m)
-    #mass_plot([env.objects[0], {'mass':None}])
     #potential_plot([env.objects[0], {'mass':None}])
     #mass_plot(m[0])
 

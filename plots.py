@@ -1,7 +1,7 @@
 from __future__ import division
 from numpy import array, empty_like, amin, amax, repeat
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel
+from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog
 from matplotlib.ticker import LogLocator
 
 XX=array([6.169037046118459,
@@ -514,7 +514,7 @@ def img_plot(obj):
 def mass_plot(model):
     obj, data = model
 
-    data['mass'] = XX[:489]
+    #data['mass'] = XX[:489]
     R = obj.basis.maprad
 
     w,h,grid = obj.basis.mass_to_grid(data['mass'])
@@ -576,3 +576,13 @@ def potential_plot(model):
     show()
 
     return grid
+
+def encmass_plot(model):
+    obj, data = model
+
+    R = obj.basis.maprad
+
+    loglog(data['sigma'])
+    xlabel('arcsec')
+    ylabel('Mass')
+    return 
