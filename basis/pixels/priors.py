@@ -1,3 +1,4 @@
+from __future__ import division
 from environment import env
 from numpy import zeros, array, empty, cos, sin, compress
 from potential import poten, poten_x, poten_y, maginv
@@ -28,7 +29,7 @@ def image_pos(o, leq, eq, geq):
     for i,sys in enumerate(o.systems):
         for img in sys.images:
             rows = zeros((2, o.basis.nvar))
-            print "position", img.pos, o.basis.cell_size
+            print "\tposition", img.pos, o.basis.cell_size
             rows[0,0] = (img.pos.real + o.basis.map_shift) * sys.zcap
             rows[1,0] = (img.pos.imag + o.basis.map_shift) * sys.zcap
             positions = img.pos - o.basis.ploc
@@ -90,6 +91,9 @@ def time_delay(o, leq, eq, geq):
 
             if delay == 0:
                 geq(row) 
+            elif delay > 1000:          # XXX: What is this for?!?!
+                row[H0] = -delay
+                geq(row)
             else:
                 row[H0] = -delay
                 eq(row)
@@ -97,11 +101,14 @@ def time_delay(o, leq, eq, geq):
 @object_prior
 def hubble_constant(o, leq, eq, geq):
     print "Hubble Constant"
+    on = False
     if o.h_spec != 0:
         row = zeros(o.basis.nvar)
         row[0] = o.h_spec / o.tscale
         row[o.basis.H0] = -1
         eq(row)
+        on = True
+    print "\t", on
 
 @object_prior
 def magnification(o, leq, eq, geq):
@@ -186,12 +193,16 @@ def magnification(o, leq, eq, geq):
 @object_prior
 def annular_density(o, leq, eq, geq):
     print "Annular density"
+    on = False
     if o.kann_spec != 0:
         row = zeros(o.basis.nvar)
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
             row[o.basis.rings[r]] = -1
             row[0] = kann_spec * len(o.basis.rings[r])
         eq(row)
+        on = True
+
+    print "\t", on
         
 
 ##############################################################################
@@ -203,12 +214,25 @@ def steepness(o, leq, eq, geq):
 
     nrings = len(o.basis.rings)
     row = zeros(o.basis.nvar)
+
+    #---------------------------------------------------------------------------
+    # First handle the central pixel
+    #---------------------------------------------------------------------------
     r0,r1 = o.basis.rings[0:2]
     row[pix_start+r0] =  1.0 / len(r0)
     row[pix_start+r1] = -1.0 / len(r1)
     #print r0,r1
     #print row
+    c=1
     geq(row)
+
+    #---------------------------------------------------------------------------
+    # Now the rest of the rings.
+    #
+    # XXX: This replicates a bug in PixeLens. The real range should be
+    # (1,nrings-1) and then later, the last ring should be -1, not -2.
+    #
+    #---------------------------------------------------------------------------
     for l in xrange(1,nrings-1):
         r0 = o.basis.rings[l]
         r1 = o.basis.rings[l+1]
@@ -221,18 +245,21 @@ def steepness(o, leq, eq, geq):
         #print r0,r1
         #print row
         geq(row)
+        c += 1
 
 
-    print "maxsteep=", o.maxsteep, "minsteep=",o.minsteep
+    print "\tmaxsteep=", o.maxsteep, "minsteep=",o.minsteep
     if o.maxsteep > o.minsteep:
         row = zeros(o.basis.nvar)
         r0 = o.basis.rings[1]
-        r1 = o.basis.rings[-1]
+        r1 = o.basis.rings[-2]
         lc  = -1
         lpc =  nrings ** o.maxsteep
         row[pix_start+r0] = lc  / len(r0)
         row[pix_start+r1] = lpc / len(r1)
         geq(row)
+        c += 1
+    print "\tsteepness eqs =", c
         
 
 @object_prior
@@ -262,8 +289,8 @@ def gradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    print "gradient eqs =", c
-    print "sn=", sn
+    print "\tgradient eqs =", c
+    print "\tsn=", sn
 
 @object_prior
 def smoothness(o, leq, eq, geq):
@@ -275,7 +302,12 @@ def smoothness(o, leq, eq, geq):
 
     c=0
     for nbrs1,nbrs2,nmask,r, ri in o.basis.nbrs:
-        if ri == o.basis.central_pixel: continue
+        #-----------------------------------------------------------------------
+        # Skip the central pixel. This allows any value of mass.
+        # XXX: Some versions of PixeLens don't.
+        #-----------------------------------------------------------------------
+        #if ri == o.basis.central_pixel: continue
+
         row = zeros(o.basis.nvar)
         #print "N",
         #for n in nbrs1: print n,
@@ -284,31 +316,44 @@ def smoothness(o, leq, eq, geq):
         #print
         if len(nbrs1): row[pix_start + nbrs1] = 1
         if len(nbrs2): row[pix_start + nbrs2] = 1
+
+        #-----------------------------------------------------------------------
+        # XXX: This line should really be
+        #       row[pix_start + ri] = -(len(nbrs1)+len(nbrs2))/2.0
+        # since there aren't always 8 neighbors (e.g. on the edge).
+        #-----------------------------------------------------------------------
         row[pix_start + ri] = -4
-        #row[pix_start + ri] = -(len(nbrs1)+len(nbrs2))/2.0
+
         geq(row)
         c += 1
 
-    print "smoothness eqs =", c
+    print "\tsmoothness eqs =", c
 
 @object_prior
 def external_shear(o, leq, eq, geq):
     print "External Shear"
+    on = False
     for s in xrange(o.basis.shear_start, o.basis.shear_end):
         row = zeros(o.basis.nvar)
-        row[0] = 0.1
+        row[0] =  0.1
         row[s] = -1
         geq(row)
+        on = True
+
+    print "\t", on
 
 @ensemble_prior
 def shared_h(objs, nvars, leq, eq, geq):
     print "Shared h"
     #for o1,o2,offs1,offs2 in zip(objs[:-1], objs[1:], obj_offs[:-1], obj_offs[1:]):
+    on = False
     for o1,o2 in izip(objs[:-1], objs[1:]):
         offs1 = o1.basis.array_offset
         offs2 = o2.basis.array_offset
         row = zeros(nvars)
         row[offs1 + o1.basis.H0] =  o1.tscale
         row[offs2 + o2.basis.H0] = -o2.tscale
-        eq(row)
+        eq(row) 
+        on = True
+    print "\t", on
 

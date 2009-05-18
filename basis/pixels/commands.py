@@ -1,3 +1,4 @@
+from __future__ import division
 from environment import env
 from basis import PixelBasis as basis_class
 from solvers.samplex.samplex import Samplex

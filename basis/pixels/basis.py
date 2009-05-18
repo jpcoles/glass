@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy
 from numpy import zeros, min, max, abs, vectorize, negative, array, take,   \
                   ndindex, empty, arange, empty_like, ogrid, round, where,  \
@@ -47,12 +48,13 @@ class PixelBasis:
         #---------------------------------------------------------------------
         self.maprad = obj.maprad
         if self.maprad is None:
-            self.maprad = min([rmax+rmin, 2*rmax-rmin])
-        #print "maprad =",self.maprad
+            r              = min([rmax+rmin, 2*rmax-rmin])
+            self.cell_size = (L+1) * r / L**2
+            self.maprad    = self.cell_size * L
+        else:
+            self.cell_size = (L+1) * self.maprad / L**2
 
-        self.cell_size = (L+1) * self.maprad / L**2
         print "cell_size =", self.cell_size
-        #self.maprad = self.cell_size * L
 
         #---------------------------------------------------------------------
         # Create pixel map -- symm not supported

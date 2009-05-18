@@ -1,3 +1,4 @@
+from __future__ import division
 from commands import *
 from priors import *
 from funcs import *
