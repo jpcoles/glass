@@ -205,8 +205,10 @@ class PixelBasis:
         ps['src']    = sol[ o+self.srcpos_start : o+self.srcpos_end   ] - self.map_shift
         ps['H0']     = sol[ o+self.H0]
 
-        ps['sigma']   = array([len(r) * self.cell_size**2 for r in self.rings], numpy.float32)
+        #ps['sigma']   = array([len(r) * self.cell_size**2 for r in self.rings], numpy.float32)
         ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
+        #ps['sigma'] = cumsum([sum(ps['mass'][r]) / (len(r) * self.cell_size**2)) for r in self.rings])
+        ps['sigma'] = [sum(ps['mass'][r]) / (len(r) * self.cell_size**2) for r in self.rings]
 
         return ps
 
@@ -216,6 +218,8 @@ class PixelBasis:
         L = obj.basis.L
 
         reorder = empty_like(mass)
+        print "********"
+        print max(obj.basis.pmap), len(mass)
         reorder.put(obj.basis.pmap, mass)
 
         grid = zeros((2*L+1)**2)

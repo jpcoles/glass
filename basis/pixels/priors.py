@@ -91,9 +91,12 @@ def time_delay(o, leq, eq, geq):
 
             if delay == 0:
                 geq(row) 
-            elif delay > 1000:          # XXX: What is this for?!?!
-                row[H0] = -delay
+            elif delay < 0:
+                row[H0] = delay
                 geq(row)
+#           elif delay > 1000:          # XXX: What is this for?!?!
+#               row[H0] = -delay
+#               geq(row)
             else:
                 row[H0] = -delay
                 eq(row)
@@ -210,6 +213,12 @@ def annular_density(o, leq, eq, geq):
 @object_prior
 def steepness(o, leq, eq, geq):
     print "Steepness" 
+
+    if o.minsteep is None: return
+    if o.maxsteep is None: return
+
+    assert o.maxsteep >= o.minsteep
+
     pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
 
     nrings = len(o.basis.rings)
@@ -226,6 +235,7 @@ def steepness(o, leq, eq, geq):
     c=1
     geq(row)
 
+
     #---------------------------------------------------------------------------
     # Now the rest of the rings.
     #
@@ -237,28 +247,46 @@ def steepness(o, leq, eq, geq):
         r0 = o.basis.rings[l]
         r1 = o.basis.rings[l+1]
 
-        row = zeros(o.basis.nvar)
-        lc  = l ** o.minsteep
-        lpc = -((l+1) ** o.minsteep)
-        row[pix_start+r0] = lc  / len(r0)
-        row[pix_start+r1] = lpc / len(r1)
-        #print r0,r1
-        #print row
-        geq(row)
-        c += 1
+
+        if o.minsteep == o.maxsteep:
+            row = zeros(o.basis.nvar)
+            lc  = l ** o.minsteep
+            lpc = -((l+1) ** o.minsteep)
+            row[pix_start+r0] = lc  / len(r0)
+            row[pix_start+r1] = lpc / len(r1)
+            #print r0,r1
+            #print row
+            eq(row)
+        else:
+            row = zeros(o.basis.nvar)
+            lc  = l ** o.minsteep
+            lpc = -((l+1) ** o.minsteep)
+            row[pix_start+r0] = lc  / len(r0)
+            row[pix_start+r1] = lpc / len(r1)
+            #print r0,r1
+            #print row
+            geq(row)
+
+            row = zeros(o.basis.nvar)
+            lc  = l ** o.maxsteep
+            lpc = -((l+1) ** o.maxsteep)
+            row[pix_start+r0] = lc  / len(r0)
+            row[pix_start+r1] = lpc / len(r1)
+            leq(row)
+            c += 1
 
 
-    print "\tmaxsteep=", o.maxsteep, "minsteep=",o.minsteep
-    if o.maxsteep > o.minsteep:
-        row = zeros(o.basis.nvar)
-        r0 = o.basis.rings[1]
-        r1 = o.basis.rings[-2]
-        lc  = -1
-        lpc =  nrings ** o.maxsteep
-        row[pix_start+r0] = lc  / len(r0)
-        row[pix_start+r1] = lpc / len(r1)
-        geq(row)
-        c += 1
+#   print "\tmaxsteep=", o.maxsteep, "minsteep=",o.minsteep
+#   if o.maxsteep > o.minsteep:
+#       row = zeros(o.basis.nvar)
+#       r0 = o.basis.rings[1]
+#       r1 = o.basis.rings[-2]
+#       lc  = -1
+#       lpc =  nrings ** o.maxsteep
+#       row[pix_start+r0] = lc  / len(r0)
+#       row[pix_start+r1] = lpc / len(r1)
+#       geq(row)
+#       c += 1
     print "\tsteepness eqs =", c
         
 
@@ -306,7 +334,7 @@ def smoothness(o, leq, eq, geq):
         # Skip the central pixel. This allows any value of mass.
         # XXX: Some versions of PixeLens don't.
         #-----------------------------------------------------------------------
-        #if ri == o.basis.central_pixel: continue
+        if ri == o.basis.central_pixel: continue
 
         row = zeros(o.basis.nvar)
         #print "N",
