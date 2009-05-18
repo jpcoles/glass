@@ -47,7 +47,7 @@ CPUDEFS
 /*==========================================================================*/
 /* Debugging tools                                                          */
 /*==========================================================================*/
-#define DBG_LEVEL 0
+#define DBG_LEVEL 1
 #define DBG(lvl) if (DBG_LEVEL >= lvl) 
 
 
@@ -479,8 +479,6 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
             piv  = -1;
             res = UNBOUNDED;
             break;
-            //fprintf(stderr, "UNBOUNDED!!!!!!!!!\n");
-            //return UNBOUNDED;
         }
 
         //fprintf(stderr, "* r=%i lpiv=%i cinc=%f inc=%f right[r]=%i rpivq=%i\n", r,lpiv,cinc, inc, right[r], rpivq);
@@ -494,7 +492,6 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
 
         if (!accept) continue;
 
-        //fprintf(stderr, "\n!!!!!!!!!!!!!!! cpiv=%f\n", cpiv);
         lpiv  = l;    
         rpiv  = r; 
 
@@ -508,10 +505,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
         //break; // Bland's Rule: Take the first one you find.
     }
 
-    DBG(1) fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
-    //assert(piv <  1e4);
-    //assert(piv > -1e4);
-    //DBG(3) fprintf(stderr, "< choosePivot() %i %i %23.15Lf\n", lpiv, rpiv, (long double)piv);
+    DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
 
     *lpiv0 = lpiv;
     *rpiv0 = rpiv;
@@ -723,9 +717,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     long Zorig = Z;
 
-    for (n=0; ; n++)
+    for (n=0; n<1; n++)
     {
-        if ((n&15) == 0) fprintf(stderr, "iter %i\n", n);
+        //if ((n&15) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
         //if (n == 5) exit(0);
 
         init_threads(T); 
@@ -733,125 +727,120 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
         ret = select_pivot(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
 
-        if (ret == FOUND_PIVOT) 
+        if (ret != FOUND_PIVOT) break;
+
+        //------------------------------------------------------------------
+        // Actual pivot
+        //------------------------------------------------------------------
+        //doPivot(&tabl, L, piv, lpiv, rpiv, 0, R+1);
+        //==================================================================
+        // Let the threads know they need to perform the pivot
+        //
+        // If there's only one thread, then just do the operation in the 
+        // current thread instead of using other worker threads.
+        //
+        // In any event, we do at least one pivot operation in this thread.
+        //==================================================================
+
+        for (i=0; i < pool.nthreads; i++)
         {
-            //------------------------------------------------------------------
-            // Actual pivot
-            //------------------------------------------------------------------
-            //doPivot(&tabl, L, piv, lpiv, rpiv, 0, R+1);
-            //==================================================================
-            // Let the threads know they need to perform the pivot
-            //
-            // If there's only one thread, then just do the operation in the 
-            // current thread instead of using other worker threads.
-            //
-            // In any event, we do at least one pivot operation in this thread.
-            //==================================================================
+            pool.thr[i].tabl   = &tabl;
+            pool.thr[i].L      = L;
+            pool.thr[i].piv    = piv;
+            pool.thr[i].lpiv   = lpiv;
+            pool.thr[i].rpiv   = rpiv;
+            pool.thr[i].action = doPivot;
+        }
 
-            for (i=0; i < pool.nthreads; i++)
+        startup_threads();
+        doPivot(&pool.thr[0]);
+        wait_for_threads();
+
+        //----------------------------------------------------------------------
+        // Update pivot column
+        //----------------------------------------------------------------------
+        DBG(2) fprintf(stderr, "piv=%f\n", piv);
+        pcol = &tabl.data[rpiv * tabl.w + 0];
+        for (i=0; i <= L; i++)
+            pcol[i] = rtz(pcol[i] / piv); 
+        pcol[lpiv] = rtz(1.0 / piv);
+
+        //----------------------------------------------------------------------
+        // Swap left and right variables.
+        //----------------------------------------------------------------------
+        int32_t lq = left[lpiv];
+        int32_t rq = right[rpiv];
+
+        left[lpiv]  = rq;
+        right[rpiv] = lq;
+
+        DBG(2)
+        {
+            for (i=0; i <= R; i++)
             {
-                pool.thr[i].tabl   = &tabl;
-                pool.thr[i].L      = L;
-                pool.thr[i].piv    = piv;
-                pool.thr[i].lpiv   = lpiv;
-                pool.thr[i].rpiv   = rpiv;
-                pool.thr[i].action = doPivot;
-            }
+                dble_t *col = &(tabl.data[i * tabl.w + 0]);
+                for (j=0; j <= L; j++)
+                    if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
+                    {
+                        fprintf(stderr, "++B+++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
+                        //assert(0);
+                    }
 
-            startup_threads();
-            doPivot(&pool.thr[0]);
-            wait_for_threads();
-
-            //----------------------------------------------------------------------
-            // Update pivot column
-            //----------------------------------------------------------------------
-            DBG(1) fprintf(stderr, "piv=%f\n", piv);
-            pcol = &tabl.data[rpiv * tabl.w + 0];
-            for (i=0; i <= L; i++)
-                pcol[i] = rtz(pcol[i] / piv); 
-            pcol[lpiv] = rtz(1.0 / piv);
-
-            //----------------------------------------------------------------------
-            // Swap left and right variables.
-            //----------------------------------------------------------------------
-            int32_t lq = left[lpiv];
-            int32_t rq = right[rpiv];
-
-            left[lpiv]  = rq;
-            right[rpiv] = lq;
-
-            DBG(2)
-            {
-                for (i=0; i <= R; i++)
-                {
-                    dble_t *col = &(tabl.data[i * tabl.w + 0]);
-                    for (j=0; j <= L; j++)
-                        if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
-                        {
-                            fprintf(stderr, "++B+++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
-                            //assert(0);
-                        }
-
-                        //fprintf(stderr, "%.4f ", col[j]);
-                    //fprintf(stderr, "\n");
-                }
-            }
-
-            if (lq < 0) 
-            { 
-                DBG(1) fprintf(stderr, "\nREMOVING %i\n\n", rpiv);
-                //------------------------------------------------------------------
-                // Remove the column at rpiv
-                //------------------------------------------------------------------
-                memmove(right+rpiv+0, 
-                        right+rpiv+1, 
-                        sizeof(*right)*(R-rpiv)); /* (R+1)-(rpiv+1) */
-
-                memmove(tabl.data + (rpiv+0)*tabl.w, 
-                        tabl.data + (rpiv+1)*tabl.w,
-                        sizeof(*tabl.data) * (R-rpiv)*tabl.w);
-
-                Z--; 
-                R--;
-                need_assign_pivot_threads = 1;
-            }
-
-
-            DBG(1)
-            {
-                for (i=0; i <= R; i++)
-                {
-                    dble_t *col = &(tabl.data[i * tabl.w + 0]);
-                    for (j=0; j <= L; j++)
-                        if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
-                        {
-                            fprintf(stderr, "+++++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
-                            //assert(0);
-                        }
-
-                        //fprintf(stderr, "%.4f ", col[j]);
-                    //fprintf(stderr, "\n");
-                }
-            }
-
-            if (Z==0) 
-            {
-#if 0
-                DBG(2)
-                {
-                    end_time = CPUTIME;
-                    double t = end_time - start_time;
-                    fprintf(stderr, "feasible after %f\n", t);
-                }
-#endif
-
-                ret = FEASIBLE;
-                if (Zorig != 0) break;
+                    //fprintf(stderr, "%.4f ", col[j]);
+                //fprintf(stderr, "\n");
             }
         }
-        else
+
+        if (lq < 0) 
+        { 
+            //------------------------------------------------------------------
+            // Remove the column at rpiv
+            //------------------------------------------------------------------
+            memmove(right+rpiv+0, 
+                    right+rpiv+1, 
+                    sizeof(*right)*(R-rpiv)); /* (R+1)-(rpiv+1) */
+
+            memmove(tabl.data + (rpiv+0)*tabl.w, 
+                    tabl.data + (rpiv+1)*tabl.w,
+                    sizeof(*tabl.data) * (R-rpiv)*tabl.w);
+
+            Z--; 
+            R--;
+            need_assign_pivot_threads = 1;
+            DBG(1) fprintf(stderr, "\nREMOVED %i Z=%ld R=%ld\n\n", rpiv, Z,R);
+        }
+
+
+        DBG(2)
         {
-            break;
+            for (i=0; i <= R; i++)
+            {
+                dble_t *col = &(tabl.data[i * tabl.w + 0]);
+                for (j=0; j <= L; j++)
+                    if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
+                    {
+                        fprintf(stderr, "+++++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
+                        //assert(0);
+                    }
+
+                    //fprintf(stderr, "%.4f ", col[j]);
+                //fprintf(stderr, "\n");
+            }
+        }
+
+        if (Z==0) 
+        {
+#if 0
+            DBG(2)
+            {
+                end_time = CPUTIME;
+                double t = end_time - start_time;
+                fprintf(stderr, "feasible after %f\n", t);
+            }
+#endif
+
+            ret = FEASIBLE;
+            if (Zorig != 0) break;
         }
     }
 

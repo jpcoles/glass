@@ -88,7 +88,7 @@ def fromFile(s, filename):
     for line in fp:
         line = line.split()
         print line
-        if line[0] == "eq":    s.eq(array(map(float, line[2:])))
+        if   line[0] == "eq":  s.eq(array(map(float, line[2:])))
         elif line[0] == "leq": s.leq(array(map(float, line[2:])))
         elif line[0] == "geq": s.geq(array(map(float, line[2:])))
 

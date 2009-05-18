@@ -1,3 +1,4 @@
+from __future__ import division
 import sys
 import numpy
 from numpy import isfortran, asfortranarray, sign, logical_and
@@ -104,22 +105,30 @@ class Samplex:
         self.eq_count  = 0
 
         def eq_key(x):
-            if x[0] == self._eq: return 0
-            if x[0] == self._geq: return 1
-            if x[0] == self._leq: return 2
+            if x[0] == self._geq: return 0
+            if x[0] == self._leq: return 1
+            if x[0] == self._eq:  return 2
             assert False, 'Bad function %s' % str(x[0])
 
-        #self.eq_list.sort(key=eq_key)
+        self.eq_list.sort(key=eq_key)
         print "random seed =", ran_set_seed(0)
         #print self.data
 
         if 0:
+            def print_array(out, fs, arr):
+                out.write("%s %i " % (fs, len(arr)));
+                for i in arr: 
+                    if i in [0,1,-1]:
+                        out.write("%10i " % i)
+                    else:
+                        out.write("%.4e " % i)
+                out.write("\n")
             out = open('eqs2', 'w')
             for f,a in self.eq_list:
                 if f == self._eq:  fs = 'eq'
                 if f == self._geq: fs = 'geq'
                 if f == self._leq: fs = 'leq'
-                print >>out, fs, len(a), a
+                print_array(out, fs, a)
             out.close()
 
         print "Building matrix"
@@ -311,12 +320,11 @@ class Samplex:
             #print self.data
             #print self.lhv
             #print self.rhv
-            if result == self.UNBOUNDED:
-                raise SamplexUnboundedError()
-            elif result == self.NOPIVOT:
-                raise SamplexNoSolutionError()
-            elif result == self.FEASIBLE:
-                break
+            if   result == self.UNBOUNDED:   raise SamplexUnboundedError()
+            elif result == self.NOPIVOT:     raise SamplexNoSolutionError()
+            elif result == self.FEASIBLE:    break
+            elif result == self.FOUND_PIVOT: pass
+
             self.status()
             self.iteration += 1
 
