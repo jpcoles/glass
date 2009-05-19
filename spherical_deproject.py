@@ -1,7 +1,7 @@
 '''
-   #-----------------------------------------------------------------------------
+   #------------------------------------------------------------------------
    # deproject.py | version 0.0 | Justin Read 2009 
-   #-----------------------------------------------------------------------------
+   #------------------------------------------------------------------------
 
    These routines form the Abel deprojection module for GLASS.
    abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,
@@ -14,12 +14,12 @@
      - alphalim sets the min. outer slope steepness (ensures "log-finite" mass)
 
    sigpsolve(r,rho,integrator,intpnts,upper,alphalim,Gsp,
-             lightsurf,lpars,beta)
+             light,lpars,beta)
      - calculates the projected velocity dispersion profile sigp(R)
      - rho(r) is calculated in abelsolve()
      - integrator/intpnts/alphalim as above
      - Gsp is the value of the gravitational const. (sets the units)
-     - lightsurf/lpars set the light distribution
+     - light+lpars set the light distribution [see massmodel folder]
      - beta sets the constant velocity aniostropy
 
    sigpsingle(rin,sigp,light,lpars,aperture,integrator):
@@ -29,7 +29,6 @@
 
 from __future__ import division
 import sys
-from operator import isNumberType
 from numpy import loadtxt
 from numpy import interp
 from numpy import linspace, logspace, empty, zeros
@@ -42,67 +41,6 @@ from scipy.misc.common import derivative
 #-----------------------------------------------------------------------------
 # Functions
 #-----------------------------------------------------------------------------
-
-def sersicsurf(r,pars):
-    '''Defines a sersic profile for the *projected* light.
-       pars[0]=sigma0
-       pars[1]=re
-       pars[2]=n'''   
-
-    bn = 1.9992*pars[2]-0.3271
-    return pars[0]*exp(-bn*((r/pars[1])**(1.0/pars[2])-1.0))
-
-def sersicden(r,pars):
-    '''Calculates the density for the sersic profile (solves the Abel integral).
-       pars[0]=sigma0
-       pars[1]=re
-       pars[2]=n
-       pars[3]=intpnts'''
-
-    intpnts = pars[3]
-    bn = 1.9992*pars[2]-0.3271
-    theta = linspace(0.,pi/2.-1.0e-6,num=intpnts)
-    cth = cos(theta)
-    rho = empty(len(r), 'double')
-    for i in xrange(len(r)):
-        y = exp(-bn*((r[i]/cth/pars[1])**(1./pars[2])-1.0))*\
-            (-bn/pars[1]**(1./pars[2])*(r[i]/cth)**(1./pars[2]-1.0)*1./pars[2])
-        rho[i] = (-1./pi)*integrator(y/cth,theta)
-    return rho
-
-def sersic():
-    return sersicsurf, sersicden
-
-def hernquistsurf(r,pars):
-    '''Calculates a *projected* hernquist-alpha profile for the light.
-       pars[0]=rho0
-       pars[1]=a
-       pars[2]=alp
-       pars[3]=intpnts'''
-    
-    intpnts = pars[3]
-    theta = linspace(0.,pi/2.-1.0e-6,num=intpnts)
-    cth = cos(theta)
-    cth2 = cth**2.0
-    surf = empty(len(r), 'double')
-    for i in xrange(len(r)):
-        q = r[i]/cth
-        y = pars[0]*(3.0-pars[2])/(4.0*pi*pars[1]**3.0)/\
-            ((q/pars[1])**pars[2]*(1.0+(q/pars[1]))**(4.0-pars[2]))
-        surf[i] = 2.0*r[i]*integrator(y/cth2,theta)
-    return surf
-
-def hernquistden(r,pars):    
-    '''Defines a hernquist alpha profile for the light. 
-    pars[0]=rho0
-    pars[1]=a
-    pars[2]=alp'''
-
-    return pars[0]*(3.0-pars[2])/(4.0*pi*pars[1]**3.0)*\
-           (r/pars[1])**(-pars[2])*(1.0+r/pars[1])**(-4.0+pars[2])
-
-def hernquist():
-    return hernquistsurf, hernquistden 
 
 def thetaintintegrand(theta,beta):
     return cos(theta)**(2.0*beta-2.0)*(1.0-beta*cos(theta)**2.0)
@@ -233,7 +171,6 @@ def sigpsolve(r,rho,integrator,intpnts,alphalim,Gsp,
        for details. Note typos in equation (1) of their paper. Int.
        limits for f(r) should be r-->infty and GM(r)/r should be GM(r)/r**2.0'''
 
-    lightsurf, lightden = light
     massr = sphericalcumulate(r,rho,integrator)
     rmax = max(r)
     sigp2 = empty(len(r), 'double')
@@ -246,12 +183,12 @@ def sigpsolve(r,rho,integrator,intpnts,alphalim,Gsp,
     for i in xrange(len(r)):
         lower = r[i]
         rint = lower/cth
-        rhostar = lightden(rint,lpars)
+        rhostar = light.den(rint,lpars)
         mtot = masstot(rmax,alphalim,r,rho,massr,rint)
         integrand = rhostar*rint**(2.0*beta-2.0)*Gsp*\
                     mtot*gRr(rint,beta,lower)
         sigp2[i] = integrator(integrand*lower*sth/cth2,theta)
-    sigp2 = sigp2 * 2.0/lightsurf(r,lpars)
+    sigp2 = sigp2 * 2.0/light.surf(r,lpars)
     sigp = sqrt(sigp2)
 
     return sigp
@@ -265,10 +202,9 @@ def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
     while rin[ap] < aperture:
         ap=ap+1
 
-    lightsurf, lightden = light
     R = rin[:ap]
     sigp2 = sigp[:ap]**2.0
-    IR = lightsurf(R,lpars)
+    IR = light.surf(R,lpars)
 
     return sqrt(integrator(sigp2*IR*2.0*pi*R,R)/\
                 integrator(IR*2.0*pi*R,R))
@@ -296,8 +232,7 @@ if __name__ == "__main__":
     interpnts = 500
     
     #Light distribution parameters + vel anisotropy: 
-    light = hernquist()
-    lightsurf, lightden = light
+    import massmodel.Hernquist as light
     lpars = [1.0,15.0,1.0,intpnts]
     beta = 0.
     aperture = 30.
@@ -355,25 +290,6 @@ if __name__ == "__main__":
 
     print 'Final rms mean projected vel. dispersion:',sigpsing
 
-    #-------------------------------------------------------------------------
-    # Plot the results: test the light functions
-    #-------------------------------------------------------------------------
-    rl = linspace(0.1,50.,num=1000)
-    hernden = hernquistden(rl,lpars)
-    hernsurf = hernquistsurf(rl,lpars)
-    sercden = sersicden(rl,lpars)
-    sercsurf = sersicsurf(rl,lpars)
-    figure()
-    loglog(rl,sercden,label='Sersic density')
-    loglog(rl,sercsurf,label='Sersic surface density')
-    loglog(rl,hernden,label='Hernquist density')
-    loglog(rl,hernsurf,label='Hernquist surface density')
-    title('Testing light functions')
-    xlabel(r'$r,R(\mathrm{kpc})$')
-    ylabel(r'$\Sigma(R),\rho(r)$')
-    legend()
-    savefig(outdir+'light.pdf')
-    
     #-------------------------------------------------------------------------
     # Plot the results: testing the interpolants
     #-------------------------------------------------------------------------
