@@ -1,9 +1,9 @@
 from __future__ import division
-import sys
+import sys, getopt
 from environment import env
-from plots import mass_plot, potential_plot, encmass_plot
-
-from pylab import figure, show
+from plots import mass_plot, potential_plot, sigma_plot, H0_plot, encmass_plot
+from numpy import array
+from pylab import figure, show, clf, ioff, draw, ion, subplot, cla
 
 def help():
     print >>sys.stderr, "Usage: glass.py <input>"
@@ -29,12 +29,55 @@ def model(nmodels):
     #print mass_grid(model, env.objects[0])
 
     env.models = []
+    H0s = []
+    mass = None
+
+    ensemble_avg = None
+
     for i,m in enumerate(generate_models(env.objects, nmodels)): 
-        encmass_plot(m[1][0])
-        #mass_plot(m[1][0])
+        if ensemble_avg is None:
+            ensemble_avg = array(m[0], copy=True)
+        else:
+            ensemble_avg += m[0]
+
+        #H0s.append(m[1][0][1]['1/H0'])
+#       clf()
+        #H0_plot(H0s)
+#        encmass_plot(m[1][0])
+        #sigma_plot(m[1][0])
+        #ioff()
+#       mass_plot(m[1][0])
+        #show()
         #mass_plot([env.objects[0], {'mass':None}])
-        show()
+        #draw()
+        #ion()
         env.models.append(m)
+        continue
+
+        subplot(2,2,1)
+        clf()
+        H0_plot(H0s)
+        subplot(2,2,2)
+        clf()
+        mass_plot(m[1][0])
+        subplot(2,2,3)
+        sigma_plot(m[1][0])
+        subplot(2,2,4)
+        encmass_plot(m[1][0])
+
+    ensemble_avg /= nmodels
+    ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)
+
+    #mass_plot([env.objects[0], {'mass': mass/nmodels}])
+    figure()
+    potential_plot(env.models[0][1][0])
+    figure()
+    sigma_plot(env.models)
+    figure()
+    encmass_plot(env.models)
+    figure()
+    H0_plot(env.models)
+    show()
     #potential_plot([env.objects[0], {'mass':None}])
     #mass_plot(m[0])
 
@@ -57,6 +100,17 @@ def model(nmodels):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2: help()
-    from commands import *
-    execfile(sys.argv[1])
+
+    optlist, list = getopt.getopt(sys.argv[1:], 't:h')
+    print optlist, list
+    for opt in optlist:
+        if   opt[0] == '-h':
+            help()
+        elif opt[0] == '-t':
+            ncpus = int(opt[1])
+            assert ncpus > 0
+            env.ncpus = ncpus
+
+    from glcmds import *
+    execfile(list[0])
 

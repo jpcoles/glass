@@ -537,8 +537,36 @@ void choose_pivot(pivot_thread_t *thr)
 int32_t select_pivot(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                      int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 {
-    int i;
+#if 1
 
+    int32_t start = pool.thr[0].start,
+            end   = pool.thr[0].end;
+
+    pool.thr[0].start = 1;
+    pool.thr[0].end   = R+1;
+    pool.thr[0].tabl   = tabl;
+    pool.thr[0].left   = left;
+    pool.thr[0].right  = right;
+    pool.thr[0].L      = L;
+    pool.thr[0].piv    = 0;
+    pool.thr[0].lpiv   = 0;
+    pool.thr[0].rpiv   = 0;
+    pool.thr[0].inc    = 0;
+    pool.thr[0].coef   = 0;
+    pool.thr[0].res    = NOPIVOT;
+    choose_pivot(&pool.thr[0]);
+
+    *lpiv0 = pool.thr[0].lpiv;    
+    *rpiv0 = pool.thr[0].rpiv; 
+    *piv0  = pool.thr[0].piv; 
+
+    pool.thr[0].start = start;
+    pool.thr[0].end   = end;
+
+    return pool.thr[0].res;
+#else
+
+    int i;
     for (i=0; i < pool.nthreads; i++)
     {
         pool.thr[i].tabl   = tabl;
@@ -554,34 +582,11 @@ int32_t select_pivot(matrix_t *tabl, int32_t *left, int32_t *right, long L, long
         pool.thr[i].action = choose_pivot;
     }
 
-    int32_t start = pool.thr[0].start,
-            end   = pool.thr[0].end;
-
-    pool.thr[0].start = 1;
-    pool.thr[0].end   = R+1;
-    choose_pivot(&pool.thr[0]);
-
-    *lpiv0 = pool.thr[0].lpiv;    
-    *rpiv0 = pool.thr[0].rpiv; 
-    *piv0  = pool.thr[0].piv; 
-
-    pool.thr[0].start = start;
-    pool.thr[0].end   = end;
-
-    return pool.thr[0].res;
-
-#if 0
-    //startup_threads();
+    startup_threads();
     pool.thr[0].start += 1;
     choose_pivot(&pool.thr[0]);
     pool.thr[0].start -= 1;
-    //wait_for_threads();
-
-
-    for (i=1; i < pool.nthreads; i++)
-    {
-        choose_pivot(&pool.thr[i]);
-    }
+    wait_for_threads();
 
     int32_t rpivq = 0,
             lpiv  = 0,
@@ -589,7 +594,6 @@ int32_t select_pivot(matrix_t *tabl, int32_t *left, int32_t *right, long L, long
 
     dble_t piv = 0, inc=0, coef=0;
     int32_t res = NOPIVOT;
-
 
     for (i=0; i < pool.nthreads; i++)
     {
@@ -717,12 +721,18 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     long Zorig = Z;
 
-    for (n=0; n<1; n++)
+    Py_BEGIN_ALLOW_THREADS
+
+    double stime = CPUTIME;
+
+    init_threads(T); 
+
+    //for (n=0; n<1; n++)
+    for (n=0;; n++)
     {
-        //if ((n&15) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
+        //if ((n&31) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
         //if (n == 5) exit(0);
 
-        init_threads(T); 
         if (need_assign_pivot_threads) assign_threads(0,R); 
 
         ret = select_pivot(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
@@ -756,14 +766,6 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         doPivot(&pool.thr[0]);
         wait_for_threads();
 
-        //----------------------------------------------------------------------
-        // Update pivot column
-        //----------------------------------------------------------------------
-        DBG(2) fprintf(stderr, "piv=%f\n", piv);
-        pcol = &tabl.data[rpiv * tabl.w + 0];
-        for (i=0; i <= L; i++)
-            pcol[i] = rtz(pcol[i] / piv); 
-        pcol[lpiv] = rtz(1.0 / piv);
 
         //----------------------------------------------------------------------
         // Swap left and right variables.
@@ -774,27 +776,21 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         left[lpiv]  = rq;
         right[rpiv] = lq;
 
-        DBG(2)
+        if (lq >= 0)
         {
-            for (i=0; i <= R; i++)
-            {
-                dble_t *col = &(tabl.data[i * tabl.w + 0]);
-                for (j=0; j <= L; j++)
-                    if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
-                    {
-                        fprintf(stderr, "++B+++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
-                        //assert(0);
-                    }
-
-                    //fprintf(stderr, "%.4f ", col[j]);
-                //fprintf(stderr, "\n");
-            }
+            //----------------------------------------------------------------------
+            // Update pivot column
+            //----------------------------------------------------------------------
+            DBG(2) fprintf(stderr, "piv=%f\n", piv);
+            pcol = &tabl.data[rpiv * tabl.w + 0];
+            for (i=0; i <= L; i++)
+                pcol[i] = pcol[i] / piv;
+            pcol[lpiv] = 1.0 / piv;
         }
-
-        if (lq < 0) 
+        else
         { 
             //------------------------------------------------------------------
-            // Remove the column at rpiv
+            // Remove the pivot column
             //------------------------------------------------------------------
             memmove(right+rpiv+0, 
                     right+rpiv+1, 
@@ -830,20 +826,16 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
         if (Z==0) 
         {
-#if 0
-            DBG(2)
-            {
-                end_time = CPUTIME;
-                double t = end_time - start_time;
-                fprintf(stderr, "feasible after %f\n", t);
-            }
-#endif
-
             ret = FEASIBLE;
             if (Zorig != 0) break;
         }
     }
 
+    double etime = CPUTIME;
+
+    fprintf(stderr, "time: %f\n", (etime-stime) / pool.nthreads);
+
+    Py_END_ALLOW_THREADS
 
     PyObject_SetAttrString(o, "nRight", PyInt_FromLong(R));
     PyObject_SetAttrString(o, "nTemp", PyInt_FromLong(Z));
@@ -894,7 +886,7 @@ inline void in0(const int32_t r,
         //dble_t v = col[kp] - pcol[kp] * col_lpiv;
         //dble_t v = fdim(col[kp], pcol[kp] * col_lpiv);
 
-        if (kp != 0 && kp != lpiv0 && rtz(v) < 0) 
+        if (kp != lpiv0 && rtz(v) < 0) 
         {
             fprintf(stderr, "**** \n lpiv=%i pcol[%i]=%.15e "
                             "col_lpiv=%.15e col[%i]=%.15e v=%.15e\n", 
@@ -932,15 +924,15 @@ inline void in(const int32_t r,
     //fprintf(stderr, "in %i\n", r);
     for (; kp >= 0; kp--) 
     {
-        col[kp] = rtz(col[kp] - (pcol[kp] * col_lpiv) / piv);
+        col[kp] = col[kp] - (pcol[kp] * col_lpiv) / piv;
 
-        //col[kp] = rtz(col[kp] - (pcol[kp] * col_lpiv) / piv);
-        //col[kp] = rtz(col[kp] - pcol[kp] * col_lpiv);
+        //col[kp] = col[kp] - (pcol[kp] * col_lpiv) / piv;
+        //col[kp] = col[kp] - pcol[kp] * col_lpiv;
 //      if (r == 354 && kp == 917) {
 //          fprintf(stderr, "col[%i]=%f col_lpiv=%f lpiv0=%i\n", kp, col[kp], col_lpiv, lpiv0);
 //      }
     }
-    col[lpiv0] = rtz(col_lpiv / -piv);
+    col[lpiv0] = col_lpiv / -piv;
 }
 
 void doPivot0(matrix_t *tabl,

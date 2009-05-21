@@ -9,7 +9,7 @@ def globject(name):
     env.model_gen_factory = lambda nvars: Samplex(nvars, nthreads=env.ncpus)
 
 def pixrad(r):
-    env.current_object().basis.L = r
+    env.current_object().basis.pixrad = r
 
 def priors(*ps):
     env.current_object().basis.prior_list = ps

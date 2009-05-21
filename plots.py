@@ -1,7 +1,7 @@
 from __future__ import division
 from numpy import array, empty_like, amin, amax, repeat
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog
+from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, hist, hold, colorbar, legend, over, axvline
 from matplotlib.ticker import LogLocator
 
 XX=array([6.169037046118459,
@@ -503,13 +503,15 @@ XX=array([6.169037046118459,
 ], 'double')
 
 def img_plot(obj):
-    xs = []
-    ys = []
-    for sys in obj.systems:
+    cs = 'rgbcmykw'
+    for i,sys in enumerate(obj.systems):
+        xs = []
+        ys = []
         for img in sys.images:
             xs.append(img.pos.real)
             ys.append(img.pos.imag)
-    scatter(xs, ys, 80, 'r')
+        over(scatter,xs, ys, s=80, c=cs[i])
+    legend()
 
 def mass_plot(model):
     obj, data = model
@@ -523,7 +525,9 @@ def mass_plot(model):
     y = linspace(-R,R, h)
     X,Y = meshgrid(x,y)
 
-    contour(X,Y,grid, 50, extent=[-R,R,-R,R], extend='both')
+    #contour(X,Y,grid, 50, extent=[-R,R,-R,R], extend='both')
+    imshow(grid, extent=[-R,R,-R,R], interpolation='nearest')
+    colorbar()
     img_plot(obj)
     xlabel('arcsec')
     ylabel('arcsec')
@@ -540,7 +544,7 @@ def arrival_plot(obj, model):
 
     lnr = poten2d(gx, gy, obj.basis.cell_size)
 
-    print lnr, lnr.shape
+    #print lnr, lnr.shape
 
     grid = zeros((2*L+1, 2*L+1))
     for y in xrange(2*L+1):
@@ -560,15 +564,15 @@ def potential_plot(model):
 
     lnr = obj.lnr
 
-    print lnr, lnr.shape
+    #print lnr, lnr.shape
 
-    mass = data['mass']
-    a = repeat(mass, repeat(5, mass.size)).reshape
+#   mass = data['mass']
+#   a = repeat(mass, repeat(5, mass.size)).reshape
 
-    grid = zeros((2*L+1, 2*L+1))
-    for y in xrange(2*L+1):
-        for x in xrange(2*L+1):
-            grid[y,x] = sum(model['mass'] * lnr)
+#   grid = zeros((2*L+1, 2*L+1))
+#   for y in xrange(2*L+1):
+#       for x in xrange(2*L+1):
+#           grid[y,x] = sum(model['mass'] * lnr)
 
     #print grid
     contour(grid)
@@ -577,12 +581,53 @@ def potential_plot(model):
 
     return grid
 
-def encmass_plot(model):
-    obj, data = model
+_sigma_ylabel = r'$\Sigma$'
+def sigma_plot(models):
+    for [sol, objs] in models:
+        for [obj, data] in objs:
+            over(loglog, data['R'], data['sigma'])
 
-    R = obj.basis.maprad
-
-    loglog(data['sigma'])
+    #loglog(data['R'], data['sigma'])
+    #gca().set_xlim(0,data['R'][-1])
     xlabel('arcsec')
-    ylabel('Mass')
+    ylabel(_sigma_ylabel)
+
+_encmass_ylabel = r'$M$'
+def encmass_plot(models):
+
+    for [sol, objs] in models:
+        for [obj, data] in objs:
+            over(loglog, data['R'], data['encmass'])
+
+    #gca().set_xlim(0,data['R'][-1])
+    xlabel('arcsec')
+    ylabel(_encmass_ylabel)
+
+_H0_xlabel = r'$H_0^{-1}$ (Gyr)'
+def xxxH0_plot(H0s):
+
+    #print H0s
+    #hist(H0s, bins=150, histtype='step')
+    hist(log10(H0s), bins=100, histtype='step')
+    axvline(log10(14), c='r', ls=':')
+    #gca().set_xlim(0, 20)
+    #gca().set_xscale('log', basex=10)
+    xlabel(_H0_xlabel)
+    ylabel('Number')
     return 
+
+
+_H0_xlabel = r'$H_0^{-1}$ (Gyr)'
+def H0_plot(models, objects=None):
+
+    H0s = [ data['1/H0'] for [sol, objs] in models for [obj, data] in objs ]
+            
+    hist(log10(H0s), bins=100, histtype='step')
+    axvline(log10(14), c='r', ls=':')
+
+    #gca().set_xlim(0, 20)
+    #gca().set_xscale('log', basex=10)
+    xlabel(_H0_xlabel)
+    ylabel('Number')
+    return 
+

@@ -1,5 +1,5 @@
 from __future__ import division
-from commands import *
+from glcmds import *
 from priors import *
 from funcs import *
 
@@ -55,11 +55,13 @@ def init_model_generator():
     for p in gp:
         p.f(objs, nvars, mg.leq, mg.eq, mg.geq)
 
+def packaged_solution(obj, sol):
+    return obj.basis.packaged_solution(sol)
 
 def generate_models(objs, n):
     mg = env.model_gen
     
     mg.start()
     for sol in mg.next(n):
-        yield [sol, zip(objs, map(lambda x: x.basis.packaged_solution(x, sol), objs))]
+        yield [sol, zip(objs, map(lambda x: packaged_solution(x, sol), objs))]
 

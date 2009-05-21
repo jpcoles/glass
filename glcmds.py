@@ -1,5 +1,6 @@
 from __future__ import division
 import math
+from numpy import arctan2
 from environment import env, Image, System
 from shear import Shear
 import cosmo
@@ -8,6 +9,7 @@ def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
 def redshifts(*args):           assert False, "redshifts not implemented"
 def double(*args):              assert False, "double() not supported. Use lens()."
 def quad(*args):                assert False, "quad() not supported. Use lens()."
+def multi(*args):               assert False, "multi() not supported. Use lens()."
 
 def globject(name):
     env.new_object(name)
@@ -23,17 +25,23 @@ def shear(phi):
 def zlens(z):
     o = env.current_object()
     o.zlens = z
+    o.scales = cosmo.scales(o.zlens, 0)
 
 def cosm(om, ol):
     cosmo.omega_matter = om
     cosmo.omega_lambda = ol
 
+#def lens(zsrc, img0, img0parity, *imgs):
+#    print 'lens() is now deprecated. Use source() instead.'
+#    source(zsrc, img0, img0parity, imgs)
+
 def lens(zsrc, img0, img0parity, *imgs):
 
     o = env.current_object()
-    assert o.zlens < zsrc, "Lens is not infront of source."
+    assert zsrc >= o.zlens, "Source is not behind lens."
 
-    o.zlens, o.tscale, o.tscalebg, o.dlscale, o.cdscale = cosmo.scales(o.zlens,zsrc)
+    # XXX: this changes the scales for each lens with a different zsrc!!!
+    #o.zlens, o.tscale, o.tscalebg, o.dlscale, o.cdscale = cosmo.scales(o.zlens,zsrc)
     sys = System(cosmo.angdist(0,zsrc) / cosmo.angdist(o.zlens,zsrc))
 
     image0 = Image(img0, img0parity)
@@ -42,6 +50,9 @@ def lens(zsrc, img0, img0parity, *imgs):
     prev = image0
     for i in xrange(0, len(imgs), 3):
         img,parity,time_delay = imgs[i:i+3]
+        if prev.parity_name == 'sad' and parity == 'max':
+            prev.angle = arctan2(prev.pos.imag-img[1], 
+                                 prev.pos.real-img[0]) * 180/math.pi
         image = Image(img, parity)
         sys.add_image(image)
         sys.add_time_delay(prev,image, time_delay)

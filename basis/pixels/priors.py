@@ -1,5 +1,6 @@
 from __future__ import division
 from environment import env
+import numpy
 from numpy import zeros, array, empty, cos, sin, compress
 from potential import poten, poten_x, poten_y, maginv
 from itertools import izip
@@ -107,7 +108,7 @@ def hubble_constant(o, leq, eq, geq):
     on = False
     if o.h_spec != 0:
         row = zeros(o.basis.nvar)
-        row[0] = o.h_spec / o.tscale
+        row[0] = o.h_spec / o.scales['time']
         row[o.basis.H0] = -1
         eq(row)
         on = True
@@ -210,7 +211,7 @@ def annular_density(o, leq, eq, geq):
 
 ##############################################################################
 
-@object_prior
+#@object_prior
 def steepness(o, leq, eq, geq):
     print "Steepness" 
 
@@ -290,7 +291,7 @@ def steepness(o, leq, eq, geq):
     print "\tsteepness eqs =", c
         
 
-@object_prior
+#@object_prior
 def gradient(o, leq, eq, geq):
     print "Gradient"
     pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
@@ -320,6 +321,19 @@ def gradient(o, leq, eq, geq):
     print "\tgradient eqs =", c
     print "\tsn=", sn
 
+#@object_prior
+def central_pixel_as_maximum(o, leq, eq, geq):
+    cp = o.basis.central_pixel + o.basis.pix_start
+    print "Central pixel as maximum", cp
+
+    for i in xrange(o.basis.pix_start, o.basis.pix_end):
+        if i == cp: continue
+        row = zeros(o.basis.nvar, dtype=numpy.float32)
+        row[cp] = 1
+        row[i]  = -1
+        geq(row)
+
+
 @object_prior
 def smoothness(o, leq, eq, geq):
     """The sum of the neighbouring pixels can't be more than twice
@@ -334,7 +348,7 @@ def smoothness(o, leq, eq, geq):
         # Skip the central pixel. This allows any value of mass.
         # XXX: Some versions of PixeLens don't.
         #-----------------------------------------------------------------------
-        if ri == o.basis.central_pixel: continue
+        #if ri == o.basis.central_pixel: continue
 
         row = zeros(o.basis.nvar)
         #print "N",
@@ -373,14 +387,13 @@ def external_shear(o, leq, eq, geq):
 @ensemble_prior
 def shared_h(objs, nvars, leq, eq, geq):
     print "Shared h"
-    #for o1,o2,offs1,offs2 in zip(objs[:-1], objs[1:], obj_offs[:-1], obj_offs[1:]):
     on = False
     for o1,o2 in izip(objs[:-1], objs[1:]):
         offs1 = o1.basis.array_offset
         offs2 = o2.basis.array_offset
         row = zeros(nvars)
-        row[offs1 + o1.basis.H0] =  o1.tscale
-        row[offs2 + o2.basis.H0] = -o2.tscale
+        row[offs1 + o1.basis.H0] =  o1.scales['time']
+        row[offs2 + o2.basis.H0] = -o2.scales['time']
         eq(row) 
         on = True
     print "\t", on

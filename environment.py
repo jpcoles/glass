@@ -34,11 +34,8 @@ class Object:
 
         self.S          = 0
         self.shear      = None
+        self.scales     = None
         self.zlens      = 0.0
-        self.tscale     = 0.0
-        self.tscalebg   = 0.0
-        self.dlscale    = 0.0
-        self.cdscale    = 0.0
         self.kann_spec  = 0.0
         self.h_spec     = 0.0
         self.minsteep   = None
@@ -62,17 +59,17 @@ class Object:
     def init(self):
         self.basis.init(self)
 
-#       assert(self.maprad is not None)
+        #assert(self.maprad is not None)
 
-#       subdivision = 5.
+        subdivision = 5
 
-#       r = self.maprad
-#       w = (2*r+1) / subdivision
+        r = self.basis.maprad # XXX: Shouldn't access basis here
+        w = (2*r+1) / subdivision
 
-#       gx = linspace(-r,r, (2*r+1) * subdivision)
-#       gy = atleast_2d(linspace(-r,r, (2*r+1) * subdivision)).T
+        gx = linspace(-r,r, (2*r+1) * subdivision)
+        gy = atleast_2d(linspace(-r,r, (2*r+1) * subdivision)).T
 
-#       self.lnr = poten2d(gx, gy, w)
+        self.lnr = poten2d(gx, gy, w)
 
 
 class Image:
@@ -84,6 +81,7 @@ class Image:
         self.angle = arctan2(self.pos.imag, self.pos.real) * 180/pi
         #self.angle = numpy.angle(self.pos, deg=True)
         self.elongation = [0.1, 10, 0.9]
+        self.parity_name = parity
         self.parity = ['min', 'sad', 'max'].index(parity)
 
     def __eq__(self, a):
@@ -123,7 +121,9 @@ class Environment:
         self.filled_beam = True
 
         self.ncpus = _detect_cpus()
-        #self.ncpus = 1
+        #self.ncpus = 3
+
+        print "%i CPUs detected. Using %i threads" % (self.ncpus, self.ncpus)
 
     def current_object(self):
         return self._current_object

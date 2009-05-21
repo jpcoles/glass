@@ -255,9 +255,9 @@ class Samplex:
 
         #s.vertex[0]     = self.data[0,0]
         #s.vertex[s.lhv] = self.data[1:self.nLeft+1, 0]
-        s.vertex[abs(s.vertex) < self.SML] = 0
+        #s.vertex[abs(s.vertex) < self.SML] = 0
         #print s.vertex
-        assert all(s.vertex >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        assert all(s.vertex >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
         s.vertex[0] = self.data[0,0]
         return s
 
@@ -300,6 +300,8 @@ class Samplex:
                     n = self.lhv[k]
                     if 0 <= n <= self.nVars:
                         col[0] += col[k] * obj[n]
+
+        self.data[0,0] = 0
 
         #print self.data[:,0]
 
@@ -417,7 +419,8 @@ class Samplex:
 
         spanvars = slice(1,self.nVars+self.nSlack+1)
         self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
-        assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
+        #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
+        assert all(self.moca[1:] >= 0), (self.moca[self.moca < 0], self.moca)
 
         return self.moca.copy()
 

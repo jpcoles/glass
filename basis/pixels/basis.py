@@ -11,7 +11,7 @@ class PixelBasis:
 
     myobject = None
 
-    L         = 0
+    pixrad    = 0
     maprad    = None
     cell_size = 0
 
@@ -27,13 +27,12 @@ class PixelBasis:
 
     inner_image_ring, outer_image_ring = 0,0
 
-    map_shift = 10
+    map_shift = 100
 
     def init(self, obj):
         self.myobject = obj
 
-        param = obj.basis
-        L = param.L
+        L = obj.basis.pixrad
 
         #---------------------------------------------------------------------
         # Get all image positions
@@ -48,11 +47,9 @@ class PixelBasis:
         #---------------------------------------------------------------------
         self.maprad = obj.maprad
         if self.maprad is None:
-            r              = min([rmax+rmin, 2*rmax-rmin])
-            self.cell_size = (L+1) * r / L**2
-            self.maprad    = self.cell_size * L
-        else:
-            self.cell_size = (L+1) * self.maprad / L**2
+            self.maprad = min([rmax+rmin, 2*rmax-rmin])
+
+        self.cell_size = (2*self.maprad) / (2*L+1)
 
         print "cell_size =", self.cell_size
 
@@ -196,30 +193,31 @@ class PixelBasis:
         print "    timedelay  % 5i  % 5i" % (self.timedelay_start, self.timedelay_end)
         print "    H0         % 5i"       % (self.H0)
 
-    def packaged_solution(self, obj, sol):
-        o = obj.basis.array_offset
+    def packaged_solution(self, sol):
+        o = self.myobject.basis.array_offset
         ps = {}
         ps['mass']   = sol[ o+self.pix_start    : o+self.pix_end      ]
         ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ]
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
         ps['src']    = sol[ o+self.srcpos_start : o+self.srcpos_end   ] - self.map_shift
-        ps['H0']     = sol[ o+self.H0]
+        ps['1/H0']   = 1/(sol[ o+self.H0] * self.myobject.scales['time'])
+        if ps['1/H0'] == float('inf'): ps['1/H0'] = 1
 
-        #ps['sigma']   = array([len(r) * self.cell_size**2 for r in self.rings], numpy.float32)
         ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
-        #ps['sigma'] = cumsum([sum(ps['mass'][r]) / (len(r) * self.cell_size**2)) for r in self.rings])
-        ps['sigma'] = [sum(ps['mass'][r]) / (len(r) * self.cell_size**2) for r in self.rings]
+        ps['sigma'] = array([sum(ps['mass'][r]) / (len(r) * self.cell_size**2) for r in self.rings])
+
+        ps['R'] = array([self.cell_size * ri + self.cell_size/2 for ri in xrange(len(self.rings))])
 
         return ps
 
     def mass_to_grid(self, mass):
         obj = self.myobject
 
-        L = obj.basis.L
+        L = obj.basis.pixrad
 
         reorder = empty_like(mass)
-        print "********"
-        print max(obj.basis.pmap), len(mass)
+        #print "********"
+        #print max(obj.basis.pmap), len(mass)
         reorder.put(obj.basis.pmap, mass)
 
         grid = zeros((2*L+1)**2)
