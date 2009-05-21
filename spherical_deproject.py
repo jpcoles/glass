@@ -232,7 +232,7 @@ if __name__ == "__main__":
     interpnts = 500
     
     #Light distribution parameters + vel anisotropy: 
-    import massmodel.Hernquist as light
+    import massmodel.hernquist as light
     lpars = [1.0,15.0,1.0,intpnts]
     beta = 0.
     aperture = 30.

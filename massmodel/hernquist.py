@@ -20,25 +20,29 @@ integrator = simps
 # Functions
 #-----------------------------------------------------------------------------
 
+def den(r,pars):    
+    '''Calculates density'''
+    M, a, alp = pars[:3]
+    return M*(3.0-alp)/(4.0*pi*a**3.0)*\
+           (r/a)**(-alp)*(1.0+r/a)**(-4.0+alp)
+
 def surf(r,pars):
     '''Calculates surface density'''
-    M, a, alp, intpnts = pars
+    intpnts = pars[-1]
     theta = linspace(0.,pi/2.-1.0e-6,num=intpnts)
     cth = cos(theta)
     cth2 = cth**2.0
     surf = empty(len(r), 'double')
     for i in xrange(len(r)):
         q = r[i]/cth
-        y = M*(3.0-alp)/(4.0*pi*a**3.0)/\
-            ((q/a)**alp*(1.0+(q/a))**(4.0-alp))
+        y = den(q,pars)
         surf[i] = 2.0*r[i]*integrator(y/cth2,theta)
     return surf
 
-def den(r,pars):    
-    '''Calculates density'''
+def cummass(r,pars):    
+    '''Calculates cumulative mass'''
     M, a, alp = pars[:3]
-    return M*(3.0-alp)/(4.0*pi*a**3.0)*\
-           (r/a)**(-alp)*(1.0+r/a)**(-4.0+alp)
+    return M*(r/a)**(-alp)*((r+a)/a)**alp*r**3.0/(a+r)**3.0
 
 #-----------------------------------------------------------------------------
 # Test the functions. This runs if the python module is directly called.
@@ -55,8 +59,14 @@ if __name__ == "__main__":
     pars = [1.,1.,1.,1000]
     surface = surf(r,pars)
     density = den(r,pars)
+    cummass = cummass(r,pars)
 
     loglog(r,density,label='density')
     plot(r,surface,label='surface density')
     legend()
+
+    figure()
+    loglog(r,cummass,label='cumulative mass')
+    legend()
     show()
+    
