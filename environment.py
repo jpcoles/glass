@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy, os
-from numpy import arctan2, pi, linspace, atleast_2d
+from numpy import arctan2, pi, linspace, atleast_2d, abs
 from potential import poten2d
 
 def _detect_cpus():
@@ -46,7 +46,6 @@ class Object:
 
         self.maprad     = None
 
-
         self.basis = None
 
     def current_system(self):
@@ -60,16 +59,6 @@ class Object:
         self.basis.init(self)
 
         #assert(self.maprad is not None)
-
-        subdivision = 5
-
-        r = self.basis.maprad # XXX: Shouldn't access basis here
-        w = (2*r+1) / subdivision
-
-        gx = linspace(-r,r, (2*r+1) * subdivision)
-        gy = atleast_2d(linspace(-r,r, (2*r+1) * subdivision)).T
-
-        self.lnr = poten2d(gx, gy, w)
 
 
 class Image:
@@ -102,7 +91,7 @@ class System:
     def add_time_delay(self, A,B, delay):
         assert A in self.images
         assert B in self.images
-        self.time_delays.append((A,B,delay))
+        self.time_delays.append((A,B,abs(delay), delay<=0))
 
 class Environment:
 
@@ -118,6 +107,7 @@ class Environment:
         # For use in cosmo.py
         self.omega_matter = 0.3
         self.omega_lambda = 0.7
+        self.h_spec       = None
         self.filled_beam = True
 
         self.ncpus = _detect_cpus()
