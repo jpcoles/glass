@@ -5,10 +5,10 @@ from numpy import isfortran, asfortranarray, sign, logical_and
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty
 from numpy import argwhere, argmin, inf, isinf
-from numpy import histogram, logspace, flatnonzero
+from numpy import histogram, logspace, flatnonzero, isinf
 from glrandom import random, ran_set_seed
 
-from pylab import figimage, show, imshow, hist
+from pylab import figimage, show, imshow, hist, matshow, figure
 
 import csamplex
 
@@ -165,11 +165,16 @@ class Samplex:
 
 #       d = self.data.copy('F')
 #       d[d < 1e-6] = 0
-#       d[d != 0.] = 2
+#       d[d > 1e+1] = 0
+#       #d[d != 0.] = 2
 #       print "dddddddddd"
 #       print d.shape, self.data.shape, self.nVars, self.nLeft
 #       d[:,self.nVars] = 3
-#       figimage(d.T)
+#       matshow(d.T)
+#       figure()
+#       d = log(d)
+#       d[isinf(d)] = 0
+#       hist(d[d!=0].flatten(), bins=100)
 #       #imshow(d.T)
 #       show()
 
@@ -177,22 +182,21 @@ class Samplex:
         if self.iteration & 15 == 0:
             print >>sys.stdout, "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0])
 
-    def next(self, max=None):
+    def next(self, nsolutions=None):
         print "Getting solutions"
-        if self.find_feasible():
-            print "------------------------------------"
-            print "Found feasible"
-            print "------------------------------------"
+        if not self.find_feasible(): return
 
-            self.curr_sol = self.package_solution()                
-            self.moca     = self.curr_sol.vertex.copy()
+        print "------------------------------------"
+        print "Found feasible"
+        print "------------------------------------"
 
-            yield self.curr_sol.vertex
+        self.curr_sol = self.package_solution()                
+        self.moca     = self.curr_sol.vertex.copy()
 
-            #spanvars = slice(1,self.nVars+self.nSlack+1)
-            #self.moca = self.data[spanvars, 0].copy()
-        else:
-            return
+        yield self.curr_sol.vertex[0:self.nVars+1]
+
+        #spanvars = slice(1,self.nVars+self.nSlack+1)
+        #self.moca = self.data[spanvars, 0].copy()
 
 #       print histogram(self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1],
 #                       bins = logspace(-14, 4),
@@ -205,33 +209,20 @@ class Samplex:
 
         self.sum_ln_k = 0
         self.n_solutions = 0
-        while self.n_solutions != max:
+        while self.n_solutions != nsolutions:
             self.iteration=0
-            yield self.next_solution()
+            self.n_solutions += 1
+            self.next_solution()
+            self.curr_sol = self.package_solution()                
+            yield self.interior_point()
 
     def next_solution(self):
         self.start_new_objective()
         while True:
             result = self.pivot()
-            #print >>sys.stdout, self.data
-            #print self.lhv
-            #print self.rhv
-            if result == self.UNBOUNDED:
-                raise SamplexUnboundedError()
-            elif result == self.NOPIVOT:
-                self.n_solutions += 1
-
-                #print "**************************************"
-                #print "Found solution", self.n_solutions
-                #print "**************************************"
-
-                self.curr_sol = self.package_solution()                
-                return self.interior_point()
-                #return self.curr_sol.vertex
-                #return self.curr_sol.vertex, self.interior_point()
-
-            elif result == self.FEASIBLE:
-                pass
+            if   result == self.NOPIVOT:   return
+            elif result == self.FEASIBLE:  pass
+            elif result == self.UNBOUNDED: raise SamplexUnboundedError()
             else:
                 print result
                 raise SamplexUnexpectedError("unknown pivot result = %i" % result)
@@ -420,9 +411,9 @@ class Samplex:
         spanvars = slice(1,self.nVars+self.nSlack+1)
         self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
         #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
-        assert all(self.moca[1:] >= 0), (self.moca[self.moca < 0], self.moca)
+        assert all(self.moca[1:] >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
-        return self.moca.copy()
+        return self.moca.copy()[0:self.nVars+1]
 
 
     #=========================================================================
