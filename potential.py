@@ -7,27 +7,33 @@ def poten2d(x,y,a):
     return poten(complex(x,y),a)
 
 @vectorize
+def poten_indef(r):
+    x,y = r.real, r.imag
+    x2,y2 = x**2, y**2
+    v  = (x!=0) and x2 * arctan(y/x)
+    v += (y!=0) and y2 * arctan(x/y)
+    v += (x!=0 and y!=0) and x*y*(log(x2+y2) - 3) 
+    return v / (2*pi)
+
+@vectorize
+def poten2d_indef(x,y):
+    return poten_indef(complex(x,y))
+
+@vectorize
 def poten(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm,xp = x - a/2, x + a/2
+    ym,yp = y - a/2, y + a/2
 
-    xm2 = xm**2
-    xp2 = xp**2
-    ym2 = ym**2
-    yp2 = yp**2
+    xm2, xp2 = xm**2, xp**2
+    ym2, yp2 = ym**2, yp**2
 
-    v = (-3 * a**2
-       + xm2*arctan(ym/xm) + ym2*arctan(xm/ym)
-       + xp2*arctan(yp/xp) + yp2*arctan(xp/yp)
-       - xm2*arctan(yp/xm) - yp2*arctan(xm/yp)
-       - xp2*arctan(ym/xp) - ym2*arctan(xp/ym)
-       + xm*ym*log(xm2 + ym2)
-       + xp*yp*log(xp2 + yp2)
-       - xp*ym*log(xp2 + ym2)
-       - xm*yp*log(xm2 + yp2))
+    # FIXME: What happens when we divide by 0 or do log 0?
+    v = ( -3 * a**2
+      + ( xm2*arctan(ym/xm) + ym2*arctan(xm/ym) + xm*ym*log(xm2 + ym2) )
+      + ( xp2*arctan(yp/xp) + yp2*arctan(xp/yp) + xp*yp*log(xp2 + yp2) )
+      - ( xm2*arctan(yp/xm) + yp2*arctan(xm/yp) + xp*ym*log(xp2 + ym2) )
+      - ( xp2*arctan(ym/xp) + ym2*arctan(xp/ym) + xm*yp*log(xm2 + yp2) ))
     return v / (2*pi)
 
 @vectorize
