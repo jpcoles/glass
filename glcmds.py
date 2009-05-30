@@ -77,7 +77,7 @@ def maxsteep(a):
     env.current_object().maxsteep = a
 
 def g(h):
-    env.current_object().h_spec = 1.0/h
+    env.h_spec = 1.0/h
 
 def kann(theta):
     env.current_object().kann_spec = theta
