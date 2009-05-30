@@ -10,13 +10,19 @@ class Shear:
 
         print "Shear  ", self.cs2, self.sn2, self.phi
 
-    def poten(self, n, r):
-        assert (n==1 or n==2)
-        x,y = r.real, r.imag
-        if n == 1: 
-            return  self.cs2 * (x**2 - y**2)/2 + self.sn2*x*y
-        else:
-            return -self.sn2 * (x**2 - y**2)/2 + self.cs2*x*y
+    def poten(self, n0, r):
+        derivs = n0
+        if not isinstance(n0, list): derivs = [n0]
+        l = []
+        for n in derivs:
+            assert (n==1 or n==2)
+            x,y = r.real, r.imag
+            if n == 1: l.append( self.cs2 * (x**2 - y**2)/2 + self.sn2*x*y)
+            else:      l.append(-self.sn2 * (x**2 - y**2)/2 + self.cs2*x*y)
+
+        if not isinstance(n0, list): 
+            return l[0]
+        return l
 
     def poten_x(self, n, r):
         assert (n==1 or n==2)
