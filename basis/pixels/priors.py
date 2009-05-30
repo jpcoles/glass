@@ -49,22 +49,22 @@ def image_pos(o, leq, eq, geq):
             rows[0,srcpos:srcpos+2] = -sys.zcap,     0
             rows[1,srcpos:srcpos+2] =     0,     -sys.zcap
 
-#           print rows[0]
-            map(eq, rows)
+            eq(rows[0])
+            eq(rows[1])
+
 
 @object_prior
 def time_delay(o, leq, eq, geq):
     print "Time Delay"
 
-    td   = o.basis.timedelay_start
+    H0   = o.basis.H0
 
     pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
     shear_start,  shear_end  = o.basis.shear_start,  o.basis.shear_end
     ptmass_start, ptmass_end = o.basis.ptmass_start, o.basis.ptmass_end
-    H0 = o.basis.H0
 
     for i, sys in enumerate(o.systems):
-        for img0,img1,delay in sys.time_delays:
+        for img0,img1,delay,uncertain in sys.time_delays:
 
             row = zeros(o.basis.nvar)
 
@@ -73,12 +73,15 @@ def time_delay(o, leq, eq, geq):
             x0, y0 = img0.pos.real, img0.pos.imag
             x1, y1 = img1.pos.real, img1.pos.imag
 
-            row[0]  = (x1**2 + y1**2)/2 + (x1+y1) * o.basis.map_shift
-            row[0] -= (x0**2 + y0**2)/2 + (x0+y0) * o.basis.map_shift
+            # The constant term
+            row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*o.basis.map_shift
             row[0] *= sys.zcap
+
+            # The beta term
             row[srcpos:srcpos+2]  = x0-x1, y0-y1
             row[srcpos:srcpos+2] *= sys.zcap
 
+            # The ln terms
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, o.basis.cell_size)
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, o.basis.cell_size)
 
@@ -90,25 +93,21 @@ def time_delay(o, leq, eq, geq):
 #               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
 #               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
 
-            if delay == 0:
-                geq(row) 
-            elif delay < 0:
-                row[H0] = delay
-                geq(row)
-#           elif delay > 1000:          # XXX: What is this for?!?!
-#               row[H0] = -delay
-#               geq(row)
-            else:
-                row[H0] = -delay
-                eq(row)
+            row[H0] = -delay
+
+            if uncertain: geq(row)
+            else:          eq(row)
+
+            print row
 
 @object_prior
 def hubble_constant(o, leq, eq, geq):
+    """This requires a particular hubble constant for the object."""
     print "Hubble Constant"
     on = False
-    if o.h_spec != 0:
+    if env.h_spec is not None:
         row = zeros(o.basis.nvar)
-        row[0] = o.h_spec / o.scales['time']
+        row[0] = env.h_spec / o.scales['time']
         row[o.basis.H0] = -1
         eq(row)
         on = True
@@ -121,14 +120,14 @@ def magnification(o, leq, eq, geq):
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
-    pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
-    shear_start,  shear_end  = o.basis.shear_start,  o.basis.shear_end
+    pix_start,     pix_end = o.basis.pix_start,   o.basis.pix_end
+    shear_start, shear_end = o.basis.shear_start, o.basis.shear_end
 
     for sys in o.systems:
         for img in sys.images:
             k1, k2, eps = img.elongation
             parity = img.parity
-            k2 = 1./k2
+            k2 = 1/k2
 
             rows = zeros((6, o.basis.nvar))
             rows[0,0] = [k1-1,  k1+1, -k1+1][parity] * sys.zcap
@@ -211,7 +210,7 @@ def annular_density(o, leq, eq, geq):
 
 ##############################################################################
 
-#@object_prior
+@object_prior
 def steepness(o, leq, eq, geq):
     print "Steepness" 
 
@@ -239,15 +238,10 @@ def steepness(o, leq, eq, geq):
 
     #---------------------------------------------------------------------------
     # Now the rest of the rings.
-    #
-    # XXX: This replicates a bug in PixeLens. The real range should be
-    # (1,nrings-1) and then later, the last ring should be -1, not -2.
-    #
     #---------------------------------------------------------------------------
     for l in xrange(1,nrings-1):
         r0 = o.basis.rings[l]
         r1 = o.basis.rings[l+1]
-
 
         if o.minsteep == o.maxsteep:
             row = zeros(o.basis.nvar)
@@ -291,7 +285,7 @@ def steepness(o, leq, eq, geq):
     print "\tsteepness eqs =", c
         
 
-#@object_prior
+@object_prior
 def gradient(o, leq, eq, geq):
     print "Gradient"
     pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
@@ -300,6 +294,8 @@ def gradient(o, leq, eq, geq):
     sn = sin(o.cen_ang)
     c = 0
     for nbrs1,nbrs2,nmask,r,ri in o.basis.nbrs:
+        if ri == o.basis.central_pixel: continue
+
         px = r.real
         py = r.imag
         x = cs*px - sn*py
@@ -336,7 +332,7 @@ def central_pixel_as_maximum(o, leq, eq, geq):
 
 @object_prior
 def smoothness(o, leq, eq, geq):
-    """The sum of the neighbouring pixels can't be more than twice
+    """The average of the neighbouring pixels can't be more than twice
        the value of a given pixel."""
 
     print "Smoothness"
@@ -356,15 +352,19 @@ def smoothness(o, leq, eq, geq):
         #print "|",
         #for n in nbrs2: print n,
         #print
-        if len(nbrs1): row[pix_start + nbrs1] = 1
-        if len(nbrs2): row[pix_start + nbrs2] = 1
+        #if len(nbrs1): row[pix_start + nbrs1] = 1
+        #if len(nbrs2): row[pix_start + nbrs2] = 1
+
+        row[pix_start + nbrs1] = 1
+        row[pix_start + nbrs2] = 1
 
         #-----------------------------------------------------------------------
-        # XXX: This line should really be
-        #       row[pix_start + ri] = -(len(nbrs1)+len(nbrs2))/2.0
+        # FIXME: This line should really be
+        #        row[pix_start + ri] = -(len(nbrs1)+len(nbrs2))/2.0
         # since there aren't always 8 neighbors (e.g. on the edge).
         #-----------------------------------------------------------------------
-        row[pix_start + ri] = -4
+        #row[pix_start + ri] = -4
+        row[pix_start + ri] = -(len(nbrs1)+len(nbrs2)) / 2
 
         geq(row)
         c += 1
@@ -386,6 +386,7 @@ def external_shear(o, leq, eq, geq):
 
 @ensemble_prior
 def shared_h(objs, nvars, leq, eq, geq):
+    """This requires that all objects have the same hubble constant."""
     print "Shared h"
     on = False
     for o1,o2 in izip(objs[:-1], objs[1:]):

@@ -1,8 +1,13 @@
 from __future__ import division
 from numpy import array, empty_like, amin, amax, repeat
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, hist, hold, colorbar, legend, over, axvline
+from numpy.random import random
+from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, suptitle, figure, grid
+from pylab import gray, jet
+import matplotlib
 from matplotlib.ticker import LogLocator
+from matplotlib.patches import Circle
+import matplotlib.cm as cm  
 
 XX=array([6.169037046118459,
 1.2652658707139501,
@@ -502,7 +507,8 @@ XX=array([6.169037046118459,
 0.037025340399884824
 ], 'double')
 
-def img_plot(obj):
+def img_plot(model):
+    obj, data = model
     cs = 'rgbcmykw'
     for i,sys in enumerate(obj.systems):
         xs = []
@@ -510,30 +516,52 @@ def img_plot(obj):
         for img in sys.images:
             xs.append(img.pos.real)
             ys.append(img.pos.imag)
-        over(scatter,xs, ys, s=80, c=cs[i])
-    legend()
+        over(scatter,xs, ys, s=80, c=cs[i%len(cs)], zorder=1000)
+
+def src_plot(model):
+    obj, data = model
+    cs = 'c'
+    for i,sys in enumerate(obj.systems):
+        xs = []
+        ys = []
+        xs.append(data['src'][i*2+0])
+        ys.append(data['src'][i*2+1])
+        print xs, ys
+        over(scatter,xs, ys, s=80, c=cs[i%len(cs)], zorder=1000)
+
 
 def mass_plot(model):
     obj, data = model
 
     #data['mass'] = XX[:489]
+    L = obj.basis.pixrad
     R = obj.basis.maprad
+    S  = obj.basis.subdivision
 
-    w,h,grid = obj.basis.mass_to_grid(data['mass'])
 
-    x = linspace(-R,R, w)
-    y = linspace(-R,R, h)
-    X,Y = meshgrid(x,y)
+    # XXX: Remove this circle. Shouldn't know about cell_size.
+    circle0 = Circle((0,0), R)
+    circle1 = Circle((0,0), R - obj.basis.cell_size/S/2)
+    circle0.set_fill(False)
+    circle1.set_fill(False)
 
-    #contour(X,Y,grid, 50, extent=[-R,R,-R,R], extend='both')
-    imshow(grid, extent=[-R,R,-R,R], interpolation='nearest')
-    colorbar()
-    img_plot(obj)
+    grid = obj.basis.mass_grid(data)
+    #grid = random(grid.shape)
+
+    #R += obj.basis.cell_size / 2
+
+    #a = subplot(111, aspect='equal')
+    matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
+    #over(contour, grid, 50, extent=[-R,R,-R,R], extend='both')
+    over(contour, grid, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
+    #colorbar()
+    #a.add_artist(circle0)
+    #a.add_artist(circle1)
+    #img_plot(obj)
     xlabel('arcsec')
     ylabel('arcsec')
-    return grid
 
-def arrival_plot(obj, model):
+def XXarrival_plot(obj, model):
     #lnr = poten(obj.basis.ploc, obj.basis.cell_size)
     s = obj.basis.array_offset + obj.basis.pix_start
     e = obj.basis.array_offset + obj.basis.pix_end
@@ -559,27 +587,37 @@ def arrival_plot(obj, model):
     return grid
 
 
-def potential_plot(model):
+def potential_plot(model, sys):
     obj, data = model
+    R = obj.basis.maprad
+    grid,lev = obj.basis.potential_grid(data, sys)
+#   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
+#   contour(grid, extent=[-R,R,-R,R], origin='upper')
+    matshow(grid, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
+    if not lev: lev = 20
+    over(contour, grid, lev, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
+    xlabel('arcsec')
+    ylabel('arcsec')
+    suptitle('Potential')
 
-    lnr = obj.lnr
+def arrival_plot(model, sys):
+    obj, data = model
+    S = obj.basis.subdivision
+    R = obj.basis.maprad
+    #R -= obj.basis.cell_size / 2
 
-    #print lnr, lnr.shape
+    g, lev = obj.basis.arrival_grid(data, sys)
+#   figure()
+#   hist(g.flatten())
 
-#   mass = data['mass']
-#   a = repeat(mass, repeat(5, mass.size)).reshape
-
-#   grid = zeros((2*L+1, 2*L+1))
-#   for y in xrange(2*L+1):
-#       for x in xrange(2*L+1):
-#           grid[y,x] = sum(model['mass'] * lnr)
-
-    #print grid
-    contour(grid)
-    #gca().invert_yaxis()
-    show()
-
-    return grid
+#   figure()
+    matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
+    lev = 50 if not lev else lev
+    print lev
+    matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+    over(contour, g, 20, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
+    over(contour, g, lev, colors='r', linewidths=3, extent=[-R,R,-R,R], origin='upper')
+    grid()
 
 _sigma_ylabel = r'$\Sigma$'
 def sigma_plot(models):

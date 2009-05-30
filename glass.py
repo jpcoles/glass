@@ -1,9 +1,9 @@
 from __future__ import division
 import sys, getopt
 from environment import env
-from plots import mass_plot, potential_plot, sigma_plot, H0_plot, encmass_plot
+from plots import mass_plot, potential_plot, sigma_plot, H0_plot, encmass_plot, arrival_plot, src_plot, img_plot
 from numpy import array
-from pylab import figure, show, clf, ioff, draw, ion, subplot, cla
+from pylab import figure, show, clf, ioff, draw, ion, subplot, cla, matshow
 
 def help():
     print >>sys.stderr, "Usage: glass.py <input>"
@@ -65,12 +65,27 @@ def model(nmodels):
         subplot(2,2,4)
         encmass_plot(m[1][0])
 
-    ensemble_avg /= nmodels
-    ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)
+    ensemble_avg /= len(env.models)
+    obj0_ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)
 
     #mass_plot([env.objects[0], {'mass': mass/nmodels}])
+    matshow(env.objects[0].basis._lnr())
     figure()
-    potential_plot(env.models[0][1][0])
+    subplot(331)
+    mass_plot([env.objects[0], obj0_ensemble_ps])
+    src_plot([env.objects[0], obj0_ensemble_ps])
+    img_plot([env.objects[0], obj0_ensemble_ps])
+    #figure()
+    subplot(335)
+    potential_plot([env.objects[0], obj0_ensemble_ps], 0)
+    src_plot([env.objects[0], obj0_ensemble_ps])
+    img_plot([env.objects[0], obj0_ensemble_ps])
+    #figure()
+    subplot(339, aspect='equal')
+    arrival_plot([env.objects[0], obj0_ensemble_ps], 0)
+    src_plot([env.objects[0], obj0_ensemble_ps])
+    img_plot([env.objects[0], obj0_ensemble_ps])
+
     figure()
     sigma_plot(env.models)
     figure()
