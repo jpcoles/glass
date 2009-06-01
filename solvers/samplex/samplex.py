@@ -150,6 +150,7 @@ class Samplex:
         self.lhv = array(self.lhv, dtype=numpy.int32)
         self.rhv = array(self.rhv, dtype=numpy.int32)
 
+        #print 'samplex sum', sum(self.data)
 
 #       for x in self.lhv: print x
 #       print "----------------------------------------------------"

@@ -526,7 +526,7 @@ def src_plot(model):
         ys = []
         xs.append(data['src'][i*2+0])
         ys.append(data['src'][i*2+1])
-        print xs, ys
+        print 'src_plot:', xs, ys
         over(scatter,xs, ys, s=80, c=cs[i%len(cs)], zorder=1000)
 
 
@@ -613,7 +613,7 @@ def arrival_plot(model, sys):
 #   figure()
     matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
     lev = 50 if not lev else lev
-    print lev
+    print 'arrival_plot:', lev
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
     over(contour, g, 20, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
     over(contour, g, lev, colors='r', linewidths=3, extent=[-R,R,-R,R], origin='upper')

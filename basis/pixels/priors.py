@@ -191,7 +191,7 @@ def magnification(o, leq, eq, geq):
             #print pix_start, pix_end
             #print "rows[:,0]", rows[:,0]
 
-            map(leq, rows)
+            for r in rows: leq(r)
 
 @object_prior
 def annular_density(o, leq, eq, geq):

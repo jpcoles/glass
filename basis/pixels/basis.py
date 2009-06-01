@@ -260,7 +260,8 @@ class PixelBasis:
             gx = arange(-Q, Q+1, 1) * (self.cell_size/S)
             assert (len(gx) % 2) == 1
 
-            print len(gx)
+            #print gx
+            #print len(gx)
             #sys.exit(0)
             gy = atleast_2d(-gx).T
             xy = vectorize(complex)(gx, gy)
@@ -400,6 +401,8 @@ class PixelBasis:
             geom  = abs(xy)**2 / 2 - xy.real * srcx - xy.imag * srcy
             grid  = geom * obj.systems[sys].zcap + phi
             data['arrival_grid'] = grid
+
+            #print 'arrival_grid:', sum(grid)
 
             if sys is not None:
                 for img in obj.systems[sys].images:
