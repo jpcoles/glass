@@ -351,11 +351,10 @@ class PixelBasis:
                 rs,re = r0-r, r0-r+o
                 cs,ce = c0-c, c0-c+o
 
-                cw = S
-                s0 = s_[rs       : re     , cs       : ce     ]
-                s1 = s_[rs - cw  : re - cw, cs - cw  : ce - cw]
-                s2 = s_[rs - cw  : re - cw, cs       : ce     ]
-                s3 = s_[rs       : re     , cs - cw  : ce - cw]
+                s0 = s_[rs      : re    , cs      : ce    ]
+                s1 = s_[rs - S  : re - S, cs - S  : ce - S]
+                s2 = s_[rs - S  : re - S, cs      : ce    ]
+                s3 = s_[rs      : re    , cs - S  : ce - S]
 
                 #print rs,cs
                 #print s0, s1, s2, s3
