@@ -260,9 +260,10 @@ class PixelBasis:
             gx = arange(-Q, Q+1, 1) * (self.cell_size/S)
             assert (len(gx) % 2) == 1
 
-            #print gx
-            #print len(gx)
-            #sys.exit(0)
+#           print gx
+#           print self.ploc
+#           print len(gx)
+#           sys.exit(0)
             gy = atleast_2d(-gx).T
             xy = vectorize(complex)(gx, gy)
             data['refined_xy_grid'] = xy
@@ -313,8 +314,8 @@ class PixelBasis:
             L, S = self.pixrad, self.subdivision
             assert (S%2)==1
 
-            Q = S * (L + 1)
-            gx = arange((-2*Q)+0.5,2*Q+0.5, 1) * (self.cell_size/S)
+            Q = 2 * S * (L + 1)
+            gx = arange(-Q+0.5,Q+0.5, 1) * (self.cell_size/S)
             assert (len(gx) % 2) == 0
             gy = atleast_2d(gx).T
             xy = vectorize(complex)(gx, gy)
@@ -326,7 +327,6 @@ class PixelBasis:
         return self.lnr
 
     def potential_grid(self, data, sys=None):
-        lev = []
         if not data.has_key('potential_grid'):
             obj = self.myobject
             L = obj.basis.pixrad
@@ -374,38 +374,53 @@ class PixelBasis:
             data['potential_grid'] = phi
             print 'sum', sum(phi)
 
-            if sys is not None:
-                for img in obj.systems[sys].images:
+        return data['potential_grid']
 
+    def potential_contour_levels(self, data):
+        if not data.has_key('potential_contour_levels'):
+            obj = self.myobject
+            data['potential_contour_levels'] = []
+            for i,sys in enumerate(obj.systems):
+                l = []
+                for img in sys.images:
                     p  = dot(data['mass'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
-
                     # TODO:
                     #p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
+                    l.append(-p)
+                data['potential_contour_levels'].append(l)
 
-                    lev.append(-p)
+        return data['potential_contour_levels']
 
-        return data['potential_grid'], lev
-
-    def arrival_grid(self, data, sys=None):
-        lev = []
+    def arrival_grid(self, data):
         if not data.has_key('arrival_grid'):
             obj = self.myobject
             L = obj.basis.pixrad
             S = obj.basis.subdivision
 
-            srcx,srcy = data['src'][sys*2:sys*2+2]
-
-            phi,_ = self.potential_grid(data)
-            xy    = self.refined_xy_grid(data)
-
-            geom  = abs(xy)**2 / 2 - xy.real * srcx - xy.imag * srcy
-            grid  = geom * obj.systems[sys].zcap + phi
-            data['arrival_grid'] = grid
+            phi  = self.potential_grid(data)
+            xy   = self.refined_xy_grid(data)
+            r2_2 = abs(xy)**2 / 2
+            
+            data['arrival_grid'] = []
+            for i,sys in enumerate(obj.systems):
+                srcx,srcy = data['src'][i*2:i*2+2]
+                geom  = r2_2 - xy.real * srcx - xy.imag * srcy
+                grid  = geom * sys.zcap + phi
+                data['arrival_grid'].append(grid)
 
             #print 'arrival_grid:', sum(grid)
 
-            if sys is not None:
-                for img in obj.systems[sys].images:
+        return data['arrival_grid']
+
+    def arrival_contour_levels(self, data):
+
+        if not data.has_key('arrival_contour_levels'):
+            obj = self.myobject
+            data['arrival_contour_levels'] = []
+            for i,sys in enumerate(obj.systems):
+                srcx,srcy = data['src'][i*2:i*2+2]
+                l = []
+                for img in sys.images:
                     if img.parity_name != 'sad': continue
 
                     geom  = abs(img.pos)**2 / 2 - img.pos.real * srcx - img.pos.imag * srcy
@@ -415,9 +430,12 @@ class PixelBasis:
                     # TODO:
                     #p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
 
-                    lev.append(geom * obj.systems[sys].zcap - p)
+                    l.append(geom * sys.zcap - p)
+                data['arrival_contour_levels'].append(l)
 
-        return data['arrival_grid'], lev
+        return data['arrival_contour_levels']
+
+
 
 
 if __name__ == "__main__":

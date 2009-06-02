@@ -590,11 +590,12 @@ def XXarrival_plot(obj, model):
 def potential_plot(model, sys):
     obj, data = model
     R = obj.basis.maprad
-    grid,lev = obj.basis.potential_grid(data, sys)
+    grid = obj.basis.potential_grid(data)
+    lev = obj.basis.potential_contour_levels(data)
 #   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
 #   contour(grid, extent=[-R,R,-R,R], origin='upper')
     matshow(grid, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    if not lev: lev = 20
+    lev = 20 if not lev else lev[sys]
     over(contour, grid, lev, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
     xlabel('arcsec')
     ylabel('arcsec')
@@ -606,13 +607,16 @@ def arrival_plot(model, sys):
     R = obj.basis.maprad
     #R -= obj.basis.cell_size / 2
 
-    g, lev = obj.basis.arrival_grid(data, sys)
+    g   = obj.basis.arrival_grid(data)
+    lev = obj.basis.arrival_contour_levels(data)
+
+    g = g[sys]
 #   figure()
 #   hist(g.flatten())
 
 #   figure()
     matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    lev = 50 if not lev else lev
+    lev = 50 if not lev else lev[sys]
     print 'arrival_plot:', lev
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
     over(contour, g, 20, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
