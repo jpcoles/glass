@@ -36,7 +36,7 @@ def model(nmodels):
 
     for i,m in enumerate(generate_models(env.objects, nmodels)): 
         if ensemble_avg is None:
-            ensemble_avg = array(m[0], copy=True)
+            if i > 0: ensemble_avg = array(m[0], copy=True)
         else:
             ensemble_avg += m[0]
 
