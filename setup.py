@@ -7,7 +7,7 @@ csamplex = Extension('solvers.samplex.csamplex',
                      sources = ['solvers/samplex/csamplex.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
-             extra_compile_args=['-Wall'])
+             extra_compile_args=['-Wall', '-ftree-vectorizer-verbose=2', '-ftree-vectorize'])
 
 setup(name = 'Glass',
       author = 'Jonathan Coles',

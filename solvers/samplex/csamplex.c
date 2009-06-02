@@ -443,6 +443,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
             {
                 accept = 1;
             }
+#if 0
             else if (ABS(tinc-cinc) < EPS) 
             { 
                 if (left[k] > 0 && cleft > 0)  
@@ -450,6 +451,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
                 else 
                     accept = (left[k] < cleft) + 4;
             }
+#endif
             else 
             {
                 accept = (tinc < cinc) + 8;
@@ -708,7 +710,6 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     int32_t lpiv,    /* Pivot row              */
             rpiv;    /* Pivot column           */
     dble_t piv;     /* Value of pivot element */
-    dble_t *pcol;   /* Pivot column           */
 
 #if 0
         col = &(tabl.data[0 * tabl.w + 0]);
@@ -730,7 +731,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     //for (n=0; n<1; n++)
     for (n=0;; n++)
     {
-        //if ((n&31) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
+        if ((n&31) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
         //if (n == 5) exit(0);
 
         if (need_assign_pivot_threads) assign_threads(0,R); 
@@ -782,9 +783,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             // Update pivot column
             //----------------------------------------------------------------------
             DBG(2) fprintf(stderr, "piv=%f\n", piv);
-            pcol = &tabl.data[rpiv * tabl.w + 0];
+            dble_t *__restrict pcol = &tabl.data[rpiv * tabl.w + 0];
             for (i=0; i <= L; i++)
-                pcol[i] = pcol[i] / piv;
+                pcol[i] /= piv;
             pcol[lpiv] = 1.0 / piv;
         }
         else
@@ -920,11 +921,12 @@ inline void in(const int32_t r,
                const dble_t *__restrict pcol)
 {
     const dble_t col_lpiv = col[lpiv0];
+    int32_t i;
 
     //fprintf(stderr, "in %i\n", r);
-    for (; kp >= 0; kp--) 
+    for (i=0; i <= kp; i++) 
     {
-        col[kp] = col[kp] - (pcol[kp] * col_lpiv) / piv;
+        col[i] = col[i] - (pcol[i] * col_lpiv) / piv;
 
         //col[kp] = col[kp] - (pcol[kp] * col_lpiv) / piv;
         //col[kp] = col[kp] - pcol[kp] * col_lpiv;

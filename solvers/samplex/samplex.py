@@ -250,6 +250,7 @@ class Samplex:
         #s.vertex[abs(s.vertex) < self.SML] = 0
         #print s.vertex
         assert all(s.vertex >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        #assert all(s.vertex >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
         s.vertex[0] = self.data[0,0]
         return s
 
