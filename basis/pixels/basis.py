@@ -99,9 +99,9 @@ class PixelBasis:
         #print xy
         rs = round(abs(xy))
         insideL = self.insideL = argwhere(rs.ravel() <= L).ravel()
-        print insideL
+        #print insideL
         self.ploc = xy.ravel()[insideL]
-        print self.ploc
+        #print self.ploc
 
         #---------------------------------------------------------------------
         # By sorting by the arctan2() and abs() of the positions we create
@@ -322,7 +322,7 @@ class PixelBasis:
             #print xy
 
             self.lnr = poten_indef(xy)
-            print 'lnr', self.lnr[-1]
+            #print 'lnr', self.lnr[-1]
 
         return self.lnr
 
@@ -339,9 +339,9 @@ class PixelBasis:
             lr,lc = lnr.shape
             mr,mc = mass.shape
 
-            print "mass is", mass.shape
-            print "phi is", phi.shape
-            print "lnr is", lnr.shape
+            #print "mass is", mass.shape
+            #print "phi is", phi.shape
+            #print "lnr is", lnr.shape
 
             r0 = (lr + S) // 2
             c0 = (lc + S) // 2

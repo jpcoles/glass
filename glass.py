@@ -81,10 +81,11 @@ def model(nmodels):
     src_plot([env.objects[0], obj0_ensemble_ps])
     img_plot([env.objects[0], obj0_ensemble_ps])
     #figure()
-    subplot(339, aspect='equal')
-    arrival_plot([env.objects[0], obj0_ensemble_ps], 0)
-    src_plot([env.objects[0], obj0_ensemble_ps])
-    img_plot([env.objects[0], obj0_ensemble_ps])
+    for i,sys in enumerate(env.objects[0].systems):
+        subplot(3,3,7+i, aspect='equal')
+        arrival_plot([env.objects[0], obj0_ensemble_ps], i)
+        src_plot([env.objects[0], obj0_ensemble_ps])
+        img_plot([env.objects[0], obj0_ensemble_ps])
 
     figure()
     sigma_plot(env.models)

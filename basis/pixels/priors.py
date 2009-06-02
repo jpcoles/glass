@@ -98,7 +98,7 @@ def time_delay(o, leq, eq, geq):
             if uncertain: geq(row)
             else:          eq(row)
 
-            print row
+            #print row
 
 @object_prior
 def hubble_constant(o, leq, eq, geq):
