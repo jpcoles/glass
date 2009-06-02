@@ -6,15 +6,30 @@ from potential import poten, poten_x, poten_y, maginv
 from itertools import izip
 
 all_priors = []
+inc_priors = []
+exc_priors = []
 
-def make_prior(f, where):
+def _make_prior(f, where):
     class P: 
         def __init__(self, f, where): self.f, self.where = f, where
+        def __eq__(self, f):
+            return self.f == f
     all_priors.append(P(f, where))
     return all_priors[-1]
 
-def object_prior(f):  return make_prior(f, 'object_prior')
-def ensemble_prior(f): return make_prior(f, 'ensemble_prior')
+def object_prior(f):   return _make_prior(f, 'object_prior')
+def ensemble_prior(f): return _make_prior(f, 'ensemble_prior')
+
+def include_prior(f):
+    assert not exc_priors, 'Cannot both include and exclude priors.'
+    i = all_priors.index(f)
+    inc_priors.append(all_priors[i])
+
+def exclude_prior(f):
+    assert not inc_priors, 'Cannot both include and exclude priors.'
+    i = all_priors.index(f)
+    exc_priors.append(all_priors[i])
+
 
 ##############################################################################
 

@@ -35,35 +35,13 @@ def model(nmodels):
     ensemble_avg = None
 
     for i,m in enumerate(generate_models(env.objects, nmodels)): 
+        if i == 0: continue
         if ensemble_avg is None:
-            if i > 0: ensemble_avg = array(m[0], copy=True)
+            ensemble_avg = array(m['sol'], copy=True)
         else:
-            ensemble_avg += m[0]
+            ensemble_avg += m['sol']
 
-        #H0s.append(m[1][0][1]['1/H0'])
-#       clf()
-        #H0_plot(H0s)
-#        encmass_plot(m[1][0])
-        #sigma_plot(m[1][0])
-        #ioff()
-#       mass_plot(m[1][0])
-        #show()
-        #mass_plot([env.objects[0], {'mass':None}])
-        #draw()
-        #ion()
         env.models.append(m)
-        continue
-
-        subplot(2,2,1)
-        clf()
-        H0_plot(H0s)
-        subplot(2,2,2)
-        clf()
-        mass_plot(m[1][0])
-        subplot(2,2,3)
-        sigma_plot(m[1][0])
-        subplot(2,2,4)
-        encmass_plot(m[1][0])
 
     ensemble_avg /= len(env.models)
     obj0_ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)

@@ -1,5 +1,5 @@
 from __future__ import division
-from numpy import array, empty_like, amin, amax, repeat
+from numpy import array, empty_like, amin, amax, repeat, logspace
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
 from numpy.random import random
 from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, suptitle, figure, grid
@@ -109,9 +109,10 @@ def arrival_plot(model, sys):
 
 _sigma_ylabel = r'$\Sigma$'
 def sigma_plot(models):
-    for [sol, objs] in models:
-        for [obj, data] in objs:
-            over(loglog, data['R'], data['sigma'])
+    for m in models:
+        c = 'r-' if m['tagged'] else 'k-'
+        for [obj, data] in m['objs']:
+            over(loglog, data['R'], data['sigma'], c)
 
     #loglog(data['R'], data['sigma'])
     #gca().set_xlim(0,data['R'][-1])
@@ -120,10 +121,10 @@ def sigma_plot(models):
 
 _encmass_ylabel = r'$M$'
 def encmass_plot(models):
-
-    for [sol, objs] in models:
-        for [obj, data] in objs:
-            over(loglog, data['R'], data['encmass'])
+    for m in models:
+        c = 'r-' if m['tagged'] else 'k-'
+        for [obj, data] in m['objs']:
+            over(loglog, data['R'], data['encmass'], c)
 
     #gca().set_xlim(0,data['R'][-1])
     xlabel('arcsec')
@@ -132,14 +133,21 @@ def encmass_plot(models):
 _H0_xlabel = r'$H_0^{-1}$ (Gyr)'
 def H0_plot(models, objects=None):
 
-    H0s = [ data['1/H0'] for [sol, objs] in models for [obj, data] in objs ]
-            
-    hist(log10(H0s), bins=100, histtype='step')
-    axvline(log10(14), c='r', ls=':')
+    H0s    = [ data['1/H0'] for m in models if not m['tagged'] for [obj, data] in m['objs']]
+    tagH0s = [ data['1/H0'] for m in models if     m['tagged'] for [obj, data] in m['objs']]
 
-    #gca().set_xlim(0, 20)
-    #gca().set_xscale('log', basex=10)
+    print 'H0_plot',H0s
+
+    if H0s:
+        b = logspace(log10(min(H0s)*0.9), log10(max(H0s)*1.1), 10)
+        hist(H0s, bins=b, histtype='step', edgecolor='black')
+        axvline(14, c='r', ls=':')
+
+    if tagH0s:
+        b = logspace(log10(min(tagH0s)*0.9), log10(max(tagH0s)*1.1), 10)
+        over(hist, tagH0s, bins=b, histtype='step', edgecolor='red')
+        axvline(14, c='r', ls=':')
+
     xlabel(_H0_xlabel)
     ylabel('Number')
-    return 
 

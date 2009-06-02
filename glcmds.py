@@ -88,7 +88,10 @@ def maprad(r):
 
 def postfilter(*fs):
     models = env.models
-    for f in fs:
-        models = filter(f, models)
+    if fs:
+        for m in models: m['tagged'] = True
+        for f in fs:     models = filter(f, models)
+        for m in models: m['tagged'] = False
 
     env.accepted_models = models
+

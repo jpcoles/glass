@@ -1,7 +1,6 @@
 from __future__ import division
 from glcmds import *
 from priors import *
-from funcs import *
 
 cons = 0
 def _expand_array(nvars, offs, f):
@@ -29,8 +28,16 @@ def init_model_generator():
        enabled priors."""
 
     objs = env.objects
-    lp = filter(lambda x: x.where == 'object_prior',  all_priors)
-    gp = filter(lambda x: x.where == 'ensemble_prior', all_priors)
+
+    if inc_priors:
+        priors = inc_priors
+    elif exc_priors:
+        priors = filter(lambda x: x not in exc_priors, all_priors)
+    else:
+        priors = all_priors
+
+    lp = filter(lambda x: x.where == 'object_prior',   priors)
+    gp = filter(lambda x: x.where == 'ensemble_prior', priors)
 
     nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0) - len(objs) + 1
 
@@ -63,5 +70,7 @@ def generate_models(objs, n):
     
     mg.start()
     for sol in mg.next(n):
-        yield [sol, zip(objs, map(lambda x: packaged_solution(x, sol), objs))]
+        yield {'sol':  sol,
+               'objs': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
+               'tagged':  False}
 
