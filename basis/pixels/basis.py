@@ -240,7 +240,7 @@ class PixelBasis:
         #print self.myobject.scales, self.H0, sol[o+self.H0], len(sol)
         #print self.srcpos_start
         assert not isinf(ps['1/H0'])
-        if ps['1/H0'] == float('inf'): ps['1/H0'] = 1
+        #if ps['1/H0'] == float('inf'): ps['1/H0'] = 1
 
         ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
         ps['sigma'] = array([sum(ps['mass'][r]) / (len(r) * self.cell_size**2) for r in self.rings])
