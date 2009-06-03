@@ -49,7 +49,7 @@ def angdist(z1, z2):
 
 def scales(zl, zs):
     """Returns the following scaling factors as a dictionary:
-        tscale:  time scale              (g days/arcsec^2)
+        time:  time scale              (g days/arcsec^2)
         angdist: angular distance        (g kpc/arcs)
         critden: critical density        (g M_sol/arcsec^2)
 

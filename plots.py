@@ -2,12 +2,13 @@ from __future__ import division
 from numpy import array, empty_like, amin, amax, repeat, logspace
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
 from numpy.random import random
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, suptitle, figure, grid
-from pylab import gray, jet
+from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
+                  hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
+                  suptitle, figure, grid, gray, jet
 import matplotlib
+import matplotlib.cm as cm  
 from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle
-import matplotlib.cm as cm  
 
 _system_colors = 'rgbcmykw'
 _source_colors = 'c'

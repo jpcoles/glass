@@ -2,7 +2,7 @@ from __future__ import division
 from environment import env
 import numpy
 from numpy import zeros, array, empty, cos, sin, compress
-from potential import poten, poten_x, poten_y, maginv
+from potential import poten, poten_dx, poten_dy, maginv
 from itertools import izip
 
 all_priors = []
@@ -49,16 +49,16 @@ def image_pos(o, leq, eq, geq):
             rows[0,0] = (img.pos.real + o.basis.map_shift) * sys.zcap
             rows[1,0] = (img.pos.imag + o.basis.map_shift) * sys.zcap
             positions = img.pos - o.basis.ploc
-            rows[0,pix_start:pix_end] = -poten_x(positions, o.basis.cell_size)
-            rows[1,pix_start:pix_end] = -poten_y(positions, o.basis.cell_size)
+            rows[0,pix_start:pix_end] = -poten_dx(positions, o.basis.cell_size)
+            rows[1,pix_start:pix_end] = -poten_dy(positions, o.basis.cell_size)
 
             for n,offs in enumerate(xrange(shear_start, shear_end)):
-                rows[0,offs] = -o.shear.poten_x(n+1, img.pos)
-                rows[1,offs] = -o.shear.poten_y(n+1, img.pos)
+                rows[0,offs] = -o.shear.poten_dx(n+1, img.pos)
+                rows[1,offs] = -o.shear.poten_dy(n+1, img.pos)
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               rows[0,offs] = -o.ptmass.poten_x(n+1, img.pos)
-#               rows[1,offs] = -o.ptmass.poten_y(n+1, img.pos)
+#               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
+#               rows[1,offs] = -o.ptmass.poten_dy(n+1, img.pos)
 
             srcpos = o.basis.srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -sys.zcap,     0

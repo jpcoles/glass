@@ -37,12 +37,12 @@ def poten(r, a):
     return v / (2*pi)
 
 @vectorize
-def poten_x(r, a):
+def poten_dx(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm = x - a/2
+    xp = x + a/2
+    ym = y - a/2
+    yp = y + a/2
 
     xm2 = xm**2
     xp2 = xp**2
@@ -56,12 +56,12 @@ def poten_x(r, a):
     return v / pi
 
 @vectorize
-def poten_y(r, a):
+def poten_dy(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm = x - a/2
+    xp = x + a/2
+    ym = y - a/2
+    yp = y + a/2
 
     xm2 = xm**2
     xp2 = xp**2
@@ -75,12 +75,12 @@ def poten_y(r, a):
     return v / pi
 
 @vectorize
-def poten_xy(r, a):
+def poten_dxdy(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm = x - a/2
+    xp = x + a/2
+    ym = y - a/2
+    yp = y + a/2
 
     xm2 = xm**2
     xp2 = xp**2
@@ -91,32 +91,32 @@ def poten_xy(r, a):
     return v/(2*pi)
 
 @vectorize
-def poten_xx(r, a):
+def poten_dxdx(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm = x - a/2
+    xp = x + a/2
+    ym = y - a/2
+    yp = y + a/2
 
     v = arctan(yp/xp) + arctan(ym/xm) \
       - arctan(yp/xm) - arctan(ym/xp)
     return v/pi
 
 @vectorize
-def poten_yy(r, a):
+def poten_dydy(r, a):
     x,y = r.real, r.imag
-    xm = x - a/2.
-    xp = x + a/2.
-    ym = y - a/2.
-    yp = y + a/2.
+    xm = x - a/2
+    xp = x + a/2
+    ym = y - a/2
+    yp = y + a/2
     v = arctan(xp/yp) + arctan(xm/ym) \
       - arctan(xp/ym) - arctan(xm/yp)
     return v/pi
 
 def maginv(r, theta, a):
-    xx = poten_xx(r,a)
-    yy = poten_yy(r,a)
-    delta = poten_xy(r,a);
+    xx    = poten_dxdx(r,a)
+    yy    = poten_dydy(r,a)
+    delta = poten_dxdy(r,a)
 
     theta *= pi/90
     cs = cos(theta)

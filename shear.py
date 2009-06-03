@@ -24,6 +24,12 @@ class Shear:
             return l[0]
         return l
 
+    def poten_dx(self, r):  return  self.cs2*r.real + self.sn2*r.imag
+    def poten_d2x(self, r): return -self.sn2*r.real + self.cs2*r.imag
+
+    def poten_dy(self, r):  return -self.cs2*r.imag + self.sn2*r.real
+    def poten_d2y(self, r): return  self.sn2*r.imag + self.cs2*r.real
+
     def poten_x(self, n, r):
         assert (n==1 or n==2)
         x,y = r.real, r.imag
