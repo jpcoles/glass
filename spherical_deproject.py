@@ -1,6 +1,6 @@
 '''
    #------------------------------------------------------------------------
-   # deproject.py | version 0.0 | Justin Read 2009 
+   # spherical_deproject.py | version 0.0 | Justin Read 2009 
    #------------------------------------------------------------------------
 
    These routines form the Abel deprojection module for GLASS.
