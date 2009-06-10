@@ -32,7 +32,7 @@ import sys
 from numpy import loadtxt
 from numpy import interp
 from numpy import linspace, logspace, empty, zeros
-from numpy import pi
+from numpy import pi, amin, amax
 from numpy import cos, exp, log10, log, sqrt, arccos
 from scipy.integrate.quadrature import simps, trapz
 from scipy.integrate import quad 
@@ -43,7 +43,7 @@ from scipy.misc.common import derivative
 #-----------------------------------------------------------------------------
 
 def thetaintintegrand(theta,beta):
-    return cos(theta)**(2.0*beta-2.0)*(1.0-beta*cos(theta)**2.0)
+    return cos(theta)**(2*beta-2)*(1-beta*cos(theta)**2)
 def thetaint(beta,a):
     '''Theta integral for inner integral in sigp(r) calc'''
     return quad(thetaintintegrand, 0, a, args=beta)[0]
@@ -55,10 +55,10 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,mass,rin):
     # Check rmin/rmax values. This bit assumes ascending R values.
     # We use R[1] and not R[0] for the low range because interpolation
     # at R[0] is unreliable. 
-    if rmin < min(R):
+    if rmin < amin(R):
         rmin = R[1]
-    if rmax > max(R):
-        rmax = max(R)
+    if rmax > amax(R):
+        rmax = amax(R)
 
     # Calculate inner/outer power law match values:
     sigc_in = interp(rmin,R,sigma)
@@ -68,7 +68,7 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,mass,rin):
 
     # Inner power [consistent with known enclosed mass & smooth simga]
     menc_in_real = interp(rmin,R,mass)
-    alpin = 2.0 - sigc_in*2.0*pi/menc_in_real*rmin**2.0
+    alpin = 2 - sigc_in*2*pi/menc_in_real*rmin**2
     Ain = sigc_in * rmin**alpin
 
     # Outer power [consistent with smooth sigma & sigma' & finite mass]:
@@ -83,9 +83,9 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,mass,rin):
     output = empty(len(rin), 'double')
     output = derivative(lambda x: interp(x,R,sigma), rin)
     w = rin > rmax
-    output[w] = -alpout*Aout*rin[w]**(-alpout-1.0)
+    output[w] = -alpout*Aout*rin[w]**(-alpout-1)
     w = rin < rmin
-    output[w] = -alpin*Ain*rin[w]**(-alpin-1.0)
+    output[w] = -alpin*Ain*rin[w]**(-alpin-1)
 
     return output
 
@@ -94,11 +94,11 @@ def masstot(rmax,alphalim,r,rho,massr,rin):
        with the assumed surface density outer power law distribution]'''
 
     # Check rmax value:
-    if rmax > max(r):
-        rmax = max(r)
+    if rmax > amax(r):
+        rmax = amax(r)
 
     # Find the mass match point:
-    gam = alphalim + 1.0
+    gam = alphalim + 1
     m0 = interp(rmax,r,massr)
     Ac = interp(rmax,r,rho)*rmax**gam
  
@@ -106,10 +106,10 @@ def masstot(rmax,alphalim,r,rho,massr,rin):
     output = empty_like(rin)
     mtot = interp(rin,r,massr)
     w = rin > rmax
-    if -gam+3.0 < 0:
-        mtot[w] = m0 + 4.0*pi*Ac/(3.-gam)*(rin[w]**(3.0-gam)-rmax**(3.0-gam))
+    if -gam+3 < 0:
+        mtot[w] = m0 + 4*pi*Ac/(3.-gam)*(rin[w]**(3-gam)-rmax**(3-gam))
     else:
-        mtot[w] = m0 + 4.0*pi*Ac*(log(rin[w]/rmax))
+        mtot[w] = m0 + 4*pi*Ac*(log(rin[w]/rmax))
 
     return mtot
 
@@ -117,18 +117,18 @@ def gRr(r,beta,lower):
     '''Inner integral function for sigp(r)'''
 
     # Error checking:
-    assert min(r)**2.0 - lower**2.0 >= 0,\
-           'lower %f > min(r) %f' % (lower,min(r))
+    assert amin(r)**2 - lower**2 >= 0,\
+           'lower %f > min(r) %f' % (lower,amin(r))
     assert beta <= 1,\
            'anisotropy beta %f > 1' % beta
 
     # Treat beta=0 as a special case:
     if beta == 0:
-        return sqrt(r**2.0 - lower**2.0)
+        return sqrt(r**2 - lower**2)
     else:
         # General solution:
         vec_thetaint = vectorize(thetaint)
-        return lower**(1.0-2.0*beta)*vec_thetaint(beta,arccos(lower/r))
+        return lower**(1-2*beta)*vec_thetaint(beta,arccos(lower/r))
 
 def sphericalcumulate(r,array,integrator):
     '''Calculate the spherical cumulative "mass" of an array'''
@@ -136,18 +136,18 @@ def sphericalcumulate(r,array,integrator):
     intpnts = len(array)
     out = zeros(intpnts,'double')
     for i in xrange(1,intpnts):
-        out[i] = integrator(4.0*pi*r[0:i]**2.0*array[0:i],r[0:i])
+        out[i] = integrator(4*pi*r[0:i]**2*array[0:i],r[0:i])
     return out
 
 def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,mass):
     '''Solve the Abel integral to obtain rho(r)'''
 
     # Some asserts to check the inputs are all sensible:
-    assert imagemin >= 0.,\
+    assert imagemin >= 0,\
            'Imagemin %f < 0' % imagemin
     assert imagemin < imagemax,\
            'Imagemin %f > Imagemax %f' % (imagemin, imagemax)
-    assert imagemax > 0.,\
+    assert imagemax > 0,\
            'Imagemax %f < 0' % imagemax
     assert intpnts > 0,\
            'inpnts %i <= 0' % intpnts
@@ -156,28 +156,28 @@ def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,mass):
     assert alphalim >= 2,\
            'alphalim %f < 2 (this alphalim gives > "log-infinite" mass)' % alphalim
 
-    theta = linspace(0.,pi/2.-1.0e-6,num=intpnts)
+    theta = linspace(0,pi/2-1e-6,num=intpnts)
     cth = cos(theta)
     rho = empty(len(r), 'double')
     for i in xrange(len(r)):
         y = dSigdR(imagemin,imagemax,alphalim,
                    R,sigma,mass,r[i]/cth)/cth
-        rho[i] = (-1./pi)*integrator(y,theta)
+        rho[i] = (-1/pi)*integrator(y,theta)
     return rho
 
 def sigpsolve(r,rho,integrator,intpnts,alphalim,Gsp,
               light,lpars,beta):
     '''Solve the integral to obtain sigp(r). See Wilkinson et al. 2004
        for details. Note typos in equation (1) of their paper. Int.
-       limits for f(r) should be r-->infty and GM(r)/r should be GM(r)/r**2.0'''
+       limits for f(r) should be r-->infty and GM(r)/r should be GM(r)/r**2'''
 
     massr = sphericalcumulate(r,rho,integrator)
-    rmax = max(r)
+    rmax = amax(r)
     sigp2 = empty(len(r), 'double')
 
-    theta = linspace(0.,pi/2.-1.0e-6,num=intpnts)
+    theta = linspace(0,pi/2-1e-6,num=intpnts)
     cth = cos(theta)
-    cth2 = cth**2.0
+    cth2 = cth**2
     sth = sin(theta)
 
     for i in xrange(len(r)):
@@ -185,10 +185,10 @@ def sigpsolve(r,rho,integrator,intpnts,alphalim,Gsp,
         rint = lower/cth
         rhostar = light.den(rint,lpars)
         mtot = masstot(rmax,alphalim,r,rho,massr,rint)
-        integrand = rhostar*rint**(2.0*beta-2.0)*Gsp*\
+        integrand = rhostar*rint**(2*beta-2)*Gsp*\
                     mtot*gRr(rint,beta,lower)
         sigp2[i] = integrator(integrand*lower*sth/cth2,theta)
-    sigp2 = sigp2 * 2.0/light.surf(r,lpars)
+    sigp2 = sigp2 * 2/light.surf(r,lpars)
     sigp = sqrt(sigp2)
 
     return sigp
@@ -203,11 +203,11 @@ def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
         ap=ap+1
 
     R = rin[:ap]
-    sigp2 = sigp[:ap]**2.0
+    sigp2 = sigp[:ap]**2
     IR = light.surf(R,lpars)
 
-    return sqrt(integrator(sigp2*IR*2.0*pi*R,R)/\
-                integrator(IR*2.0*pi*R,R))
+    return sqrt(integrator(sigp2*IR*2*pi*R,R)/\
+                integrator(IR*2*pi*R,R))
 
 #-----------------------------------------------------------------------------
 # Main program
@@ -222,9 +222,9 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
 
     #Range of believeable data + outer slope limiter:
-    imagemin = 1.
-    imagemax = 20.
-    alphalim = 4.
+    imagemin = 1
+    imagemax = 20
+    alphalim = 4
 
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
@@ -233,9 +233,9 @@ if __name__ == "__main__":
     
     #Light distribution parameters + vel anisotropy: 
     import massmodel.hernquist as light
-    lpars = [1.0,15.0,1.0,intpnts]
-    beta = 0.
-    aperture = 30.
+    lpars = [1,15,1,intpnts]
+    beta = 0
+    aperture = 30
 
     #Input files [sigma(R) and mass(R)]:
     datadir = '../Data/'
@@ -273,7 +273,7 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Calculate the Abel integral to obtain rho(r) and mass(r)
     #-------------------------------------------------------------------------
-    r = logspace(log10(min(f1['R'])/10.),log10(max(f1['R'])*10.),
+    r = logspace(log10(amin(f1['R'])/10),log10(amax(f1['R'])*10),
                  num=interpnts)
     rho = abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,
                     f1['R'],f1['sigma'],mass)
@@ -285,7 +285,7 @@ if __name__ == "__main__":
     #units of M=Msun, L=kpc, V=km/s:
     Gsp = 6.67e-11 * 1.989e30 / 3.086e19
     sigp = sigpsolve(r,rho,integrator,intpnts,alphalim,Gsp,
-                     light,lpars,beta)/1000.
+                     light,lpars,beta)/1000
     sigpsing = sigpsingle(r,sigp,light,lpars,aperture,integrator)
 
     print 'Final rms mean projected vel. dispersion:',sigpsing
@@ -294,12 +294,12 @@ if __name__ == "__main__":
     # Plot the results: testing the interpolants
     #-------------------------------------------------------------------------
     figure()
-    Rint = linspace(0.,imagemax,num=intpnts)
+    Rint = linspace(0,imagemax,num=intpnts)
     dsigma = derivative(lambda x: interp(x,f1['R'],f1['sigma']), f1['R'])
     plot(f1['R'], f1['sigma'],label='Data')
     plot(f1['R'], dsigma,label='Gradient')
-    plot([imagemax,imagemax],[min(dsigma),max(dsigma)])
-    plot([imagemin,imagemin],[min(dsigma),max(dsigma)])
+    plot([imagemax,imagemax],[amin(dsigma),amax(dsigma)])
+    plot([imagemin,imagemin],[amin(dsigma),amax(dsigma)])
     title('Testing interpolants')
     xlabel(r'$R(\mathrm{kpc})$')
     ylabel(r'$\Sigma(R)$')
@@ -309,9 +309,9 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: input surface density profile
     #-------------------------------------------------------------------------
-    if imagemax > max(f1['R']):
-        imagemax = max(f1['R'])
-    if imagemin < min(f1['R']):
+    if imagemax > amax(f1['R']):
+        imagemax = amax(f1['R'])
+    if imagemin < amin(f1['R']):
         imagemin = f1['R'][1]
     f2 = loadtxt(surftest,
                  dtype = {'names': ('R', 'sigma'),
@@ -319,8 +319,8 @@ if __name__ == "__main__":
     figure()
     loglog(f1['R'], f1['sigma'],label='Python input')
     plot(f2['R'], f2['sigma'],label='IDL input')
-    plot([imagemax,imagemax],[min(f1['sigma']),max(f1['sigma'])])
-    plot([imagemin,imagemin],[min(f1['sigma']),max(f1['sigma'])])
+    plot([imagemax,imagemax],[amin(f1['sigma']),amax(f1['sigma'])])
+    plot([imagemin,imagemin],[amin(f1['sigma']),amax(f1['sigma'])])
     title('Surface density')
     xlabel(r'$R(\mathrm{kpc})$')
     ylabel(r'$\Sigma(R)$')
@@ -336,8 +336,8 @@ if __name__ == "__main__":
     figure()
     loglog(r,rho,label='Python result')
     plot(f2['r'],f2['rho'],label='Right result')
-    plot([imagemax,imagemax],[min(rho),max(rho)])
-    plot([imagemin,imagemin],[min(rho),max(rho)])
+    plot([imagemax,imagemax],[amin(rho),amax(rho)])
+    plot([imagemin,imagemin],[amin(rho),amax(rho)])
     title('Deprojected data')
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$\rho(r)$')
@@ -353,14 +353,14 @@ if __name__ == "__main__":
                           'formats': ('f8', 'f8')})
 
     rlong = linspace(0,1000,num=1000)
-    masst = masstot(max(r),alphalim,r,rho,massr,rlong)
+    masst = masstot(amax(r),alphalim,r,rho,massr,rlong)
 
     figure()
     plot(r,massr,label='Python result')
     plot(f2['r'],f2['mass'],label='Right result')
     plot(rlong,masst,label='Interpolated cumulative mass')
-    plot([imagemax,imagemax],[min(massr),max(massr)])
-    plot([imagemin,imagemin],[min(massr),max(massr)])
+    plot([imagemax,imagemax],[amin(massr),amax(massr)])
+    plot([imagemin,imagemin],[amin(massr),amax(massr)])
     title('Cumulative mass')
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$M(r)$')
@@ -377,8 +377,8 @@ if __name__ == "__main__":
     figure()
     plot(r,sigp,label='Python result')
     plot(f2['r'],f2['sigp'],label='Right result')
-    plot([imagemax,imagemax],[min(sigp),max(sigp)])
-    plot([imagemin,imagemin],[min(sigp),max(sigp)])
+    plot([imagemax,imagemax],[amin(sigp),amax(sigp)])
+    plot([imagemin,imagemin],[amin(sigp),amax(sigp)])
     gca().set_xlim(0,imagemax*1.5)
     title('Projected velocity dispersion')
     xlabel(r'$r(\mathrm{kpc})$')
