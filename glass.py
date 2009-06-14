@@ -1,9 +1,13 @@
 from __future__ import division
 import sys, getopt
+from numpy import array, average
+from numpy import loadtxt
+
 from environment import env
 from plots import mass_plot, potential_plot, sigma_plot, H0_plot, encmass_plot, arrival_plot, src_plot, img_plot
-from numpy import array
+import pylab
 from pylab import figure, show, clf, ioff, draw, ion, subplot, cla, matshow
+
 
 def help():
     print >>sys.stderr, "Usage: glass.py <input>"
@@ -32,41 +36,58 @@ def model(nmodels):
     H0s = []
     mass = None
 
-    ensemble_avg = None
-
     for i,m in enumerate(generate_models(env.objects, nmodels)): 
         if i == 0: continue
-        if ensemble_avg is None:
-            ensemble_avg = array(m['sol'], copy=True)
-        else:
-            ensemble_avg += m['sol']
-
         env.models.append(m)
 
-    ensemble_avg /= len(env.models)
-    obj0_ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)
+    env.accepted_models = env.models
 
-    #mass_plot([env.objects[0], {'mass': mass/nmodels}])
-    matshow(env.objects[0].basis._lnr())
-    figure()
-    subplot(331)
-    mass_plot([env.objects[0], obj0_ensemble_ps])
-    src_plot([env.objects[0], obj0_ensemble_ps])
-    img_plot([env.objects[0], obj0_ensemble_ps])
-    #figure()
-    subplot(335)
-    potential_plot([env.objects[0], obj0_ensemble_ps], 0)
-    src_plot([env.objects[0], obj0_ensemble_ps])
-    img_plot([env.objects[0], obj0_ensemble_ps])
-    #figure()
-    for i,sys in enumerate(env.objects[0].systems):
-        subplot(3,3,7+i, aspect='equal')
-        arrival_plot([env.objects[0], obj0_ensemble_ps], i)
+def plot():
+
+    if env.accepted_models:
+
+        ensemble_avg = average([ m['sol'] for m in env.accepted_models ], axis=0)
+
+        print ensemble_avg
+
+        obj0_ensemble_ps = packaged_solution(env.objects[0], ensemble_avg)
+
+        #mass_plot([env.objects[0], {'mass': mass/nmodels}])
+        matshow(env.objects[0].basis._lnr())
+        figure()
+        subplot(331)
+        mass_plot([env.objects[0], obj0_ensemble_ps])
         src_plot([env.objects[0], obj0_ensemble_ps])
         img_plot([env.objects[0], obj0_ensemble_ps])
+        #figure()
+        subplot(335)
+        potential_plot([env.objects[0], obj0_ensemble_ps], 0)
+        src_plot([env.objects[0], obj0_ensemble_ps])
+        img_plot([env.objects[0], obj0_ensemble_ps])
+        #figure()
+        for i,sys in enumerate(env.objects[0].systems):
+            subplot(3,3,7+i, aspect='equal')
+            arrival_plot([env.objects[0], obj0_ensemble_ps], i)
+            src_plot([env.objects[0], obj0_ensemble_ps])
+            img_plot([env.objects[0], obj0_ensemble_ps])
 
     figure()
     sigma_plot(env.models)
+
+    files = []
+
+    if not files:
+        dir  = '/smaug/data/theorie/justin/Backup/Mylaptop/Scratch/Lensing/Cuspcore/CMerger1'
+        files.append(dir + '/cmerger_1_sdenx.txt')
+
+    for f in files:
+        data = loadtxt(f,
+                       dtype = {'names': ('R', 'sigp', 'err'),
+                                'formats': ('f8', 'f8', 'f8')})
+
+    pylab.plot(data['R'], data['sigp'], 'g-')
+
+
     figure()
     encmass_plot(env.models)
     figure()
@@ -106,5 +127,9 @@ if __name__ == "__main__":
             env.ncpus = ncpus
 
     from glcmds import *
+    from filters import *
+
     execfile(list[0])
+
+    #plot()
 
