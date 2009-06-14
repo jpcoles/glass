@@ -66,6 +66,9 @@ def packaged_solution(obj, sol):
     return obj.basis.packaged_solution(sol)
 
 def generate_models(objs, n):
+
+    if n <= 0: return
+
     mg = env.model_gen
     
     mg.start()

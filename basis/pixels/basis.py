@@ -12,13 +12,20 @@ from numpy import zeros, min, max, abs, vectorize, negative, array, take,   \
                   ndindex, empty, arange, empty_like, ogrid, round, where,  \
                   unique, round, argwhere, asarray, lexsort, angle, floor,  \
                   conj, arctan2, atleast_2d, linspace, cumsum, sum, repeat, \
-                  zeros_like, ndenumerate, s_, isinf, where, dot
+                  zeros_like, ndenumerate, s_, isinf, where, dot, array, \
+                  add, subtract, multiply
+from pylab import plot, show, matshow, figure, contour, over
+
+from scipy.ndimage.filters import correlate
+from scipy.misc import central_diff_weights
+
 from math import hypot, atan2, pi
-from pylab import plot, show
+from itertools import izip
 
-from pylab import matshow, figure
-
+from environment import env
 from potential import poten_indef, poten2d_indef, poten
+from scales import density_to_physical, distance_to_physical, time_to_physical
+from scales import density_to_internal, time_to_internal
 
 def xy_grid(L, S=1, scale=1):
     """Return a grid with radius L (i.e. diameter=2*L+1) where each
@@ -34,9 +41,11 @@ class PixelBasis:
 
         self.myobject = None
 
-        self.pixrad    = None
-        self.maprad    = None
-        self.cell_size = None
+        self.pixrad    = None       # [pixels]
+        self.maprad    = None       # [arcsec]
+        self.cell_size = None       # [arcsec]
+        
+        self.mapextent = None       # [arcsec]
 
         self.samplex_row_offset = None
 
@@ -49,7 +58,7 @@ class PixelBasis:
 
         self.inner_image_ring, self.outer_image_ring = None,None
 
-        self.map_shift = 100
+        self.map_shift = 100        # [arcsec]
 
         self.lnr = None
         self.subdivision = 5
@@ -63,9 +72,13 @@ class PixelBasis:
         # Get all image positions
         #---------------------------------------------------------------------
         rs = [ abs(img.pos) for sys in obj.systems for img in sys.images ]
-        rmin, rmax = min(rs), max(rs)
 
-        print "rmin =", rmin, "rmax =", rmax, " L =", L
+        if rs:
+            rmin, rmax = min(rs), max(rs)
+            print "rmin =", rmin, "rmax =", rmax, " L =", L
+        else:
+            assert obj.maprad is not None, 'If no images are given, then maprad must be.'
+            rmin, rmax = 0, obj.maprad
 
         #---------------------------------------------------------------------
         # Select a maprad if not specified. Remember, coordinates are of
@@ -80,7 +93,8 @@ class PixelBasis:
         #self.cell_size = (L+1) * self.maprad / (L*L)
         #self.maprad = self.cell_size * L # + self.cell_size / 2
         #self.cell_size = 1
-        self.maprad = self.cell_size * (2*L + 1)/2
+
+        self.mapextent = self.cell_size * (2*L + 1)/2
 
         print "cell_size =", self.cell_size
 
@@ -229,26 +243,38 @@ class PixelBasis:
 
 #       sys.exit(0)
 
+
     def packaged_solution(self, sol):
-        o = self.myobject.basis.array_offset
+        obj = self.myobject
+        o = obj.basis.array_offset
+        scales = self.myobject.scales
+
         ps = {}
         ps['mass']   = sol[ o+self.pix_start    : o+self.pix_end      ]
         ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ]
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
         ps['src']    = sol[ o+self.srcpos_start : o+self.srcpos_end   ] - self.map_shift
-        ps['1/H0']   = 1/(sol[o+self.H0] * self.myobject.scales['time'])
+        ps['1/H0']   = time_to_physical(obj, sol[o+self.H0])
+
         #print self.myobject.scales, self.H0, sol[o+self.H0], len(sol)
         #print self.srcpos_start
-        assert not isinf(ps['1/H0'])
+        #assert not isinf(ps['1/H0'])
         #if ps['1/H0'] == float('inf'): ps['1/H0'] = 1
 
-        ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
-        ps['sigma'] = array([sum(ps['mass'][r]) / (len(r) * self.cell_size**2) for r in self.rings])
+        rscale = distance_to_physical([obj,ps], 1) * self.cell_size
+        mscale = density_to_physical([obj,ps], 1) * self.cell_size**2
 
-        ps['R'] = array([self.cell_size * ri + self.cell_size/2 for ri in xrange(len(self.rings))])
+        ps['R']     = (arange(len(self.rings)) + 0.5) * self.cell_size
+        ps['encmass'] = cumsum([sum(ps['mass'][r]) for r in self.rings])
+        ps['sigma'] = array([sum(ps['mass'][r]) / len(r) for r in self.rings]) \
+                    / self.cell_size**2
+
+        ps['R_phys'] = (arange(len(self.rings)) + 0.5) * rscale
+        ps['encmass_phys'] = ps['encmass'] * mscale
+        ps['sigma_phys'] = array([sum(ps['mass'][r]) / len(r) for r in self.rings]) \
+                         * mscale/rscale**2
 
         return ps
-
 
     def refined_xy_grid(self, data):
         if not data.has_key('refined_xy_grid'):
@@ -308,8 +334,7 @@ class PixelBasis:
         return data['mass_grid']
 
     def _lnr(self):
-        """Returns a grid of ln r values. That is, the natural logarithm as a 
-           function of distance from the central grid cell."""
+        """ Returns a grid of the indefinite integral of the potential. """
         if self.lnr is None:
             L, S = self.pixrad, self.subdivision
             assert (S%2)==1
@@ -326,7 +351,7 @@ class PixelBasis:
 
         return self.lnr
 
-    def potential_grid(self, data, sys=None):
+    def XXXpotential_grid(self, data):
         if not data.has_key('potential_grid'):
             obj = self.myobject
             L = obj.basis.pixrad
@@ -346,6 +371,8 @@ class PixelBasis:
             r0 = (lr + S) // 2
             c0 = (lc + S) // 2
             o = S*(2*L+1)
+
+            l = empty_like(mass)
             for [r,c],m in ndenumerate(mass):
                 if not m: continue
 
@@ -359,17 +386,72 @@ class PixelBasis:
 
                 #print rs,cs
                 #print s0, s1, s2, s3
-                l = lnr[s0] + lnr[s1] - lnr[s2] - lnr[s3]
-                phi -= m * l
+                add(lnr[s0],lnr[s1], l)
+                subtract(l, lnr[s2], l)
+                subtract(l, lnr[s3], l)
+                multiply(l, m, l)
+                subtract(phi, l, phi) #phi -= l
                 
-            #-------------------------------------------------------------------
-            # Normalize the mass because we iterated over the mass above and
-            # a single mass element appears S^2 times in the refined mass grid.
-            #-------------------------------------------------------------------
-            #phi = phi / (S**2)
-
             # TODO: need xy grid for this
             #if obj.shear: phi -= obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
+
+            data['potential_grid'] = phi
+            print 'sum', sum(phi)
+
+            print phi
+
+        return data['potential_grid']
+
+    def potential_grid(self, data):
+        if not data.has_key('potential_grid'):
+            obj = self.myobject
+            L = obj.basis.pixrad
+            S = obj.basis.subdivision
+            assert (S%2)==1
+
+            mass  = self.mass_grid(data)
+            phi   = zeros_like(mass)
+            lnr   = self._lnr()
+            lr,lc = lnr.shape
+            mr,mc = mass.shape
+
+            rscale = distance_to_physical([obj,data], 1) * self.cell_size
+            mscale = density_to_physical([obj,data], 1) * self.cell_size**2
+            print sum(mass) * mscale
+            print 2.1*rscale
+            print "mass is", mass.shape
+            #print "phi is", phi.shape
+            #print "lnr is", lnr.shape
+
+            r0 = (lr + S) // 2
+            c0 = (lc + S) // 2
+            o = S*(2*L+1)
+
+            w = zeros((S+1,S+1))
+            w[0, 0] = w[-1,-1] =  1
+            w[0,-1] = w[-1, 0] = -1
+
+            crop = s_[(S+1)//2:-(S//2), (S+1)//2:-(S//2)]
+
+            l = empty((o+S,o+S))
+            _or = -1
+            for [r,c],m in ndenumerate(mass):
+                if r != _or: _or=r; print r
+                if not m: continue
+
+                rs,re = r0-r, r0-r+o
+                cs,ce = c0-c, c0-c+o
+
+                s = lnr[rs - S : re, cs - S : ce]
+                correlate(s, w, mode='constant', output=l)
+                multiply(l, m, l)
+
+                subtract(phi, l[crop], phi)
+                
+            # TODO: need xy grid for this
+            #if obj.shear: phi -= obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
+
+            print phi
 
             data['potential_grid'] = phi
             print 'sum', sum(phi)
@@ -387,7 +469,7 @@ class PixelBasis:
                     # TODO:
                     #p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
                     l.append(-p)
-                data['potential_contour_levels'].append(l)
+                if l: data['potential_contour_levels'].append(l)
 
         return data['potential_contour_levels']
 
@@ -406,6 +488,8 @@ class PixelBasis:
                 srcx,srcy = data['src'][i*2:i*2+2]
                 geom  = r2_2 - xy.real * srcx - xy.imag * srcy
                 grid  = geom * sys.zcap + phi
+                #print phi
+                #print geom
                 data['arrival_grid'].append(grid)
 
             #print 'arrival_grid:', sum(grid)
@@ -431,11 +515,53 @@ class PixelBasis:
                     #p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
 
                     l.append(geom * sys.zcap - p)
-                data['arrival_contour_levels'].append(l)
+                if l: data['arrival_contour_levels'].append(l)
 
         return data['arrival_contour_levels']
 
+    def solution_from_data(self, X,Y,M, src=None, shear=None, ptmass=None, H0inv=None):
 
+        obj = self.myobject
+        Rmap = obj.maprad
+        Rpix = self.pixrad
+
+        if H0inv is None: H0inv = 1/env.h_spec
+
+        phys_cell_size = distance_to_physical(obj, self.cell_size, H0inv)
+        grid = zeros((2*Rpix+1, 2*Rpix+1))
+
+        gxmin = distance_to_physical(obj, -(Rmap+self.cell_size/2), H0inv)
+        gxmax = distance_to_physical(obj,  (Rmap+self.cell_size/2), H0inv)
+        gymin = distance_to_physical(obj, -(Rmap+self.cell_size/2), H0inv)
+        gymax = distance_to_physical(obj,  (Rmap+self.cell_size/2), H0inv)
+
+        for x,y,m in izip(X,Y,M):
+
+            if not gxmin <= x < gxmax: continue
+            if not gymin <= y < gymax: continue
+
+            i = grid.shape[0]-1 - int((y - gymin) / phys_cell_size) # invert y
+            j = int((x - gxmin) / phys_cell_size)
+            grid[i,j] += m
+
+        grid /= phys_cell_size**2
+        grid *= density_to_internal(obj, 1, H0inv)
+
+        #matshow(grid, extent=[-Rmap,Rmap,-Rmap,Rmap])
+        #over(contour, grid, 50, extent=[-Rmap,Rmap,-Rmap,Rmap])
+
+        o = self.array_offset
+        sol = zeros(obj.basis.nvar+1)
+
+        sol[o+self.pix_start : o+self.pix_end] = grid.ravel()[self.insideL].take(self.pmap)
+        if shear:  sol[o+self.shear_start  : o+self.shear_end]  = shear
+        if ptmass: sol[o+self.ptmass_start : o+self.ptmass_end] = ptmass
+        if src:   
+             sol[o+self.srcpos_start : o+self.srcpos_end] = src
+             sol[o+self.srcpos_start : o+self.srcpos_end] += self.map_shift
+        sol[o+self.H0] = time_to_internal(obj, H0inv)
+
+        return self.packaged_solution(sol)
 
 
 if __name__ == "__main__":

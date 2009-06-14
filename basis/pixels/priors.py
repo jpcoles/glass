@@ -52,9 +52,15 @@ def image_pos(o, leq, eq, geq):
             rows[0,pix_start:pix_end] = -poten_dx(positions, o.basis.cell_size)
             rows[1,pix_start:pix_end] = -poten_dy(positions, o.basis.cell_size)
 
-            for n,offs in enumerate(xrange(shear_start, shear_end)):
-                rows[0,offs] = -o.shear.poten_dx(n+1, img.pos)
-                rows[1,offs] = -o.shear.poten_dy(n+1, img.pos)
+#           for n,offs in enumerate(xrange(shear_start, shear_end)):
+#               rows[0,offs] = -o.shear.poten_dx(n+1, img.pos)
+#               rows[1,offs] = -o.shear.poten_dy(n+1, img.pos)
+
+            rows[0,shear_start] = -o.shear.poten_dx(img.pos)
+            rows[1,shear_start] = -o.shear.poten_dy(img.pos)
+
+            rows[0,shear_start+1] = -o.shear.poten_d2x(img.pos)
+            rows[1,shear_start+1] = -o.shear.poten_d2y(img.pos)
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
 #               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
@@ -79,7 +85,7 @@ def time_delay(o, leq, eq, geq):
     ptmass_start, ptmass_end = o.basis.ptmass_start, o.basis.ptmass_end
 
     for i, sys in enumerate(o.systems):
-        for img0,img1,delay,uncertain in sys.time_delays:
+        for img0,img1,[lower_delay,upper_delay] in sys.time_delays:
 
             row = zeros(o.basis.nvar)
 
@@ -108,10 +114,24 @@ def time_delay(o, leq, eq, geq):
 #               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
 #               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
 
-            row[H0] = -delay
-
-            if uncertain: geq(row)
-            else:          eq(row)
+            if [lower_delay, upper_delay] == [None, None]:
+                row[H0] = 0
+                eq(row)
+            elif lower_delay == upper_delay:
+                row[H0] = -lower_delay
+                eq(row)
+            elif lower_delay is None:
+                row[H0] = -upper_delay
+                leq(row)
+            elif upper_delay is None:
+                row[H0] = -lower_delay
+                geq(row)
+            else:
+                row2 = row.copy()
+                row2[H0] = -upper_delay
+                row[H0]  = -lower_delay
+                leq(row2)
+                geq(row)
 
             #print row
 

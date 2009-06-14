@@ -7,7 +7,9 @@ csamplex = Extension('solvers.samplex.csamplex',
                      sources = ['solvers/samplex/csamplex.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
-             extra_compile_args=['-Wall', '-ftree-vectorizer-verbose=2', '-ftree-vectorize'])
+             extra_compile_args=['-Wall', 
+                                 '-ftree-vectorizer-verbose=2', '-ftree-vectorize',
+                                 '-fno-omit-frame-pointers'])
 
 setup(name = 'Glass',
       author = 'Jonathan Coles',
@@ -16,6 +18,7 @@ setup(name = 'Glass',
       description = 'Gravitational Lensing and Something Something',
       package_dir = {'glass': ''},
       packages = ['', 'solvers', 'solvers.samplex',
-                  'basis', 'basis.pixels', 'basis.bessel'],
+                  'basis', 'basis.pixels', 'basis.bessel',
+                  'massmodel', 'misc'],
       ext_modules = [csamplex])
 

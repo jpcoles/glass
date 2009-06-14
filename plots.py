@@ -9,6 +9,7 @@ import matplotlib
 import matplotlib.cm as cm  
 from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle
+from scales import density_to_physical, distance_to_physical
 
 _system_colors = 'rgbcmykw'
 _source_colors = 'c'
@@ -41,7 +42,7 @@ def mass_plot(model):
     obj, data = model
 
     L = obj.basis.pixrad
-    R = obj.basis.maprad
+    R = obj.basis.mapextent
     S  = obj.basis.subdivision
 
 
@@ -69,15 +70,15 @@ def mass_plot(model):
 
 def potential_plot(model, sys):
     obj, data = model
-    R = obj.basis.maprad
+    R = obj.basis.mapextent
     grid = obj.basis.potential_grid(data)
-    lev = obj.basis.potential_contour_levels(data)
+    levs = obj.basis.potential_contour_levels(data)
 #   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
 #   contour(grid, extent=[-R,R,-R,R], origin='upper')
     matshow(grid, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    print lev
-    for i,sys in enumerate(obj.systems):
-        over(contour, grid, lev[i], colors = system_color(i), 
+    print levs
+    for i,lev in enumerate(levs):
+        over(contour, grid, lev, colors = system_color(i), 
              extent=[-R,R,-R,R], origin='upper', extend='both')
 
     xlabel('arcsec')
@@ -87,49 +88,64 @@ def potential_plot(model, sys):
 def arrival_plot(model, sys):
     obj, data = model
     S = obj.basis.subdivision
-    R = obj.basis.maprad
-    #R -= obj.basis.cell_size / 2
+    R = obj.basis.mapextent
 
-    g   = obj.basis.arrival_grid(data)
+    g   = obj.basis.arrival_grid(data)[sys]
     lev = obj.basis.arrival_contour_levels(data)
+    if lev: lev = lev[sys]
 
-    g = g[sys]
 #   figure()
 #   hist(g.flatten())
 
 #   figure()
     matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    lev = 50 if not lev else lev[sys]
+    #lev = 50 if not lev else lev[sys]
     print 'arrival_plot:', lev
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
-    over(contour, g, 20,  colors='w',               linewidths=1, 
+    over(contour, g, 50,  colors='w',               linewidths=1, 
          extent=[-R,R,-R,R], origin='upper', extend='both')
-    over(contour, g, lev, colors=system_color(sys), linewidths=3, 
-         extent=[-R,R,-R,R], origin='upper')
+    if lev:
+        print '***', lev, '***'
+        over(contour, g, lev, colors=system_color(sys), linewidths=3, 
+             extent=[-R,R,-R,R], origin='upper')
     grid()
 
-_sigma_ylabel = r'$\Sigma$'
-def sigma_plot(models):
+def _data_plot(models, X,Y, x_label, y_label, plotf=loglog):
     for m in models:
-        c = 'r-' if m['tagged'] else 'k-'
         for [obj, data] in m['objs']:
-            over(loglog, data['R'], data['sigma'], c)
+            if m.has_key('tagged') and not m['tagged']:
+                plotf(data[X],data[Y], 'r-', alpha=0.5)
+            else:
+                plotf(data[X],data[Y], 'b-')
 
-    #loglog(data['R'], data['sigma'])
-    #gca().set_xlim(0,data['R'][-1])
-    xlabel('arcsec')
-    ylabel(_sigma_ylabel)
+            for i,sys in enumerate(obj.systems):
+                for img in sys.images:
+                    x = distance_to_physical([obj, data], abs(img.pos))
+                    print x
+                    axvline(x, c=system_color(i), ls=':')
+    xlabel(x_label)
+    ylabel(y_label)
 
+_sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
+_sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
+def sigma_plot(models):
+    _data_plot(models, 'R_phys', 'sigma_phys', _sigma_xlabel, _sigma_ylabel)
+
+_sigp_xlabel = r'$R$ $(\mathrm{kpc})$'
+_sigp_ylabel = r'$\sigma_p^2$ $()$'
+def sigp_plot(models):
+    _data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=plot)
+
+_rho_xlabel = r'$R$ $(\mathrm{kpc})$'
+_rho_ylabel = r'$\rho$ $()$'
+def rho_plot(models):
+    _data_plot(models, 'sigp:R', 'sigp:rho', _rho_xlabel, _rho_ylabel)
+
+_encmass_xlabel = r'$R$ $(\mathrm{kpc})$'
 _encmass_ylabel = r'$M$'
 def encmass_plot(models):
-    for m in models:
-        c = 'r-' if m['tagged'] else 'k-'
-        for [obj, data] in m['objs']:
-            over(loglog, data['R'], data['encmass'], c)
+    _data_plot(models, 'R_phys', 'encmass_phys', _encmass_xlabel, _encmass_ylabel)
 
-    #gca().set_xlim(0,data['R'][-1])
-    xlabel('arcsec')
-    ylabel(_encmass_ylabel)
 
 _H0_xlabel = r'$H_0^{-1}$ (Gyr)'
 def H0_plot(models, objects=None):

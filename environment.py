@@ -35,16 +35,16 @@ class Object:
         self.S          = 0
         self.shear      = None
         self.scales     = None
-        self.zlens      = 0.0
-        self.kann_spec  = 0.0
-        self.h_spec     = 0.0
-        self.minsteep   = None
+        self.zlens      = 0.0       # [redshift]
+        self.kann_spec  = 0.0   
+        self.h_spec     = 0.0       # [Gyr]
+        self.minsteep   = None      
         self.maxsteep   = None
         #self.maxsteep   = self.minsteep # TODO: This should be right, but setting to 0 skips a test in priors
         self.cen_ang    = pi/4
         self.symm       = False
 
-        self.maprad     = None
+        self.maprad     = None      # [arcsec]
 
         self.basis = None
 
@@ -63,7 +63,7 @@ class Object:
 
 class Image:
     def __init__(self, r, parity):
-        assert parity in ['min', 'sad', 'max']
+        assert parity in ['min', 'sad', 'max', 'unk']
 
         self._pos = r;
         self.pos = complex(r[0], r[1])
@@ -71,18 +71,19 @@ class Image:
         #self.angle = numpy.angle(self.pos, deg=True)
         self.elongation = [0.1, 10, 0.9]
         self.parity_name = parity
-        self.parity = ['min', 'sad', 'max'].index(parity)
+        self.parity = ['min', 'sad', 'max', 'unk'].index(parity)
 
     def __eq__(self, a):
         return a is self or a is self._pos 
         
 
 class System:
-    def __init__(self, size):
-        self.zcap = 1.0 # size
+    def __init__(self, zsrc, zlens):
+        self.zcap = cosmo.angdist(0,zsrc) / cosmo.angdist(zlens,zsrc)
+        print "zcap =", self.zcap
         self.images = []
         self.time_delays = []
-        print "zcap =", self.zcap
+        self.zsrc = zsrc
 
     def add_image(self, A):
         assert A not in self.images
@@ -91,7 +92,10 @@ class System:
     def add_time_delay(self, A,B, delay):
         assert A in self.images
         assert B in self.images
-        self.time_delays.append((A,B,abs(delay), delay<=0))
+        if isinstance(delay, (int, float)):
+            delay = [delay, delay]
+        self.time_delays.append((A,B,delay))
+
 
 class Environment:
 
@@ -122,6 +126,11 @@ class Environment:
         self._current_object = Object(name)
         self.objects.append(self._current_object)
         return self._current_object
+
+    def clear(self):
+        self.__init__()
+        
         
 env = Environment()
 
+import cosmo

@@ -64,7 +64,8 @@ def scales(zl, zs):
     return {'time':    (1+zl)*gfac*Dr, 
             'timebg':  (1+zl)*Dr, 
             'angdist': cee*gfac*Dl*206265, # 206265 arcsec/rad OR AU/parsec
-            'critden': cee*gfac*Dr*csfpg}
+            'critden': cee*gfac*Dr*csfpg,
+            'g': 978}
 
     #return zl, (1+zl)*gfac*Dr, (1+zl)*Dr, cee*gfac*Dl*206265, cee*gfac*Dr*csfpg
 
