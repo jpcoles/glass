@@ -31,9 +31,9 @@ from __future__ import division
 import sys
 from numpy import loadtxt
 from numpy import interp
-from numpy import linspace, logspace, empty, zeros
+from numpy import linspace, logspace, empty, zeros, empty_like
 from numpy import pi, amin, amax
-from numpy import cos, exp, log10, log, sqrt, arccos
+from numpy import sin, cos, exp, log10, log, sqrt, arccos
 from scipy.integrate.quadrature import simps, trapz
 from scipy.integrate import quad 
 from scipy.misc.common import derivative
