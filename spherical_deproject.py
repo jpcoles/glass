@@ -31,7 +31,7 @@ from __future__ import division
 import sys
 from numpy import loadtxt
 from numpy import interp
-from numpy import linspace, logspace, empty, zeros, empty_like
+from numpy import linspace, logspace, empty, zeros, empty_like, vectorize
 from numpy import pi, amin, amax
 from numpy import sin, cos, exp, log10, log, sqrt, arccos
 from scipy.integrate.quadrature import simps, trapz
@@ -55,15 +55,13 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,mass,rin):
     # Check rmin/rmax values. This bit assumes ascending R values.
     # We use R[1] and not R[0] for the low range because interpolation
     # at R[0] is unreliable. 
-    if rmin < amin(R):
-        rmin = R[1]
-    if rmax > amax(R):
-        rmax = amax(R)
+    if rmin < amin(R): rmin = R[1]
+    rmax = min(rmax, amax(R))
 
     # Calculate inner/outer power law match values:
-    sigc_in = interp(rmin,R,sigma)
-    sigcd_in = derivative(lambda x: interp(x,R,sigma), rmin)  
-    sigc_out = interp(rmax,R,sigma)
+    sigc_in   = interp(rmin,R,sigma)
+    sigc_out  = interp(rmax,R,sigma)
+    sigcd_in  = derivative(lambda x: interp(x,R,sigma), rmin)  
     sigcd_out = derivative(lambda x: interp(x,R,sigma), rmax)
 
     # Inner power [consistent with known enclosed mass & smooth simga]
@@ -72,11 +70,8 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,mass,rin):
     Ain = sigc_in * rmin**alpin
 
     # Outer power [consistent with smooth sigma & sigma' & finite mass]:
-    alpout = -sigcd_out/sigc_out * rmax
-
     # Check outer power law implies finite mass:
-    if alpout < alphalim:
-        alpout = alphalim
+    alpout = max(-sigcd_out/sigc_out * rmax, alphalim)
     Aout = sigc_out * rmax**alpout
 
     # Interpolate for r<rmax; power law for r>rmax:
@@ -94,8 +89,7 @@ def masstot(rmax,alphalim,r,rho,massr,rin):
        with the assumed surface density outer power law distribution]'''
 
     # Check rmax value:
-    if rmax > amax(r):
-        rmax = amax(r)
+    rmax = min(rmax, amax(r))
 
     # Find the mass match point:
     gam = alphalim + 1
@@ -103,7 +97,6 @@ def masstot(rmax,alphalim,r,rho,massr,rin):
     Ac = interp(rmax,r,rho)*rmax**gam
  
     # Interpolate cumulative mass
-    output = empty_like(rin)
     mtot = interp(rin,r,massr)
     w = rin > rmax
     if -gam+3 < 0:
@@ -125,6 +118,10 @@ def gRr(r,beta,lower):
     # Treat beta=0 as a special case:
     if beta == 0:
         return sqrt(r**2 - lower**2)
+    elif beta == 1:
+        p = arccos(lower/r)
+        p *= 2
+        return 1/lower * (p - sin(p)) / 4
     else:
         # General solution:
         vec_thetaint = vectorize(thetaint)
@@ -234,7 +231,7 @@ if __name__ == "__main__":
     #Light distribution parameters + vel anisotropy: 
     import massmodel.hernquist as light
     lpars = [1,15,1,intpnts]
-    beta = 0
+    beta = 1
     aperture = 30
 
     #Input files [sigma(R) and mass(R)]:
@@ -304,7 +301,7 @@ if __name__ == "__main__":
     xlabel(r'$R(\mathrm{kpc})$')
     ylabel(r'$\Sigma(R)$')
     legend()
-    savefig(outdir+'interp.pdf')
+    #savefig(outdir+'interp.pdf')
 
     #-------------------------------------------------------------------------
     # Plot the results: input surface density profile
@@ -325,7 +322,7 @@ if __name__ == "__main__":
     xlabel(r'$R(\mathrm{kpc})$')
     ylabel(r'$\Sigma(R)$')
     legend()
-    savefig(outdir+'surfden.pdf')
+    #savefig(outdir+'surfden.pdf')
 
     #-------------------------------------------------------------------------
     # Plot the results: Density(r)
@@ -342,7 +339,7 @@ if __name__ == "__main__":
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$\rho(r)$')
     legend()
-    savefig(outdir+'rho.pdf')
+    #savefig(outdir+'rho.pdf')
 
     #-------------------------------------------------------------------------
     # Plot the results: Mass(r)
@@ -365,7 +362,7 @@ if __name__ == "__main__":
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$M(r)$')
     legend()
-    savefig(outdir+'mass.pdf')
+    #savefig(outdir+'mass.pdf')
 
     #-------------------------------------------------------------------------
     # Plot the results: sigp(r)
@@ -384,7 +381,7 @@ if __name__ == "__main__":
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$\sigma_p(r)$')
     legend()
-    savefig(outdir+'sigp.pdf')
+    #savefig(outdir+'sigp.pdf')
     show()
 
     
