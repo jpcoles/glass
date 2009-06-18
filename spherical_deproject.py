@@ -430,7 +430,7 @@ if __name__ == "__main__":
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
     intpnts = 99
-    interpnts = 1000
+    interpnts = 500
     
     #Light distribution parameters + vel anisotropy: 
     import massmodel.hernquist as light
