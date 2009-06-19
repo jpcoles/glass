@@ -69,13 +69,13 @@ def thetaint(beta,a):
 
 def dSigdR(rmin,rmax,alphalim,R,sigma,massp,rin):
     '''dSigdR function to calculate and interpolate derivative of the surface
-       density. It sews on power laws where there are no data.'''
+    density. It sews on power laws where there are no data.'''
 
     # Find array elements in R corresponding to rmin/rmax:
     # We use R[1] and not R[0] for the low range because interpolation
     # at R[0] is unreliable. 
-    jl =  1 if rmin < amin(R) else argmin(abs(R-rmin))
-    jr = -1 if rmax > amax(R) else argmin(abs(R-rmax))        
+    jl =  1 if rmin < R[1]  else argmin(abs(R-rmin))
+    jr = -1 if rmax > R[-1] else argmin(abs(R-rmax))        
     rmin = R[jl]
     rmax = R[jr]
 
@@ -102,15 +102,13 @@ def dSigdR(rmin,rmax,alphalim,R,sigma,massp,rin):
     return output
 
 def sigmaint(rmin,rmax,alphalim,R,sigma,massp,rin):
-    '''Sigma function to interpolate the surface density.
-       It sews on power laws where there are no available
-       data.'''
+    '''Sigma function to interpolate the surface density.  It sews on power
+    laws where there are no available data.'''
     
-    # Find array elements in R corresponding to rmin/rmax:
-    # We use R[1] and not R[0] for the low range because interpolation
-    # at R[0] is unreliable. 
-    jl =  1 if rmin < amin(R) else argmin(abs(R-rmin))
-    jr = -1 if rmax > amax(R) else argmin(abs(R-rmax))        
+    # Find array elements in R corresponding to rmin/rmax: We use R[1] and not
+    # R[0] for the low range because interpolation at R[0] is unreliable. 
+    jl =  1 if rmin < R[1]  else argmin(abs(R-rmin)) 
+    jr = -1 if rmax > R[-1] else argmin(abs(R-rmax))
     rmin = R[jl]
     rmax = R[jr]
 
@@ -139,19 +137,16 @@ def sigmaint(rmin,rmax,alphalim,R,sigma,massp,rin):
     return output
 
 def rhoint(rmin,rmax,alphalim,r,rho,mass,rin):
-    '''Sigma function to interpolate the surface density.
-       It sews on power laws where there are no available
-       data. This function should be passed the density
-       that comes from cumsolve() and used to calculate
-       the final density profile. It is this final
-       density profile that can then be passed to
-       dlnrhodlnr().'''
+    '''Sigma function to interpolate the surface density.  It sews on power
+    laws where there are no available data. This function should be passed the
+    density that comes from cumsolve() and used to calculate the final density
+    profile. It is this final density profile that can then be passed to
+    dlnrhodlnr().'''
            
-    # Find array elements in r corresponding to rmin/rmax:
-    # We use r[1] and not r[0] for the low range because interpolation
-    # at r[0] is unreliable. 
-    jl =  1 if rmin < amin(r) else argmin(abs(r-rmin))
-    jr = -1 if rmax > amax(r) else argmin(abs(r-rmax))        
+    # Find array elements in r corresponding to rmin/rmax: We use r[1] and not
+    # r[0] for the low range because interpolation at r[0] is unreliable. 
+    jl =  1 if rmin < r[1]  else argmin(abs(r-rmin)) 
+    jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
     rmin = r[jl]
     rmax = r[jr]
 
@@ -179,15 +174,14 @@ def rhoint(rmin,rmax,alphalim,r,rho,mass,rin):
     return output
 
 def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
-    '''Projected enclosed mass function interpolation
-       It sews on power laws where there are no available
-       data.'''
+    '''Projected enclosed mass function interpolation It sews on power laws
+    where there are no available data.'''
 
     # Find array elements in R corresponding to rmin/rmax:
     # We use R[1] and not R[0] for the low range because interpolation
     # at R[0] is unreliable. 
-    jl =  1 if rmin < amin(R) else argmin(abs(R-rmin))
-    jr = -1 if rmax > amax(R) else argmin(abs(R-rmax))        
+    jl =  1 if rmin < R[1]  else argmin(abs(R-rmin))
+    jr = -1 if rmax > R[-1] else argmin(abs(R-rmax))        
     rmin = R[jl]
     rmax = R[jr]
 
@@ -222,10 +216,10 @@ def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
 
 def masstot(rmax,alphalim,r,rho,mass,rin):
     '''Function to interpolate the cumulative mass beyond the data [consistent
-       with the assumed surface density outer power law distribution]'''
+    with the assumed surface density outer power law distribution]'''
 
     # Find array elements in r corresponding to rmax:
-    jr = -1 if rmax > amax(r) else argmin(abs(r-rmax))        
+    jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
     rmax = r[jr]
 
     # Find the mass match point. We use m0 to make sure
@@ -279,15 +273,14 @@ def sphericalcumulate(r,array,integrator):
     return out
 
 def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
-    '''Solve the Abel integral to obtain rho(r) and then M(r). This
-       routine does not perform as well as cumsolve() because it
-       takes the integral of a numerical derivative, rather than
-       a numerical derivative of an integral. The difference is
-       subtle but important. To get the vel. disp., calcsigp() requires
-       M(r) *not* rho(r). The density is only used to smoothly
-       extrapolate M(r) beyond rmax. So M(r) is the more important
-       quantity and should be calculated directly from the data.
-       i.e. use cumsolve() not abelsolve().'''
+    '''Solve the Abel integral to obtain rho(r) and then M(r). This routine
+    does not perform as well as cumsolve() because it takes the integral of a
+    numerical derivative, rather than a numerical derivative of an integral.
+    The difference is subtle but important. To get the vel. disp., calcsigp()
+    requires M(r) *not* rho(r). The density is only used to smoothly
+    extrapolate M(r) beyond rmax. So M(r) is the more important quantity and
+    should be calculated directly from the data.  i.e. use cumsolve() not
+    abelsolve().'''
 
     # Some asserts to check the inputs are all sensible:
     assert imagemin >= 0,\
@@ -318,9 +311,9 @@ def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
     return rhoout, massout
 
 def cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
-    '''Solve the Abel integral to obtain M(r) and then rho(r). This
-       routine performs better than abelsolve() and ought to be used
-       instead where possible.'''
+    '''Solve the Abel integral to obtain M(r) and then rho(r). This routine
+    performs better than abelsolve() and ought to be used instead where
+    possible.'''
 
     # Some asserts to check the inputs are all sensible:
     assert imagemin >= 0,\
@@ -357,23 +350,21 @@ def cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
     return rhoout, massout
 
 def dlnrhodlnr(r,rho):
-    '''Numerically differentiates the density distribution
-       to obtain a non-parameteric measure of the power
-       law exponent as a function of radius'''
+    '''Numerically differentiates the density distribution to obtain a
+    non-parameteric measure of the power law exponent as a function of
+    radius'''
+
     lnr = log(r)
     lnrho = log(rho)
-
-    f = derivative(lambda x: interp(x,lnr,lnrho),lnr)
-
-    return f
+    return derivative(lambda x: interp(x,lnr,lnrho),lnr)
 
 def sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
               light,lpars,beta):
-    '''Solve the integral to obtain sigp(r). See Wilkinson et al. 2004
-       for details. Note typos in equation (1) of their paper. Int.
-       limits for f(r) should be r-->infty and GM(r)/r should be GM(r)/r**2'''
+    '''Solve the integral to obtain sigp(r). See Wilkinson et al. 2004 for
+    details. Note typos in equation (1) of their paper. Int.  limits for f(r)
+    should be r-->infty and GM(r)/r should be GM(r)/r**2'''
 
-    rmax = amax(r)
+    rmax  = r[-1]
     sigp2 = empty(len(r), 'double')
 
     theta = linspace(0,pi/2-1e-6,num=intpnts)
@@ -395,20 +386,18 @@ def sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
     return sigp
 
 def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
-    '''Reduce the projected velocity disp profile to a single
-       mean dispersion value rms averaged over some aperture.
-       aperture must be passed with the same units as rin'''
+    '''Reduce the projected velocity disp profile to a single mean dispersion
+    value rms averaged over some aperture.  aperture must be passed with the
+    same units as rin'''
 
-    ap = 0
-    while rin[ap] < aperture:
-        ap=ap+1
+    ap = argmin(abs(rin-aperture))
 
     R = rin[:ap]
     sigp2 = sigp[:ap]**2
     IR = light.surf(R,lpars)
 
-    return sqrt(integrator(sigp2*IR*2*pi*R,R)/\
-                integrator(IR*2*pi*R,R))
+    return sqrt(integrator(sigp2*IR*R,R)/\
+                integrator(IR*R,R))
 
 #-----------------------------------------------------------------------------
 # Main program
@@ -465,10 +454,9 @@ if __name__ == "__main__":
                           'formats': ('f8', 'f8')})
     print len(f2), 'lines successfully read from massfile...'
 
-    # Interpolate mass file to surface density file. This bit
-    # is *only* for code testing. It ensures an accurate value
-    # for the enclosed mass (as should be the case also for
-    # real lensing data):
+    # Interpolate mass file to surface density file. This bit is *only* for
+    # code testing. It ensures an accurate value for the enclosed mass (as
+    # should be the case also for real lensing data):
     massp = interp(f1['R'],f2['R'],f2['mass'])
     
     #-------------------------------------------------------------------------
@@ -477,31 +465,30 @@ if __name__ == "__main__":
     r = logspace(log10(amin(f1['R'])/10),log10(amax(f1['R'])*10),
                  num=interpnts)
 
-    # This package contains two different abel solving routines.
-    # abelsolve() calculates rho(r) first and then integrates to get
-    # M(r). This involves taking a numerical derivative of the surface
-    # density. cumsolve() calculates M(r) directly via an integral
-    # and the differentiates this to obtain rho(r). The ording in
-    # cumsolve() appears to give much better results. 
+    # This package contains two different abel solving routines.  abelsolve()
+    # calculates rho(r) first and then integrates to get M(r). This involves
+    # taking a numerical derivative of the surface density. cumsolve()
+    # calculates M(r) directly via an integral and then differentiates this to
+    # obtain rho(r). The ordering in cumsolve() appears to give much better
+    # results. 
     rhoa, massa = abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,
                             f1['R'],f1['sigma'],massp)
     rho, mass = cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,
                          f1['R'],f1['sigma'],massp)
 
-    # The final density distribution should be calculated as a
-    # special interpolation over the rho's obtained above from
-    # abelsolve() and cumsolve(). This is because we assume power
-    # laws outside of our real data and the density profile in these
-    # regions is known analytically:
+    # The final density distribution should be calculated as a special
+    # interpolation over the rho's obtained above from abelsolve() and
+    # cumsolve(). This is because we assume power laws outside of our real data
+    # and the density profile in these regions is known analytically:
     rinterp = logspace(-2,3,num=5000)
     rhinta = rhoint(imagemin,imagemax,alphalim,r,
                     rhoa,massa,rinterp)
     rhint = rhoint(imagemin,imagemax,alphalim,r,
                    rho,mass,rinterp)
 
-    # Now we can calculate dlnrhodlnr to non-parametrically determine
-    # how the density profile power law exponent varies with radius.
-    # This is a useful quantity to compare with simulations. 
+    # Now we can calculate dlnrhodlnr to non-parametrically determine how the
+    # density profile power law exponent varies with radius.  This is a useful
+    # quantity to compare with simulations. 
     drhoa = dlnrhodlnr(rinterp,rhinta)
     drho = dlnrhodlnr(rinterp,rhint)
 
