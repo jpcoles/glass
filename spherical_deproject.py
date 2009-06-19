@@ -575,7 +575,7 @@ if __name__ == "__main__":
     gca().set_xlim(imagemin/10,imagemax*10)
     title('Power law exponent of density')
     xlabel(r'$r(\mathrm{kpc})$')
-    ylabel(r'$d\ln\rho/d\lnr$')
+    ylabel(r'$d\ln\rho/d\ln r$')
     legend()
     #savefig(outdir+'rho.pdf')
 
