@@ -254,6 +254,7 @@ class PixelBasis:
         ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ]
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
         ps['src']    = sol[ o+self.srcpos_start : o+self.srcpos_end   ] - self.map_shift
+        ps['H0']     = sol[o+self.H0]
         ps['1/H0']   = time_to_physical(obj, sol[o+self.H0])
 
         #print self.myobject.scales, self.H0, sol[o+self.H0], len(sol)
@@ -275,6 +276,47 @@ class PixelBasis:
                          * mscale/rscale**2
 
         return ps
+
+    def time_delays(self, data):
+
+        if not data.has_key('time_delays'):
+
+            obj  = self.myobject
+
+            pix_start,    pix_end    = self.pix_start,    self.pix_end
+            shear_start,  shear_end  = self.shear_start,  self.shear_end
+            ptmass_start, ptmass_end = self.ptmass_start, self.ptmass_end
+
+            data['time_delays'] = []
+            for i, sys in enumerate(obj.systems):
+
+                s = 2*i
+                srcx, srcy = data['src'][s:s+2] # + self.map_shift
+
+                prev = 0
+                for j,img in enumerate(sys.images):
+
+                    r    = img.pos
+                    x, y = r.real, r.imag
+
+                    # The constant term
+                    tau  = abs(r)**2 / 2 #+ (x + y)*self.map_shift
+                    tau -= x * srcx
+                    tau -= y * srcy
+                    tau *= sys.zcap
+
+                    # The ln terms
+                    tau -= sum(data['mass'] * poten(img.pos - self.ploc, self.cell_size))
+
+                    if obj.shear:
+                        tau -= data['shear'][0] * obj.shear.poten(1, r) 
+                        tau -= data['shear'][1] * obj.shear.poten(2, r)
+
+                    if j > 0:
+                        data['time_delays'].append((tau-prev) / data['H0'])
+                    prev = tau
+
+        return data['time_delays']
 
     def refined_xy_grid(self, data):
         if not data.has_key('refined_xy_grid'):
@@ -448,8 +490,7 @@ class PixelBasis:
 
                 subtract(phi, l[crop], phi)
                 
-            # TODO: need xy grid for this
-            #if obj.shear: phi -= obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
+            phi -= obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
 
             print phi
 
@@ -466,8 +507,7 @@ class PixelBasis:
                 l = []
                 for img in sys.images:
                     p  = dot(data['mass'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
-                    # TODO:
-                    #p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
+                    p += obj.shear and obj.shear.poten(1, img.pos) + obj.shear.poten(2, img.pos)
                     l.append(-p)
                 if l: data['potential_contour_levels'].append(l)
 
@@ -525,7 +565,8 @@ class PixelBasis:
         Rmap = obj.maprad
         Rpix = self.pixrad
 
-        if H0inv is None: H0inv = 1/env.h_spec
+        # XXX: Here we MUST have a single value for h_spec. Check this.
+        if H0inv is None: H0inv = 1/env().h_spec
 
         phys_cell_size = distance_to_physical(obj, self.cell_size, H0inv)
         grid = zeros((2*Rpix+1, 2*Rpix+1))
