@@ -1,15 +1,23 @@
 from __future__ import division
-from numpy import array, empty_like, amin, amax, repeat, logspace
+from numpy import array, empty_like, amin, amax, repeat, logspace, arange, ptp
 from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log
 from numpy.random import random
 from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
                   hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
-                  suptitle, figure, grid, gray, jet
+                  suptitle, figure, grid, gray, jet, semilogx
 import matplotlib
 import matplotlib.cm as cm  
+from matplotlib import rc
 from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle
+from matplotlib.lines import Line2D
 from scales import density_to_physical, distance_to_physical
+
+rc('text', usetex=True)
+
+_styles = [{'label':r'rejected', 'c':'r', 'ls':'-', 'z':-1, 'line':Line2D([],[],c='r',ls='-')},
+           {'label':r'accepted', 'c':'b', 'ls':'-', 'z': 0, 'line':Line2D([],[],c='b',ls='-')},
+           {'label':r'unknown',  'c':'k', 'ls':'-', 'z':+1, 'line':Line2D([],[],c='k',ls='-')}]
 
 _system_colors = 'rgbcmykw'
 _source_colors = 'c'
@@ -18,7 +26,10 @@ def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
 
 def img_plot(model):
-    obj, data = model
+    if isinstance(model, (list, tuple)):
+        obj, data = model
+    else:
+        obj = model
     for i,sys in enumerate(obj.systems):
         xs = []
         ys = []
@@ -76,7 +87,7 @@ def potential_plot(model, sys):
 #   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
 #   contour(grid, extent=[-R,R,-R,R], origin='upper')
     matshow(grid, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    print levs
+    #print levs
     for i,lev in enumerate(levs):
         over(contour, grid, lev, colors = system_color(i), 
              extent=[-R,R,-R,R], origin='upper', extend='both')
@@ -110,61 +121,91 @@ def arrival_plot(model, sys):
              extent=[-R,R,-R,R], origin='upper')
     grid()
 
-def _data_plot(models, X,Y, x_label, y_label, plotf=loglog):
+def _data_plot(models, X,Y, x_label, y_label, plotf=loglog, mark_images=False):
+    with_legend = False
+    use = [0,0,0]
     for m in models:
-        for [obj, data] in m['objs']:
-            if m.has_key('tagged') and not m['tagged']:
-                plotf(data[X],data[Y], 'r-', alpha=0.5)
-            else:
-                plotf(data[X],data[Y], 'b-')
+        for [obj, data] in m['obj,data']:
 
-            for i,sys in enumerate(obj.systems):
-                for img in sys.images:
-                    x = distance_to_physical([obj, data], abs(img.pos))
-                    print x
-                    axvline(x, c=system_color(i), ls=':')
+            si = m.get('accepted', 2)
+            use[si] = 1
+
+            s = _styles[si]
+            plotf(data[X],data[Y], c=s['c'], ls=s['ls'], zorder=s['z'])
+
+            if mark_images:
+                for i,sys in enumerate(obj.systems):
+                    for img in sys.images:
+                        x = distance_to_physical([obj, data], abs(img.pos))
+                        axvline(x, c=system_color(i), ls=':', zorder=2)
+
+    if use[0] or use[1]:
+        lines = [s['line']  for s,u in zip(_styles, use) if u]
+        labels = [s['label'] for s,u in zip(_styles, use) if u]
+        legend(lines, labels)
+
     xlabel(x_label)
     ylabel(y_label)
 
 _sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
-def sigma_plot(models):
-    _data_plot(models, 'R_phys', 'sigma_phys', _sigma_xlabel, _sigma_ylabel)
+def sigma_plot(models, **kwargs):
+    _data_plot(models, 'R_phys', 'sigma_phys', _sigma_xlabel, _sigma_ylabel, **kwargs)
 
 _sigp_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigp_ylabel = r'$\sigma_p^2$ $()$'
-def sigp_plot(models):
-    _data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=plot)
+def sigp_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=plot, **kwargs)
+    #_data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, kwargs, plotf=plot)
 
-_rho_xlabel = r'$R$ $(\mathrm{kpc})$'
+_mass3d_xlabel = r'$r$ $(\mathrm{kpc})$'
+_mass3d_ylabel = r'$M$'
+def mass3d_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:mass3d', _mass3d_xlabel, _mass3d_ylabel, plotf=plot, **kwargs)
+
+_rho_xlabel = r'$r$ $(\mathrm{kpc})$'
 _rho_ylabel = r'$\rho$ $()$'
-def rho_plot(models):
-    _data_plot(models, 'sigp:R', 'sigp:rho', _rho_xlabel, _rho_ylabel)
+def rho_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:rho', _rho_xlabel, _rho_ylabel, **kwargs)
+
+_rhoint_xlabel = r'$r$ $(\mathrm{kpc})$'
+_rhoint_ylabel = r'$\rho$ $()$'
+def rhoint_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:rhoint', _rhoint_xlabel, _rhoint_ylabel, **kwargs)
+
+_drho_xlabel = r'$r$ $(\mathrm{kpc})$'
+_drho_ylabel = r'$d\ln\rho/d\ln r$'
+def drho_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:drho', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
 
 _encmass_xlabel = r'$R$ $(\mathrm{kpc})$'
 _encmass_ylabel = r'$M$'
-def encmass_plot(models):
-    _data_plot(models, 'R_phys', 'encmass_phys', _encmass_xlabel, _encmass_ylabel)
+def encmass_plot(models, **kwargs):
+    _data_plot(models, 'R_phys', 'encmass_phys', _encmass_xlabel, _encmass_ylabel, **kwargs)
 
 
 _H0_xlabel = r'$H_0^{-1}$ (Gyr)'
-def H0_plot(models, objects=None):
+def H0_plot(models, objects=None, key='accepted'):
 
-    H0s    = [ data['1/H0'] for m in models if not m['tagged'] for [obj, data] in m['objs']]
-    tagH0s = [ data['1/H0'] for m in models if     m['tagged'] for [obj, data] in m['objs']]
+    # select a list to append to based on the 'accepted' property.
+    l = [[], [], []]
+    for m in models:
+        for [obj, data] in m['obj,data']:
+            l[m.get(key,2)].append(data['1/H0'])
 
-    print 'H0_plot',H0s
+    not_accepted, accepted, notag = l
 
-    if H0s:
-        b = logspace(log10(min(H0s)*0.9), log10(max(H0s)*1.1), 10)
-        hist(H0s, bins=b, histtype='step', edgecolor='black')
-        axvline(14, c='r', ls=':')
+    #print 'H0_plot',H0s
 
-    if tagH0s:
-        b = logspace(log10(min(tagH0s)*0.9), log10(max(tagH0s)*1.1), 10)
-        over(hist, tagH0s, bins=b, histtype='step', edgecolor='red')
-        axvline(14, c='r', ls=':')
+    for d,s in zip(l, _styles):
+        if d:
+            hist(d, bins=ptp(d)//2+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+
+    if not_accepted or accepted:
+        legend()
+
+    axvline(13.7, c='k', ls=':', zorder = 2)
 
     xlabel(_H0_xlabel)
-    ylabel('Number')
+    ylabel(r'Number')
 
