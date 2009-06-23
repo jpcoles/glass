@@ -9,7 +9,10 @@ csamplex = Extension('solvers.samplex.csamplex',
              undef_macros=['DEBUG'],
              extra_compile_args=['-Wall', 
                                  '-ftree-vectorizer-verbose=2', '-ftree-vectorize',
-                                 '-fno-omit-frame-pointers'])
+                                 '-fno-omit-frame-pointer',
+                                 '-floop-optimize2',
+                                 '-funroll-loops',
+                                 '-fprefetch-loop-arrays'])
 
 setup(name = 'Glass',
       author = 'Jonathan Coles',

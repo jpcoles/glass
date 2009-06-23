@@ -27,7 +27,7 @@ def init_model_generator():
     """Construct the linear constraint equations by applying all the
        enabled priors."""
 
-    objs = env.objects
+    objs = env().objects
 
     if inc_priors:
         priors = inc_priors
@@ -41,7 +41,7 @@ def init_model_generator():
 
     nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0) - len(objs) + 1
 
-    mg = env.model_gen = env.model_gen_factory(nvars)
+    mg = env().model_gen = env().model_gen_factory(nvars)
 
     print "nvars=",nvars
 
@@ -69,11 +69,11 @@ def generate_models(objs, n):
 
     if n <= 0: return
 
-    mg = env.model_gen
+    mg = env().model_gen
     
     mg.start()
     for sol in mg.next(n):
         yield {'sol':  sol,
-               'objs': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
+               'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
                'tagged':  False}
 

@@ -4,8 +4,8 @@ from numpy import abs
 from environment import env
 
 def angdist(z1, z2):
-    M = env.omega_matter
-    L = env.omega_lambda
+    M = env().omega_matter
+    L = env().omega_lambda
 
     #---------------------------------------------------------------------------
     # Curvature of the universe.
@@ -18,7 +18,7 @@ def angdist(z1, z2):
     if    z1 < z2: zi,zf = z1,z2
     else:          zi,zf = z2,z1
 
-    if env.filled_beam:
+    if env().filled_beam:
         z = zi + dz/2.
         factor = 0
         while z <= zf:
