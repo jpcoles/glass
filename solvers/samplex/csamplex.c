@@ -37,7 +37,13 @@
 /* 2x overall speed up.                                                     */
 /*==========================================================================*/
 #define REORGANIZE_TABLE_MEMORY 1
-#define SET_THREAD_AFFINITY     0
+#define SET_THREAD_AFFINITY     1
+
+#define WITH_GOOGLE_PROFILER 0
+
+#if WITH_GOOGLE_PROFILER
+#include <google/profiler.h>
+#endif
 
 /*==========================================================================*/
 /* Timing variables                                                         */
@@ -62,7 +68,7 @@ typedef long double dble_t;
 typedef double dble_t;
 #define EPS ((dble_t)1e-14)
 #define INF ((dble_t)1e+12) 
-#define SML ((dble_t)1e-06)
+#define SML ((dble_t)1e-08)
 #define EPS_EXP (-46)
 #define ABS fabs
 #endif
@@ -312,7 +318,7 @@ void init_threads(int32_t n)
     pool.active_threads = 0;
 
 #if SET_THREAD_AFFINITY
-    if (nthreads > 1)
+    if (n > 1)
     {
         /* The main thread runs on the first CPU */
         cpu_set_t mask;
@@ -433,7 +439,8 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
             //fprintf(stderr, "*** tinc-cinc=%f\n", ABS(tinc-cinc));
             //fprintf(stderr, "*** tinc-cinc=%i\n", ABS(tinc-cinc)<EPS);
 #endif
-            assert(!isinf(tinc));
+
+            DBG(1) assert(!isinf(tinc));
 
             //------------------------------------------------------------------
             // Accept this pivot element if we haven't found anything yet.
@@ -724,14 +731,22 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     Py_BEGIN_ALLOW_THREADS
 
-    double stime = CPUTIME;
 
     init_threads(T); 
+
+#if WITH_GOOGLE_PROFILER
+    ProfilerStart("googperf.out");
+#endif
+
+    double stime = CPUTIME;
+    clock_t st = times(NULL);
 
     //for (n=0; n<1; n++)
     for (n=0;; n++)
     {
-        if ((n&31) == 0) fprintf(stderr, "iter %i  %e\n", n, tabl.data[0]);
+        if ((n&((1<<8)-1)) == 0) 
+            fprintf(stderr, "\riter %8i  %24.15e", n, tabl.data[0]);
+
         //if (n == 5) exit(0);
 
         if (need_assign_pivot_threads) assign_threads(0,R); 
@@ -832,9 +847,19 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         }
     }
 
-    double etime = CPUTIME;
+    //fprintf(stderr, "\n");
 
-    fprintf(stderr, "time: %f\n", (etime-stime) / pool.nthreads);
+    double etime = CPUTIME;
+    clock_t et = times(NULL);
+
+#if WITH_GOOGLE_PROFILER
+    ProfilerStop();
+#endif
+
+    //fprintf(stderr, "time: %f\n", (etime-stime));
+            //fprintf(stderr, "\riter %8i  %24.15e", n, tabl.data[0]);
+    fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
+    //fprintf(stderr, "time: %f\n", (etime-stime) / pool.nthreads);
 
     Py_END_ALLOW_THREADS
 
@@ -923,18 +948,23 @@ inline void in(const int32_t r,
     const dble_t col_lpiv = col[lpiv0];
     int32_t i;
 
-    //fprintf(stderr, "in %i\n", r);
-    for (i=0; i <= kp; i++) 
-    {
-        col[i] = col[i] - (pcol[i] * col_lpiv) / piv;
+    const double xx = col_lpiv / piv;
+    //fprintf(stderr, "%e %e %e\n", col_lpiv, piv, xx);
 
-        //col[kp] = col[kp] - (pcol[kp] * col_lpiv) / piv;
-        //col[kp] = col[kp] - pcol[kp] * col_lpiv;
-//      if (r == 354 && kp == 917) {
-//          fprintf(stderr, "col[%i]=%f col_lpiv=%f lpiv0=%i\n", kp, col[kp], col_lpiv, lpiv0);
-//      }
+    if (xx != 0)
+    {
+        if (ABS(xx) >= SML)
+        {
+            for (i=0; i <= kp; i++) 
+                col[i] -= pcol[i] * xx;
+        }
+        else
+        {
+            for (i=0; i <= kp; i++) 
+                col[i] -= (pcol[i] * col_lpiv) / piv;
+        }
     }
-    col[lpiv0] = col_lpiv / -piv;
+    col[lpiv0] = -xx;
 }
 
 void doPivot0(matrix_t *tabl,
