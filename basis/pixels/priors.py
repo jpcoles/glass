@@ -56,11 +56,12 @@ def image_pos(o, leq, eq, geq):
 #               rows[0,offs] = -o.shear.poten_dx(n+1, img.pos)
 #               rows[1,offs] = -o.shear.poten_dy(n+1, img.pos)
 
-            rows[0,shear_start] = -o.shear.poten_dx(img.pos)
-            rows[1,shear_start] = -o.shear.poten_dy(img.pos)
+            if o.shear:
+                rows[0,shear_start] = -o.shear.poten_dx(img.pos)
+                rows[1,shear_start] = -o.shear.poten_dy(img.pos)
 
-            rows[0,shear_start+1] = -o.shear.poten_d2x(img.pos)
-            rows[1,shear_start+1] = -o.shear.poten_d2y(img.pos)
+                rows[0,shear_start+1] = -o.shear.poten_d2x(img.pos)
+                rows[1,shear_start+1] = -o.shear.poten_d2y(img.pos)
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
 #               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
@@ -116,7 +117,7 @@ def time_delay(o, leq, eq, geq):
 
             if [lower_delay, upper_delay] == [None, None]:
                 row[H0] = 0
-                eq(row)
+                geq(row)
             elif lower_delay == upper_delay:
                 row[H0] = -lower_delay
                 eq(row)
@@ -140,11 +141,38 @@ def hubble_constant(o, leq, eq, geq):
     """This requires a particular hubble constant for the object."""
     print "Hubble Constant"
     on = False
-    if env.h_spec is not None:
+    if env().h_spec is not None:
+        lb, ub = env().h_spec
         row = zeros(o.basis.nvar)
-        row[0] = env.h_spec / o.scales['time']
-        row[o.basis.H0] = -1
-        eq(row)
+        if env().h_spec == [None, None]:
+            pass
+        elif lb == ub:
+            row = zeros(o.basis.nvar)
+            row[0] = lb / o.scales['time']
+            row[o.basis.H0] = -1
+            eq(row)
+        elif lb is None:
+            row[0] = ub / o.scales['time']
+            row[o.basis.H0] = -1
+            leq(row)
+        elif ub is None:
+            row[0] = lb / o.scales['time']
+            row[o.basis.H0] = -1
+            geq(row)
+        else:
+            row2 = row.copy()
+            row2[0] = lb / o.scales['time']
+            row2[o.basis.H0] = -1
+            geq(row2)
+
+            row[0] = ub / o.scales['time']
+            row[o.basis.H0] = -1
+            leq(row)
+
+#       row = zeros(o.basis.nvar)
+#       row[0] = env().h_spec / o.scales['time']
+#       row[o.basis.H0] = -1
+#       eq(row)
         on = True
     print "\t", on
 
@@ -379,7 +407,7 @@ def smoothness(o, leq, eq, geq):
         # Skip the central pixel. This allows any value of mass.
         # XXX: Some versions of PixeLens don't.
         #-----------------------------------------------------------------------
-        #if ri == o.basis.central_pixel: continue
+        if ri == o.basis.central_pixel: continue
 
         row = zeros(o.basis.nvar)
         #print "N",
