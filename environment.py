@@ -48,6 +48,9 @@ class Object:
 
         self.basis = None
 
+        self.post_process_funcs = []
+        self.post_filter_funcs = []
+
     def current_system(self):
         return self._current_system
 
@@ -93,7 +96,10 @@ class System:
         assert A in self.images
         assert B in self.images
         if isinstance(delay, (int, float)):
-            delay = [delay, delay]
+            delay = (delay, delay)
+        else:
+            delay = tuple(delay)
+            assert delay != (None,None), "Time delays can't have infinite range."
         self.time_delays.append((A,B,delay))
 
 
@@ -109,8 +115,8 @@ class Environment:
         self.accepted_models = None
 
         # For use in cosmo.py
-        self.omega_matter = 0.3
-        self.omega_lambda = 0.7
+        self.omega_matter = 0.26
+        self.omega_lambda = 0.74
         self.h_spec       = None
         self.filled_beam = True
 
@@ -131,6 +137,13 @@ class Environment:
         self.__init__()
         
         
-env = Environment()
+
+_env = Environment()
+def env():
+    return _env
+
+def set_env(env):
+    global _env
+    _env = env
 
 import cosmo
