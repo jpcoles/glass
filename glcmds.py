@@ -1,7 +1,8 @@
-from __future__ import division
+from __future__ import division, with_statement
 import math
-from numpy import arctan2
-from environment import env, Image, System
+from numpy import arctan2, savez, load, array
+import environment
+from environment import env, set_env, Image, System
 from shear import Shear
 import cosmo
 from handythread import parallel_map
@@ -16,13 +17,13 @@ def maxsteep(a):                assert False, "maxsteep not supported. Use steep
 
 
 def globject(name):
-    return env.new_object(name)
+    return env().new_object(name)
 
 def shear(phi):
-    env.current_object().shear = Shear(phi)
+    env().current_object().shear = Shear(phi)
 
 def zlens(z):
-    o = env.current_object()
+    o = env().current_object()
     o.zlens = z
     o.scales = cosmo.scales(o.zlens, 0)
 
@@ -36,7 +37,7 @@ def cosm(om, ol):
 
 def source(zsrc, img0=None, img0parity=None, *imgs):
 
-    o = env.current_object()
+    o = env().current_object()
 
     assert o.zlens is not None, "zlens() must first be specified."
     assert zsrc >= o.zlens, "Source is not behind lens."
@@ -52,6 +53,7 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
         prev = image0
         for i in xrange(0, len(imgs), 3):
             img,parity,time_delay = imgs[i:i+3]
+            assert time_delay != 0, 'Cannot set a time delay of 0. Use (None,None) instead.'
             if prev.parity_name == 'sad' and parity == 'max':
                 prev.angle = arctan2(prev.pos.imag-img[1], 
                                      prev.pos.real-img[0]) * 180/math.pi
@@ -65,7 +67,7 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
 
 def delay(A,B, delay):
     """ Add a time delay between images A and B such that B arrive delay days after A. """
-    sys = env.current_object().current_system()
+    sys = env().current_object().current_system()
     a = sys.images[sys.images.index(A)]
     b = sys.images[sys.images.index(B)]
     sys.add_time_delay(a,b,delay)
@@ -73,35 +75,68 @@ def delay(A,B, delay):
 def symm(v=False):
     """Turn lens symmetry on or off. Default is off."""
     assert False, "Symmetry not yet supported."
-    env.current_object().symm = v
+    env().current_object().symm = v
 
 def dgcone(theta):
     assert (0 < theta <= 90), "dgcone: need 0 < theta <= 90"
-    env.current_object().cen_ang = (90-theta) * math.pi/180
+    env().current_object().cen_ang = (90-theta) * math.pi/180
 
 def steep(lb, ub):
-    env.current_object().minsteep = lb
-    env.current_object().maxsteep = ub
+    env().current_object().minsteep = lb
+    env().current_object().maxsteep = ub
 
-def g(h):
-    env.h_spec = 1.0/h
+def g(*args):
+    h = args if len(args) > 1 else [args[0], args[0]]
+    env().h_spec = (1/h[0], 1/h[1])
 
 def kann(theta):
-    env.current_object().kann_spec = theta
+    env().current_object().kann_spec = theta
 
 def maprad(r):
-    env.current_object().maprad = r
+    env().current_object().maprad = r
 
 def clear():
-    env.clear()
+    env().clear()
 
-def postfilter(*fs):
-    models = env.models
-    if fs:
-        for m in models: m['tagged'] = True
-        for f in fs:     models = filter(f, models)
-        #for f in fs:     models = filter(parallel_map(f, models, threads=env.ncpus))
-        for m in models: m['tagged'] = False
+def savestate(fname):
 
-    env.accepted_models = models
+    header = '''\
+GLASS version 0.1
+CREATED ON: %s'''
+
+    env().creation_info = [header]
+    #ppf = env().post_process_funcs
+    #pff = env().post_filter_funcs
+    #env().post_process_funcs = []
+    #env().post_filter_funcs = []
+
+    with open(fname, 'w') as f:
+        savez(f, env())
+
+    #env().post_process_funcs = ppf
+    #env().post_filter_funcs = pff
+
+def loadstate(fname):
+    x = load(fname)['arr_0'].item()
+    set_env(x)
+
+def post_process(f, *args, **kwargs):
+    env().current_object().post_process_funcs.append([f, args, kwargs])
+
+def post_filter(f, *args, **kwargs):
+    env().current_object().post_filter_funcs.append([f, args, kwargs])
+
+def _filter(model):
+    for obj,data in model['obj,data']:
+        for f,args,kwargs in obj.post_filter_funcs:
+            if not f([obj,data], *args, **kwargs): return False
+    return True
+
+def apply_filters():
+    models = env().models
+    for m in models: m['accepted'] = False           # Reject all
+    models = filter(_filter, models)                 # Run each filter, keeping those that survive
+    for m in models: m['accepted'] = True            # Those that make it to the end are accepted
+
+    env().accepted_models = models
 
