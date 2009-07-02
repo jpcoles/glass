@@ -447,8 +447,8 @@ if __name__ == "__main__":
 
     if testsuite == 1:
         #Range of believeable data + outer slope limiter:
-        imagemin = 10
-        imagemax = 150
+        imagemin = 1.62833449387 
+        imagemax = 140.697487422
         alphalim = 3
 
         #Light distribution parameters + vel anisotropy: 
@@ -540,11 +540,6 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: Surface density profile
     #-------------------------------------------------------------------------
-    if imagemax > amax(f1['R']):
-        imagemax = amax(f1['R'])
-    if imagemin < amin(f1['R']):
-        imagemin = f1['R'][1]
-
     if trueans == 1:
         f2 = loadtxt(surffile_true,
                      dtype = {'names': ('R', 'sigma'),
