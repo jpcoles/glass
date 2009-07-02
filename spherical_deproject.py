@@ -227,7 +227,7 @@ def masstot(rmax,alphalim,r,rho,mass,rin):
     # the density to ensure a continuous first derivative.
     # This is the only place that the density is used in
     # masstot, and the only reason why it needs to be passed
-    # to calcsigp():
+    # to sigpsolve():
     gam = alphalim + 1
     m0 = mass[jr]
     Ac = rho[jr]*rmax**gam
@@ -276,7 +276,7 @@ def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
     '''Solve the Abel integral to obtain rho(r) and then M(r). This routine
     does not perform as well as cumsolve() because it takes the integral of a
     numerical derivative, rather than a numerical derivative of an integral.
-    The difference is subtle but important. To get the vel. disp., calcsigp()
+    The difference is subtle but important. To get the vel. disp., sigpsolve()
     requires M(r) *not* rho(r). The density is only used to smoothly
     extrapolate M(r) beyond rmax. So M(r) is the more important quantity and
     should be calculated directly from the data.  i.e. use cumsolve() not
@@ -380,7 +380,9 @@ def sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
         integrand = rhostar*rint**(2*beta-2)*Gsp*\
                     mtot*gRr(rint,beta,lower)
         sigp2[i] = integrator(integrand*lower*sth/cth2,theta)
-    sigp2 = sigp2 * 2/light.surf(r,lpars)
+
+    w = light.surf(r,lpars) > 0
+    sigp2[w] = sigp2[w] * 2/light.surf(r[w],lpars)
     sigp = sqrt(sigp2)
 
     return sigp
@@ -411,32 +413,55 @@ if __name__ == "__main__":
     # Parameters
     #-------------------------------------------------------------------------
 
-    #Range of believeable data + outer slope limiter:
-    imagemin = 1
-    imagemax = 20
-    alphalim = 2
-
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
     intpnts = 99
     interpnts = 500
     
-    #Light distribution parameters + vel anisotropy: 
-    import massmodel.hernquist as light
-    lpars = [1,15,1,intpnts]
-    beta = 0
-    aperture = 30
+    #Which test suite to use [0,1,2,3 ...]:
+    testsuite = 1
 
     #Input files [sigma(R) and mass(R)]:
     datadir = '../Data/'
-    surffile = datadir+'surftest.txt'
-    massfile = datadir+'masstesthi.txt'
+    if testsuite == 0:
+        #Range of believeable data + outer slope limiter:
+        imagemin = 1
+        imagemax = 20
+        alphalim = 2
+
+        #Light distribution parameters + vel anisotropy: 
+        import massmodel.hernquist as light
+        lpars = [1,15,1,intpnts]
+        beta = 0
+        aperture = 30
+
+        surffile = datadir+'surftest.txt'
+        massfile = datadir+'masstesthi.txt'
     
-    #Files containing correct answers:
-    surffile_true = datadir+'surftest.txt'
-    rhofile_true = datadir+'rhotest.txt'
-    massfile_true = datadir+'massthreetest.txt'
-    sigfile_true = datadir+'sigtest.txt'
+        #Files containing correct answers:
+        trueans = 1
+        surffile_true = datadir+'surftest.txt'
+        rhofile_true = datadir+'rhotest.txt'
+        massfile_true = datadir+'massthreetest.txt'
+        sigfile_true = datadir+'sigtest.txt'
+
+    if testsuite == 1:
+        #Range of believeable data + outer slope limiter:
+        imagemin = 10
+        imagemax = 150
+        alphalim = 3
+
+        #Light distribution parameters + vel anisotropy: 
+        arctokpc = 7.71687843482
+        import massmodel.datafile as lightdata
+        light = lightdata.fromfile(surffile=datadir+'jj_circular.dat')
+        lpars = [0,arctokpc,1,1,intpnts]
+        beta = 0
+        aperture = 0.4*arctokpc
+
+        surffile = datadir+'surfpixtest.txt'
+        massfile = datadir+'masspixtest.txt'
+        trueans = 0
 
     #Output directory:
     outdir = datadir
@@ -454,10 +479,13 @@ if __name__ == "__main__":
                           'formats': ('f8', 'f8')})
     print len(f2), 'lines successfully read from massfile...'
 
-    # Interpolate mass file to surface density file. This bit is *only* for
-    # code testing. It ensures an accurate value for the enclosed mass (as
-    # should be the case also for real lensing data):
-    massp = interp(f1['R'],f2['R'],f2['mass'])
+    if testsuite == 0:
+        # Interpolate mass file to surface density file. This bit is *only* for
+        # code testing. It ensures an accurate value for the enclosed mass (as
+        # should be the case also for real lensing data):
+        massp = interp(f1['R'],f2['R'],f2['mass'])
+    else:
+        massp = f2['mass']
     
     #-------------------------------------------------------------------------
     # Calculate the Abel integral to obtain rho(r) and mass(r)
@@ -516,9 +544,11 @@ if __name__ == "__main__":
         imagemax = amax(f1['R'])
     if imagemin < amin(f1['R']):
         imagemin = f1['R'][1]
-    f2 = loadtxt(surffile_true,
-                 dtype = {'names': ('R', 'sigma'),
-                          'formats': ('f8', 'f8')})
+
+    if trueans == 1:
+        f2 = loadtxt(surffile_true,
+                     dtype = {'names': ('R', 'sigma'),
+                              'formats': ('f8', 'f8')})
 
     # Test the special interpolant: 
     sigint = sigmaint(imagemin,imagemax,alphalim,f1['R'],
@@ -526,7 +556,7 @@ if __name__ == "__main__":
 
     figure()
     loglog(f1['R'], f1['sigma'],label='Python input')
-    plot(f2['R'], f2['sigma'],label='IDL input')
+    if trueans == 1: plot(f2['R'], f2['sigma'],label='IDL input')
     plot(rinterp,sigint,label='Interpolant')
     plot([imagemax,imagemax],[amin(f1['sigma']),amax(f1['sigma'])])
     plot([imagemin,imagemin],[amin(f1['sigma']),amax(f1['sigma'])])
@@ -540,15 +570,16 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: Density(r)
     #-------------------------------------------------------------------------
-    f2 = loadtxt(rhofile_true,
-                 dtype = {'names': ('r', 'rho'),
-                          'formats': ('f8', 'f8')})
+    if trueans == 1:
+        f2 = loadtxt(rhofile_true,
+                     dtype = {'names': ('r', 'rho'),
+                              'formats': ('f8', 'f8')})
     figure()
     loglog(r,rhoa,label='Python result from abelsolve()')
     loglog(r,rho,label='Python result from cumsolve()')
     plot(rinterp,rhinta,label='Interpolant from abelsolve()')
     plot(rinterp,rhint,label='Interpolant from cumsolve()')
-    plot(f2['r'],f2['rho'],label='Right result')
+    if trueans == 1: plot(f2['r'],f2['rho'],label='Right result')
     plot([imagemax,imagemax],[1e-2,amax(rho)])
     plot([imagemin,imagemin],[1e-2,amax(rho)])
     gca().set_xlim(0,imagemax*10)
@@ -561,15 +592,16 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: dlnrhodlnr
     #-------------------------------------------------------------------------
-    import massmodel.hernquist as hernquist
-    rtest = logspace(-2,3,num=10000)
-    rhotest = hernquist.den(rtest,[2.12e11,15,1])
-    drhotest = dlnrhodlnr(rtest,rhotest)
+    if testsuite == 0:
+        import massmodel.hernquist as hernquist
+        rtest = logspace(-2,3,num=10000)
+        rhotest = hernquist.den(rtest,[2.12e11,15,1])
+        drhotest = dlnrhodlnr(rtest,rhotest)
 
     figure()
     semilogx(rinterp,drhoa,label='Python result from abelsolve()')
     plot(rinterp,drho,label='Python result from cumsolve()')
-    plot(rtest,drhotest,label='Right result')
+    if testsuite == 0: plot(rtest,drhotest,label='Right result')
     plot([imagemax,imagemax],[amin(drho),amax(drho)])
     plot([imagemin,imagemin],[amin(drho),amax(drho)])
     gca().set_xlim(imagemin/10,imagemax*10)
@@ -582,9 +614,10 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: Mass(r)
     #-------------------------------------------------------------------------
-    f2 = loadtxt(massfile_true,
-                 dtype = {'names': ('r', 'mass'),
-                          'formats': ('f8', 'f8')})
+    if trueans == 1:
+        f2 = loadtxt(massfile_true,
+                     dtype = {'names': ('r', 'mass'),
+                              'formats': ('f8', 'f8')})
 
     # Test the special interpolant:
     mpint = masspint(imagemin,imagemax,alphalim,f1['R'],
@@ -595,7 +628,7 @@ if __name__ == "__main__":
     figure()
     loglog(r,massa,label='Python result from abelsolve()')
     plot(r,mass,label='Python result from cumsolve()')
-    plot(f2['r'],f2['mass'],label='Right result')
+    if trueans == 1: plot(f2['r'],f2['mass'],label='Right result')
     plot(f1['R'],massp,label='Projected cumulative mass')
     plot(rinterp,mpint,label='Projected interpolant')
     plot(rinterp,mtinta,label='3D interpolant from abelsolve()')
@@ -603,7 +636,7 @@ if __name__ == "__main__":
     plot([imagemax,imagemax],[amin(mass),amax(mass)])
     plot([imagemin,imagemin],[amin(mass),amax(mass)])
     gca().set_xlim(imagemin/10,imagemax*10)
-    gca().set_ylim(1e7,1e12)
+    gca().set_ylim(amin(mass),amax(mass))
     title('Cumulative mass')
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$M(r)$')
@@ -613,13 +646,14 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: sigp(r)
     #-------------------------------------------------------------------------
-    f2 = loadtxt(sigfile_true,
-                 dtype = {'names': ('r', 'sigp'),
-                          'formats': ('f8', 'f8')})
+    if trueans == 1:
+        f2 = loadtxt(sigfile_true,
+                     dtype = {'names': ('r', 'sigp'),
+                              'formats': ('f8', 'f8')})
     figure()
     semilogx(r,sigpa,label='Python result from abelsolve()')
     plot(r,sigp,label='Python result from cumsolve()')
-    plot(f2['r'],f2['sigp'],label='Right result')
+    if trueans == 1: plot(f2['r'],f2['sigp'],label='Right result')
     plot([imagemax,imagemax],[amin(sigp),amax(sigp)])
     plot([imagemin,imagemin],[amin(sigp),amax(sigp)])
     gca().set_xlim(imagemin/10,imagemax*10)
