@@ -56,6 +56,7 @@ from numpy import sin, cos, exp, log10, log, sqrt, arccos, arctan
 from scipy.integrate.quadrature import simps, trapz
 from scipy.integrate import quad 
 from scipy.misc.common import derivative
+from scipy.optimize.zeros import bisect
 
 #-----------------------------------------------------------------------------
 # Functions
@@ -67,115 +68,9 @@ def thetaint(beta,a):
     '''Theta integral for inner integral in sigp(r) calc'''
     return quad(thetaintintegrand, 0, a, args=beta)[0]
 
-def dSigdR(rmin,rmax,alphalim,R,sigma,massp,rin):
-    '''dSigdR function to calculate and interpolate derivative of the surface
-    density. It sews on power laws where there are no data.'''
-
-    # Find array elements in R corresponding to rmin/rmax:
-    # We use R[1] and not R[0] for the low range because interpolation
-    # at R[0] is unreliable. 
-    jl =  1 if rmin < R[1]  else argmin(abs(R-rmin))
-    jr = -1 if rmax > R[-1] else argmin(abs(R-rmax))        
-    rmin = R[jl]
-    rmax = R[jr]
-
-    # Calculate inner/outer power law match values:
-    sigc_in   = sigma[jl]
-    sigc_out  = sigma[jr]
-
-    # Inner power [consistent with known enclosed mass & smooth simga]:
-    menc_in_real = massp[jl]
-    alpin = 2 - sigc_in*2*pi/menc_in_real*rmin**2
-    Ain = sigc_in * rmin**alpin
-
-    # Outer power [consistent with alphalim]:
-    Aout = sigc_out * rmax**alphalim
-
-    # Interpolate for rmin<r<rmax; power law otherwise:
-    output = empty(len(rin), 'double')
-    output = derivative(lambda x: interp(x,R,sigma), rin)
-    w = rin > rmax
-    output[w] = -alphalim*Aout*rin[w]**(-alphalim-1)
-    w = rin < rmin
-    output[w] = -alpin*Ain*rin[w]**(-alpin-1)
-
-    return output
-
-def sigmaint(rmin,rmax,alphalim,R,sigma,massp,rin):
-    '''Sigma function to interpolate the surface density.  It sews on power
-    laws where there are no available data.'''
-    
-    # Find array elements in R corresponding to rmin/rmax: We use R[1] and not
-    # R[0] for the low range because interpolation at R[0] is unreliable. 
-    jl =  1 if rmin < R[1]  else argmin(abs(R-rmin)) 
-    jr = -1 if rmax > R[-1] else argmin(abs(R-rmax))
-    rmin = R[jl]
-    rmax = R[jr]
-
-    # Calculate inner/outer power law match values:
-    sigc_in   = sigma[jl]
-    sigc_out  = sigma[jr]
-
-    # Inner power [consistent with known enclosed mass & smooth simga]:
-    menc_in_real = massp[jl]
-    alpin = 2 - sigc_in*2*pi/menc_in_real*rmin**2
-    Ain = sigc_in * rmin**alpin
-
-    # Outer power consistent with alphalim:
-    Aout = sigc_out * rmax**alphalim
-
-    # Interpolate for rmin<r<rmax; power law otherwise:
-    output = empty(len(rin), 'double')
-    output = interp(rin,R,sigma)
-    w = rin > rmax
-    output[w] = Aout*rin[w]**(-alphalim)
-    w = rin < rmin
-    output[w] = Ain*rin[w]**(-alpin)
-    w = rin = 0
-    output[w] = 0
-
-    return output
-
-def rhoint(rmin,rmax,alphalim,r,rho,mass,rin):
-    '''Sigma function to interpolate the surface density.  It sews on power
-    laws where there are no available data. This function should be passed the
-    density that comes from cumsolve() and used to calculate the final density
-    profile. It is this final density profile that can then be passed to
-    dlnrhodlnr().'''
-           
-    # Find array elements in r corresponding to rmin/rmax: We use r[1] and not
-    # r[0] for the low range because interpolation at r[0] is unreliable. 
-    jl =  1 if rmin < r[1]  else argmin(abs(r-rmin)) 
-    jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
-    rmin = r[jl]
-    rmax = r[jr]
-
-    # Calculate inner/outer power law match values:
-    rhoc_in   = rho[jl]
-    rhoc_out  = rho[jr]
-
-    # Inner power [consistent with known enclosed mass & smooth rho]
-    menc_in_real = mass[jl]
-    gamin = 3 - rhoc_in*4*pi/menc_in_real*rmin**3
-    Ain = rhoc_in * rmin**gamin
-
-    # Outer power consistent with alphalim
-    gamout = alphalim + 1
-    Aout = rhoc_out * rmax**gamout
-
-    # Interpolate for r<rmax; power law for r>rmax:
-    output = empty(len(rin), 'double')
-    output = interp(rin,r,rho)
-    w = rin > rmax
-    output[w] = Aout*rin[w]**(-gamout)
-    w = rin < rmin
-    output[w] = Ain*rin[w]**(-gamin)
-
-    return output
-
-def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
-    '''Projected enclosed mass function interpolation It sews on power laws
-    where there are no available data.'''
+def findmatchpoints(rmin,rmax,alphalim,R,sigma,massp):
+    '''Calculate array match points for interpolation.
+       Match points are where we sew on a power law'''
 
     # Find array elements in R corresponding to rmin/rmax:
     # We use R[1] and not R[0] for the low range because interpolation
@@ -200,6 +95,54 @@ def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
     m0 = massp[jr]
     Aout = sigc_out * rmax**alphalim
 
+    return rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0
+
+def dSigdR(rmin,rmax,alphalim,R,sigma,massp,rin):
+    '''dSigdR function to calculate and interpolate derivative of the surface
+    density. It sews on power laws where there are no data.'''
+
+    # Find match points:
+    rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0 = \
+          findmatchpoints(rmin,rmax,alphalim,R,sigma,massp)
+
+    # Interpolate for rmin<r<rmax; power law otherwise:
+    output = empty(len(rin), 'double')
+    output = derivative(lambda x: interp(x,R,sigma), rin)
+    w = rin > rmax
+    output[w] = -alphalim*Aout*rin[w]**(-alphalim-1)
+    w = rin < rmin
+    output[w] = -alpin*Ain*rin[w]**(-alpin-1)
+
+    return output
+
+def sigmaint(rmin,rmax,alphalim,R,sigma,massp,rin):
+    '''Sigma function to interpolate the surface density.  It sews on power
+    laws where there are no available data.'''
+
+    # Find match points:
+    rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0 = \
+          findmatchpoints(rmin,rmax,alphalim,R,sigma,massp)
+
+    # Interpolate for rmin<r<rmax; power law otherwise:
+    output = empty(len(rin), 'double')
+    output = interp(rin,R,sigma)
+    w = rin > rmax
+    output[w] = Aout*rin[w]**(-alphalim)
+    w = rin < rmin
+    output[w] = Ain*rin[w]**(-alpin)
+    w = rin = 0
+    output[w] = 0
+
+    return output
+
+def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
+    '''Projected enclosed mass function interpolation It sews on power laws
+    where there are no available data.'''
+
+    # Find match points:
+    rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0 = \
+          findmatchpoints(rmin,rmax,alphalim,R,sigma,massp)
+ 
     # Interpolate for rmin<r<rmax; power law otherwise:
     output = empty(len(rin), 'double')
     output = interp(rin,R,massp)
@@ -214,9 +157,13 @@ def masspint(rmin,rmax,alphalim,R,sigma,massp,rin):
 
     return output
 
-def masstot(rmax,alphalim,r,rho,mass,rin):
+def masstot(rmin,rmax,alphalim,r,rho,mass,R,sigma,massp,rin):
     '''Function to interpolate the cumulative mass beyond the data [consistent
     with the assumed surface density outer power law distribution]'''
+
+    # Find match points:
+    rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0 = \
+          findmatchpoints(rmin,rmax,alphalim,R,sigma,massp)
 
     # Find array elements in r corresponding to rmax:
     jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
@@ -263,13 +210,13 @@ def gRr(r,beta,lower):
         vec_thetaint = vectorize(thetaint)
         return lower**(1-2*beta)*vec_thetaint(beta,arccos(lower/r))
 
-def sphericalcumulate(r,array,integrator):
+def sphericalcumulate(r,array,integrator,intpnts):
     '''Calculate the spherical cumulative "mass" of an array'''
-
-    intpnts = len(array)
-    out = zeros(intpnts,'double')
-    for i in xrange(1,intpnts):
-        out[i] = integrator(4*pi*r[0:i]**2*array[0:i],r[0:i])
+    out = zeros(len(r),'double')
+    for i in xrange(1,len(r)):
+        rint = linspace(0,r[i],num=intpnts)
+        arrayint = interp(rint,r,array)
+        out[i] = integrator(4*pi*rint**2*arrayint,rint)
     return out
 
 def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
@@ -306,7 +253,7 @@ def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
         rhoout[i] = (-1/pi)*integrator(y,theta)
         
     # Calculate the cumulative mass:
-    massout = sphericalcumulate(r,rhoout,integrator)
+    massout = sphericalcumulate(r,rhoout,integrator,intpnts)
 
     return rhoout, massout
 
@@ -343,27 +290,66 @@ def cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
               masspint(imagemin,imagemax,alphalim,R,sigma,massp,r)
 
     # Calculate the density as the derivative of massout:
-    rhoout =  derivative(lambda x: interp(x,r,massout,right=0),r)/\
+    rhoout = derivative(lambda x: interp(x,r,massout,right=0),r)/\
              (4*pi*r**2)
     rhoout[-1] = 0
-    
+
     return rhoout, massout
 
-def dlnrhodlnr(r,rho):
+def dlnrhodlnr(rmin,rmax,alphalim,r,rho,mass,R,sigma,massp,rin):
     '''Numerically differentiates the density distribution to obtain a
     non-parameteric measure of the power law exponent as a function of
     radius'''
 
     lnr = log(r)
     lnrho = log(rho)
-    return derivative(lambda x: interp(x,lnr,lnrho),lnr)
+    lnrin = log(rin)
 
-def sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
+    # Find match points:
+    rmin, rmax, sigc_in, sigc_out, Ain, alpin, Aout, m0 = \
+          findmatchpoints(rmin,rmax,alphalim,R,sigma,massp)
+
+    # Find array elements in r corresponding to rmin/rmax: We use r[1] and not
+    # r[0] for the low range because interpolation at r[0] is unreliable. 
+    jl =  1 if rmin < r[1]  else argmin(abs(r-rmin)) 
+    jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
+
+    print rmin, rmax, r[jl], r[jr]
+
+    rmin = r[jl]
+    rmax = r[jr]
+
+    # Calculate inner/outer power law match values:
+    rhoc_in   = rho[jl]
+    rhoc_out  = rho[jr]
+
+    # Inner power [consistent with known enclosed mass & smooth rho]
+    menc_in_real = mass[jl]
+    gamin = 3 - rhoc_in*4*pi/menc_in_real*rmin**3
+    Ain = rhoc_in * rmin**gamin
+
+    # Outer power consistent with alphalim
+    gamout = alphalim + 1
+    Aout = rhoc_out * rmax**gamout
+
+    # Interpolate for rmin<r<rmax; power law otherwise:
+    output = empty(len(rin), 'double')
+    output = derivative(lambda x: interp(x,lnr,lnrho,left=0,right=0),lnrin)
+
+    w = rin > rmax
+    output[w] = -gamout
+    w = rin < rmin
+    output[w] = -gamin
+
+    return output
+
+def sigpsolve(r,rho,mass,R,sigma,massp,integrator,intpnts,alphalim,Gsp,
               light,lpars,beta):
     '''Solve the integral to obtain sigp(r). See Wilkinson et al. 2004 for
     details. Note typos in equation (1) of their paper. Int.  limits for f(r)
     should be r-->infty and GM(r)/r should be GM(r)/r**2'''
 
+    rmin  = r[0]
     rmax  = r[-1]
     sigp2 = empty(len(r), 'double')
 
@@ -376,7 +362,8 @@ def sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
         lower = r[i]
         rint = lower/cth
         rhostar = light.den(rint,lpars)
-        mtot = masstot(rmax,alphalim,r,rho,mass,rint)
+        mtot = masstot(rmin,rmax,alphalim,r,rho,mass,
+                       R,sigma,massp,rint)
         integrand = rhostar*rint**(2*beta-2)*Gsp*\
                     mtot*gRr(rint,beta,lower)
         sigp2[i] = integrator(integrand*lower*sth/cth2,theta)
@@ -401,6 +388,47 @@ def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
     return sqrt(integrator(sigp2*IR*R,R)/\
                 integrator(IR*R,R))
 
+def nfwintegrand(x,alp,bet):
+    return x**(2-alp)*(1+x)**(alp-bet)
+def nfwmint(alp,bet,p):
+    '''Dimensionless mass integral for generalise NFW profile'''
+    return quad(nfwintegrand, 0, p, args=(alp,bet))[0]
+
+def findrs(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax):
+    '''Find the scale radius of the generalised NFW profile
+    given an input concentration parameter c=r/rdelta and
+    mass within some radius Mrenc(renc)'''
+
+    rhocrit = 277.3*h**2*(omegam*(1+z)**3+omegal)
+    c1 = Mrenc*nfwmint(alp,bet,c)
+    c2 = delta*rhocrit*4/3*pi*c**3
+    
+    #print 'rhocrit = ', rhocrit, renc, Mrenc, rmin, rmax
+    #r = linspace(rmin,rmax,num=1000)
+    #func = zeros(len(r),'double')
+    #for i in xrange(len(r)):
+    #    func[i] = abs(c1-c2*r[i]**3*nfwmint(alp,renc/r[i]))
+    #figure()
+    #plot(log10(r),log10(func))
+    #show()
+    #sys.exit(0)
+
+    return bisect(lambda x: c1-c2*x**3*nfwmint(alp,bet,renc/x),rmin,rmax)
+
+def drhonfw(c,delta,z,omegam,omegal,h,alp,renc,Mrenc,rmin,rmax,r):
+    '''Calculates dlnrhodlnr for a generalised NFW profile'''
+
+    rs = findrs(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax)
+
+    print 'rs found:', rs, c, alp, bet
+
+    rho = (r/rs)**(-alp)*(1+r/rs)**(alp-bet)
+
+    lnr = log(r)
+    lnrho = log(rho)
+
+    return derivative(lambda x: interp(x,lnr,lnrho,left=0,right=0),lnr)
+
 #-----------------------------------------------------------------------------
 # Main program
 #-----------------------------------------------------------------------------
@@ -416,7 +444,7 @@ if __name__ == "__main__":
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
     intpnts = 99
-    interpnts = 500
+    interpnts = -1
     
     #Which test suite to use [0,1,2,3 ...]:
     testsuite = 1
@@ -427,7 +455,7 @@ if __name__ == "__main__":
         #Range of believeable data + outer slope limiter:
         imagemin = 1
         imagemax = 20
-        alphalim = 2
+        alphalim = 3
 
         #Light distribution parameters + vel anisotropy: 
         import massmodel.hernquist as light
@@ -449,7 +477,7 @@ if __name__ == "__main__":
         #Range of believeable data + outer slope limiter:
         imagemin = 1.62833449387 
         imagemax = 140.697487422
-        alphalim = 3
+        alphalim = 2
 
         #Light distribution parameters + vel anisotropy: 
         arctokpc = 7.71687843482
@@ -490,8 +518,11 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Calculate the Abel integral to obtain rho(r) and mass(r)
     #-------------------------------------------------------------------------
+    if interpnts < 0: interpnts = len(f1['R'])*2
     r = logspace(log10(amin(f1['R'])/10),log10(amax(f1['R'])*10),
                  num=interpnts)
+    print 'Using sample points in r:', interpnts
+    print 'Over the range:', amin(f1['R'])/10, amax(f1['R'])*10
 
     # This package contains two different abel solving routines.  abelsolve()
     # calculates rho(r) first and then integrates to get M(r). This involves
@@ -504,30 +535,24 @@ if __name__ == "__main__":
     rho, mass = cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,
                          f1['R'],f1['sigma'],massp)
 
-    # The final density distribution should be calculated as a special
-    # interpolation over the rho's obtained above from abelsolve() and
-    # cumsolve(). This is because we assume power laws outside of our real data
-    # and the density profile in these regions is known analytically:
-    rinterp = logspace(-2,3,num=5000)
-    rhinta = rhoint(imagemin,imagemax,alphalim,r,
-                    rhoa,massa,rinterp)
-    rhint = rhoint(imagemin,imagemax,alphalim,r,
-                   rho,mass,rinterp)
-
     # Now we can calculate dlnrhodlnr to non-parametrically determine how the
     # density profile power law exponent varies with radius.  This is a useful
     # quantity to compare with simulations. 
-    drhoa = dlnrhodlnr(rinterp,rhinta)
-    drho = dlnrhodlnr(rinterp,rhint)
+    drhoa = dlnrhodlnr(imagemin,imagemax,alphalim,r,rhoa,massa,
+                       f1['R'],f1['sigma'],massp,r)
+    drho = dlnrhodlnr(imagemin,imagemax,alphalim,r,rho,mass,
+                      f1['R'],f1['sigma'],massp,r)
 
     #-------------------------------------------------------------------------
     # Calculate the integral to obtain sigp(r)
     #-------------------------------------------------------------------------
     #units of M=Msun, L=kpc, V=km/s:
     Gsp = 6.67e-11 * 1.989e30 / 3.086e19
-    sigpa = sigpsolve(r,rhoa,massa,integrator,intpnts,alphalim,Gsp,
+    sigpa = sigpsolve(r,rhoa,massa, f1['R'],f1['sigma'],massp,
+                      integrator,intpnts,alphalim,Gsp,
                       light,lpars,beta)/1000
-    sigp = sigpsolve(r,rho,mass,integrator,intpnts,alphalim,Gsp,
+    sigp = sigpsolve(r,rho,mass, f1['R'],f1['sigma'],massp,
+                     integrator,intpnts,alphalim,Gsp,
                      light,lpars,beta)/1000
     sigpsinga = sigpsingle(r,sigpa,light,lpars,aperture,integrator)
     sigpsing = sigpsingle(r,sigp,light,lpars,aperture,integrator)
@@ -545,7 +570,8 @@ if __name__ == "__main__":
                      dtype = {'names': ('R', 'sigma'),
                               'formats': ('f8', 'f8')})
 
-    # Test the special interpolant: 
+    # Test the special interpolant:
+    rinterp = logspace(-2,4,num=5000)
     sigint = sigmaint(imagemin,imagemax,alphalim,f1['R'],
                       f1['sigma'],massp,rinterp)
 
@@ -572,8 +598,6 @@ if __name__ == "__main__":
     figure()
     loglog(r,rhoa,label='Python result from abelsolve()')
     loglog(r,rho,label='Python result from cumsolve()')
-    plot(rinterp,rhinta,label='Interpolant from abelsolve()')
-    plot(rinterp,rhint,label='Interpolant from cumsolve()')
     if trueans == 1: plot(f2['r'],f2['rho'],label='Right result')
     plot([imagemax,imagemax],[1e-2,amax(rho)])
     plot([imagemin,imagemin],[1e-2,amax(rho)])
@@ -587,19 +611,39 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Plot the results: dlnrhodlnr
     #-------------------------------------------------------------------------
-    if testsuite == 0:
-        import massmodel.hernquist as hernquist
-        rtest = logspace(-2,3,num=10000)
-        rhotest = hernquist.den(rtest,[2.12e11,15,1])
-        drhotest = dlnrhodlnr(rtest,rhotest)
+
+    # NFW overlay parameters:
+    delta = 200
+    omegam = 0.3
+    omegal = 0.7
+    z = 0
+    h = 0.7
+    alp = [1,1.5]
+    bet = 3
+    c = [5,10,20]    
+    #renc = imagemax
+    renc = 1000
+    t = argmin(abs(r-imagemax))
+    Mrenc = mass[t]
+    print 'NFW overlay parameters:', renc, Mrenc
 
     figure()
-    semilogx(rinterp,drhoa,label='Python result from abelsolve()')
-    plot(rinterp,drho,label='Python result from cumsolve()')
-    if testsuite == 0: plot(rtest,drhotest,label='Right result')
+    semilogx(r,drhoa,label='Python result from abelsolve()')
+    plot(r,drho,label='Python result from cumsolve()')
     plot([imagemax,imagemax],[amin(drho),amax(drho)])
     plot([imagemin,imagemin],[amin(drho),amax(drho)])
+
+    # Plot NFW overlay:
+    for i in xrange(len(alp)):
+        for j in xrange(len(c)):
+            labelstr = 'alpha=%f, c=%f' % (alp[i],c[j])
+            drhoover = drhonfw(c[j],delta,z,omegam,omegal,h,
+                               alp[i],renc,Mrenc,5*amin(r),amax(rinterp),
+                               rinterp)
+            plot(rinterp,drhoover,'--',label=labelstr)
+
     gca().set_xlim(imagemin/10,imagemax*10)
+    gca().set_ylim(-3.5,-0.5)
     title('Power law exponent of density')
     xlabel(r'$r(\mathrm{kpc})$')
     ylabel(r'$d\ln\rho/d\ln r$')
@@ -617,8 +661,10 @@ if __name__ == "__main__":
     # Test the special interpolant:
     mpint = masspint(imagemin,imagemax,alphalim,f1['R'],
                      f1['sigma'],massp,rinterp)
-    mtinta = masstot(imagemax,alphalim,r,rhoa,massa,rinterp)
-    mtint = masstot(imagemax,alphalim,r,rho,mass,rinterp)
+    mtinta = masstot(imagemin,imagemax,alphalim,r,rhoa,massa,f1['R'],
+                     f1['sigma'],massp,rinterp)
+    mtint = masstot(imagemin,imagemax,alphalim,r,rho,mass,f1['R'],
+                    f1['sigma'],massp,rinterp)
     
     figure()
     loglog(r,massa,label='Python result from abelsolve()')
