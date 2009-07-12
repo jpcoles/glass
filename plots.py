@@ -25,22 +25,28 @@ _source_colors = 'c'
 def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
 
-def img_plot(model):
+def img_plot(model, src_index=None):
+    if src_index is not None and not isinstance(src_index, (list,tuple)):
+        src_index = [src_index]
+
     if isinstance(model, (list, tuple)):
         obj, data = model
     else:
         obj = model
-    for i,sys in enumerate(obj.systems):
+
+    for i,src in enumerate(obj.sources):
+        if src_index is not None and i not in src_index: continue
         xs = []
         ys = []
-        for img in sys.images:
+        for img in src.images:
             xs.append(img.pos.real)
             ys.append(img.pos.imag)
-        over(scatter,xs, ys, s=80, c=system_color(i), zorder=1000)
+        if xs and ys:
+            over(scatter,xs, ys, s=80, c=source_color(i), zorder=1000)
 
 def src_plot(model):
     obj, data = model
-    for i,sys in enumerate(obj.systems):
+    for i,sys in enumerate(obj.sources):
         xs = []
         ys = []
         xs.append(data['src'][i*2+0])
@@ -71,7 +77,7 @@ def mass_plot(model):
     #a = subplot(111, aspect='equal')
     matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
     #over(contour, grid, 50, extent=[-R,R,-R,R], extend='both')
-    over(contour, grid, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
+    #over(contour, grid, colors='w', extent=[-R,R,-R,R], origin='upper', extend='both')
     #colorbar()
     #a.add_artist(circle0)
     #a.add_artist(circle1)
@@ -96,29 +102,42 @@ def potential_plot(model, sys):
     ylabel('arcsec')
     suptitle('Potential')
 
-def arrival_plot(model, sys):
+def arrival_plot(model, src_index):
     obj, data = model
     S = obj.basis.subdivision
     R = obj.basis.mapextent
 
-    g   = obj.basis.arrival_grid(data)[sys]
+    g   = obj.basis.arrival_grid(data)[src_index]
     lev = obj.basis.arrival_contour_levels(data)
-    if lev: lev = lev[sys]
+    if lev: lev = lev[src_index]
 
 #   figure()
 #   hist(g.flatten())
 
 #   figure()
-    matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
-    #lev = 50 if not lev else lev[sys]
+    #matshow(g, fignum=False, cmap=cm.gray, extent=[-R,R,-R,R], interpolation='nearest')
+    #lev = 50 if not lev else lev[src_index]
     print 'arrival_plot:', lev
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
     over(contour, g, 50,  colors='w',               linewidths=1, 
          extent=[-R,R,-R,R], origin='upper', extend='both')
     if lev:
         print '***', lev, '***'
-        over(contour, g, lev, colors=system_color(sys), linewidths=3, 
+        over(contour, g, lev, colors=system_color(src_index), linewidths=3, 
              extent=[-R,R,-R,R], origin='upper')
+    grid()
+
+def srcdiff_plot(model, src_index):
+    obj, data = model
+    S = obj.basis.subdivision
+    R = obj.basis.mapextent
+
+    g   = obj.basis.srcdiff_grid(data)[src_index]
+
+    matshow(g, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+    matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+    over(contour, g, 50,  colors='w',               linewidths=1, 
+         extent=[-R,R,-R,R], origin='upper', extend='both')
     grid()
 
 def _data_plot(models, X,Y, x_label, y_label, plotf=loglog, mark_images=False):
@@ -134,10 +153,10 @@ def _data_plot(models, X,Y, x_label, y_label, plotf=loglog, mark_images=False):
             plotf(data[X],data[Y], c=s['c'], ls=s['ls'], zorder=s['z'])
 
             if mark_images:
-                for i,sys in enumerate(obj.systems):
-                    for img in sys.images:
+                for i,src in enumerate(obj.sources):
+                    for img in src.images:
                         x = distance_to_physical([obj, data], abs(img.pos))
-                        axvline(x, c=system_color(i), ls=':', zorder=2)
+                        axvline(x, c=system_color(i), ls='-', zorder=-2, alpha=0.5)
 
     if use[0] or use[1]:
         lines = [s['line']  for s,u in zip(_styles, use) if u]
@@ -147,21 +166,26 @@ def _data_plot(models, X,Y, x_label, y_label, plotf=loglog, mark_images=False):
     xlabel(x_label)
     ylabel(y_label)
 
+_kappa_xlabel = r'$R$ $(\mathrm{kpc})$'
+_kappa_ylabel = r'$\kappa$ $(M_\odot/\mathrm{kpc}^2)$'
+def kappa_plot(models, **kwargs):
+    _data_plot(models, 'R', 'enckappa', _kappa_xlabel, _kappa_ylabel, **kwargs)
+
 _sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
 def sigma_plot(models, **kwargs):
-    _data_plot(models, 'R_phys', 'sigma_phys', _sigma_xlabel, _sigma_ylabel, **kwargs)
+    _data_plot(models, 'R_kpc', 'sigma', _sigma_xlabel, _sigma_ylabel, **kwargs)
 
 _sigp_xlabel = r'$R$ $(\mathrm{kpc})$'
-_sigp_ylabel = r'$\sigma_p^2$ $()$'
+_sigp_ylabel = r'$\sigma_p$ $()$'
 def sigp_plot(models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=plot, **kwargs)
+    _data_plot(models, 'sigp:r', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=semilogx, **kwargs)
     #_data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, kwargs, plotf=plot)
 
 _mass3d_xlabel = r'$r$ $(\mathrm{kpc})$'
 _mass3d_ylabel = r'$M$'
 def mass3d_plot(models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:mass3d', _mass3d_xlabel, _mass3d_ylabel, plotf=plot, **kwargs)
+    _data_plot(models, 'sigp:r', 'sigp:mass3d', _mass3d_xlabel, _mass3d_ylabel, plotf=loglog, **kwargs)
 
 _rho_xlabel = r'$r$ $(\mathrm{kpc})$'
 _rho_ylabel = r'$\rho$ $()$'
@@ -178,10 +202,20 @@ _drho_ylabel = r'$d\ln\rho/d\ln r$'
 def drho_plot(models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:drho', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
 
+_rhoa_xlabel = r'$r$ $(\mathrm{kpc})$'
+_rhoa_ylabel = r'$\rho_\mathrm{abel}$ $()$'
+def rhoa_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:rhoa', _rho_xlabel, _rho_ylabel, **kwargs)
+
+_drhoa_xlabel = r'$r$ $(\mathrm{kpc})$'
+_drhoa_ylabel = r'$d\ln\rho_\mathrm{abel}/d\ln r$'
+def drhoa_plot(models, **kwargs):
+    _data_plot(models, 'sigp:r', 'sigp:drhoa', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
+
 _encmass_xlabel = r'$R$ $(\mathrm{kpc})$'
 _encmass_ylabel = r'$M$'
 def encmass_plot(models, **kwargs):
-    _data_plot(models, 'R_phys', 'encmass_phys', _encmass_xlabel, _encmass_ylabel, **kwargs)
+    _data_plot(models, 'R_kpc', 'encmass', _encmass_xlabel, _encmass_ylabel, plotf=loglog, **kwargs)
 
 
 _H0_xlabel = r'$H_0^{-1}$ (Gyr)'

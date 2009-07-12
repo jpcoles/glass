@@ -2,10 +2,10 @@ from __future__ import division, with_statement
 import math
 from numpy import arctan2, savez, load, array
 import environment
-from environment import env, set_env, Image, System
+from environment import env, set_env, Image, Source
 from shear import Shear
 import cosmo
-from handythread import parallel_map
+#from handythread import parallel_map
 
 def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
 def redshifts(*args):           assert False, "redshifts not implemented"
@@ -23,9 +23,11 @@ def shear(phi):
     env().current_object().shear = Shear(phi)
 
 def zlens(z):
+    assert z is not None
     o = env().current_object()
-    o.zlens = z
-    o.scales = cosmo.scales(o.zlens, 0)
+    assert o.z is None, 'zlens() can only be called once per object.'
+    o.z = z
+    o.scales = cosmo.scales(o.z, 0)
 
 def cosm(om, ol):
     cosmo.omega_matter = om
@@ -39,16 +41,14 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
 
     o = env().current_object()
 
-    assert o.zlens is not None, "zlens() must first be specified."
-    assert zsrc >= o.zlens, "Source is not behind lens."
+    assert o.z is not None, "zlens() must first be specified."
+    assert zsrc >= o.z, "Source is not behind lens."
 
-    # XXX: this changes the scales for each lens with a different zsrc!!!
-    #o.zlens, o.tscale, o.tscalebg, o.dlscale, o.cdscale = cosmo.scales(o.zlens,zsrc)
-    sys = System(zsrc, o.zlens)
+    src = Source(zsrc, o.z)
 
     if img0 is not None and img0parity is not None:
         image0 = Image(img0, img0parity)
-        sys.add_image(image0)
+        src.add_image(image0)
 
         prev = image0
         for i in xrange(0, len(imgs), 3):
@@ -58,19 +58,19 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
                 prev.angle = arctan2(prev.pos.imag-img[1], 
                                      prev.pos.real-img[0]) * 180/math.pi
             image = Image(img, parity)
-            sys.add_image(image)
-            sys.add_time_delay(prev,image, time_delay)
+            src.add_image(image)
+            src.add_time_delay(prev,image, time_delay)
             prev = image
 
-    o.add_system(sys)
-    return sys
+    o.add_source(src)
+    return src
 
 def delay(A,B, delay):
     """ Add a time delay between images A and B such that B arrive delay days after A. """
-    sys = env().current_object().current_system()
-    a = sys.images[sys.images.index(A)]
-    b = sys.images[sys.images.index(B)]
-    sys.add_time_delay(a,b,delay)
+    src = env().current_object().current_source()
+    a = src.images[src.images.index(A)]
+    b = src.images[src.images.index(B)]
+    src.add_time_delay(a,b,delay)
 
 def symm(v=False):
     """Turn lens symmetry on or off. Default is off."""
@@ -82,12 +82,13 @@ def dgcone(theta):
     env().current_object().cen_ang = (90-theta) * math.pi/180
 
 def steep(lb, ub):
-    env().current_object().minsteep = lb
-    env().current_object().maxsteep = ub
+    env().current_object().steep = [lb, ub]
 
 def g(*args):
-    h = args if len(args) > 1 else [args[0], args[0]]
-    env().h_spec = (1/h[0], 1/h[1])
+    env().g      = array(args)
+    env().h_spec = 1 / array(args)
+    #h = args if len(args) > 1 else [args[0], args[0]]
+    #env().h_spec = (1/h[0], 1/h[1])
 
 def kann(theta):
     env().current_object().kann_spec = theta
@@ -116,9 +117,14 @@ CREATED ON: %s'''
     #env().post_process_funcs = ppf
     #env().post_filter_funcs = pff
 
-def loadstate(fname):
+def loadstate(fname, setenv=True):
+    """ Load the state stored in fname and replace the current environment. If
+    setenv is False the environment will not be replaced. Return the loaded
+    environment.  
+    """
     x = load(fname)['arr_0'].item()
-    set_env(x)
+    if setenv: set_env(x)
+    return x
 
 def post_process(f, *args, **kwargs):
     env().current_object().post_process_funcs.append([f, args, kwargs])
@@ -136,6 +142,7 @@ def apply_filters():
     models = env().models
     for m in models: m['accepted'] = False           # Reject all
     models = filter(_filter, models)                 # Run each filter, keeping those that survive
+    #models = filter(parallel_map(_filter, models, threads=10))                 # Run each filter, keeping those that survive
     for m in models: m['accepted'] = True            # Those that make it to the end are accepted
 
     env().accepted_models = models

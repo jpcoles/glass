@@ -19,18 +19,8 @@ def raytrace(obj, ps, sys_index, nimgs=None, eps=None):
       + abs(correlate1d(arrival, w, axis=1, mode='constant'))
     d = d[1:-1,1:-1]
 
-    #-
-    # Tolerances on image finding. ztol specifies an upper-bound on "zero". Pixels
-    # with a value below this will be considered as potential image locations.
-    # rtol is a tolerance on radius. Pixels that satisfy ztol are considered new
-    # images if they are not within rtol distance from another image.
-    #-
-    #eps    = amax(abs_tx) - amin(abs_tx) + amax(abs_ty) - amin(abs_ty)
-    #ztol = .02
-    #rtol = eps / obj.basis
-    #rtol = obj.basis.cell_size * 2
+    matshow(d)
 
-    #d  = ((abs_tx+abs_ty) / eps)
     xy = obj.basis.refined_xy_grid(ps)[1:-1,1:-1]
 
     # Create flattened *views*
@@ -43,9 +33,7 @@ def raytrace(obj, ps, sys_index, nimgs=None, eps=None):
     for i in argsort(dravel):
 
         if nimgs == len(imgs): break
-        #if nimgs == len(imgs) or (i > 0 and dravel[i] > 10*dravel[i-1]): break
 
-        #if dravel[i] > ztol: break
         for img in imgs:
             if abs(img-xy[i]) <= eps: break
         else:
@@ -78,10 +66,10 @@ def write_code(obj, ps, sys_index, seq):
     for [t,img], l in zip(seq, letters):
         sys.stdout.write('%s = %-.4f, %-.4f\n' % (l, img.real, img.imag))
 
-    sys.stdout.write("source(%.2f,A,'min'" % obj.systems[sys_index].zsrc)
+    sys.stdout.write("source(%.2f,A,'min'" % obj.sources[sys_index].z)
     prev = seq[0][0]
     for [t,img],l in zip(seq[1:], letters[1:]):
-        t0 = time_to_physical(obj, t-prev) * ps['1/H0'] * obj.basis.cell_size**2
+        t0 = time_to_physical(obj, t-prev) * ps['1/H0'] * obj.basis.top_level_cell_size**2
         if t0 < 1e-4:
             sys.stdout.write(", %s,'',%.4e" % (l, t0))
         else:

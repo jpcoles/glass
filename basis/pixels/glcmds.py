@@ -20,6 +20,11 @@ def priors(*ps):
 
 def subdiv(n):
     n = int(n)
-    assert (n%2==0), "subdiv: n must be odd"
+    assert (n%2==1), "subdiv: n must be odd"
     env().current_object().basis.subdivision = n
 
+def hires(r, refine=1):
+    assert r > 0 and refine>=3 and refine%2==1, 'hires: Minimum refinement value is 3. Must be odd too.'
+    env().current_object().basis.hiresR       = r
+    env().current_object().basis.hires_levels = refine
+    

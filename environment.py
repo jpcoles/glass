@@ -29,17 +29,16 @@ class Object:
 
     def __init__(self, name):
         self.name = name
-        self._current_system = None
-        self.systems = []
+        self._current_source = None
+        self.sources = []
 
         self.S          = 0
         self.shear      = None
         self.scales     = None
-        self.zlens      = 0.0       # [redshift]
+        self.z          = None       # [redshift]
         self.kann_spec  = 0.0   
-        self.h_spec     = 0.0       # [Gyr]
-        self.minsteep   = None      
-        self.maxsteep   = None
+        #self.h_spec     = 0.0       # [Gyr]
+        self.steep      = None      
         #self.maxsteep   = self.minsteep # TODO: This should be right, but setting to 0 skips a test in priors
         self.cen_ang    = pi/4
         self.symm       = False
@@ -51,12 +50,12 @@ class Object:
         self.post_process_funcs = []
         self.post_filter_funcs = []
 
-    def current_system(self):
-        return self._current_system
+    def current_source(self):
+        return self._current_source
 
-    def add_system(self, system):
-        self._current_system = system
-        self.systems.append(system)
+    def add_source(self, source):
+        self._current_source = source
+        self.sources.append(source)
 
     def init(self):
         self.basis.init(self)
@@ -80,13 +79,12 @@ class Image:
         return a is self or a is self._pos 
         
 
-class System:
+class Source:
     def __init__(self, zsrc, zlens):
         self.zcap = cosmo.angdist(0,zsrc) / cosmo.angdist(zlens,zsrc)
-        print "zcap =", self.zcap
         self.images = []
         self.time_delays = []
-        self.zsrc = zsrc
+        self.z = zsrc
 
     def add_image(self, A):
         assert A not in self.images
@@ -95,11 +93,10 @@ class System:
     def add_time_delay(self, A,B, delay):
         assert A in self.images
         assert B in self.images
-        if isinstance(delay, (int, float)):
-            delay = (delay, delay)
-        else:
+        assert delay != (None,None), "Time delays can't have infinite range."
+
+        if isinstance(delay, (list, tuple)):
             delay = tuple(delay)
-            assert delay != (None,None), "Time delays can't have infinite range."
         self.time_delays.append((A,B,delay))
 
 
@@ -108,9 +105,9 @@ class Environment:
     def __init__(self):
         self.objects = []
         self._current_object = None
-        self.nmodels = 0
         self.model_gen_factory = None #model_generator
         self.model_gen = None
+        self.solutions = None
         self.models = None
         self.accepted_models = None
 
@@ -118,12 +115,13 @@ class Environment:
         self.omega_matter = 0.26
         self.omega_lambda = 0.74
         self.h_spec       = None
-        self.filled_beam = True
+        self.g            = None
+        self.filled_beam  = True
 
-        self.ncpus = _detect_cpus()
+        self.ncpus_detected = _detect_cpus()
+        self.ncpus          = self.ncpus_detected
         #self.ncpus = 3
 
-        print "%i CPUs detected. Using %i threads" % (self.ncpus, self.ncpus)
 
     def current_object(self):
         return self._current_object
@@ -142,6 +140,7 @@ _env = Environment()
 def env():
     return _env
 
+#FIXME: Resetting the environment discards options set on the commandline (e.g., ncpus)
 def set_env(env):
     global _env
     _env = env

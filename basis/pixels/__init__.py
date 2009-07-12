@@ -23,7 +23,7 @@ def _expand_array(nvars, offs, f):
 
     return work
 
-def init_model_generator():
+def init_model_generator(regenerate=False):
     """Construct the linear constraint equations by applying all the
        enabled priors."""
 
@@ -36,6 +36,15 @@ def init_model_generator():
     else:
         priors = all_priors
 
+    print '=' * 80
+    print 'PIXEL BASIS MODEL GENERATOR'
+    print '=' * 80
+    print 'Priors:'
+    for p in all_priors:
+        print '    %s' % p.f.__name__,
+        print '[EXCLUDED]' if p not in priors else ''
+    #print ',\n        '.join(map(lambda x: x.f.__name__, priors))
+
     lp = filter(lambda x: x.where == 'object_prior',   priors)
     gp = filter(lambda x: x.where == 'ensemble_prior', priors)
 
@@ -43,7 +52,7 @@ def init_model_generator():
 
     mg = env().model_gen = env().model_gen_factory(nvars)
 
-    print "nvars=",nvars
+    #print "nvars=",nvars
 
     #lp = [smooth,steepness ]
 
@@ -73,6 +82,15 @@ def generate_models(objs, n):
     
     mg.start()
     for sol in mg.next(n):
+        yield {'sol':  sol,
+               'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
+               'tagged':  False}
+
+def regenerate_models(objs):
+
+    assert env().solutions is not None
+
+    for sol in env().solutions:
         yield {'sol':  sol,
                'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
                'tagged':  False}
