@@ -64,13 +64,13 @@ class Samplex:
     n_solutions = 0
 
     def __init__(self, ncols=None, nthreads=1):
-        print "Samplex created"
+        #print "Samplex created"
         #print "    ncols = %i" % ncols
         if ncols is not None:
             self.nVars = ncols-1
             self.nRight = self.nVars
 
-        print "random seed =", ran_set_seed(0)
+        self.random_seed = ran_set_seed(0)
 
         self.nthreads = nthreads
         Samplex.pivot = lambda s: csamplex.pivot(s)
@@ -85,6 +85,12 @@ class Samplex:
     def start(self):
         #print "%6s %6s %6s\n%6i %6i %6i" \
         #    % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
+
+        print '=' * 80
+        print 'SAMPLEX'
+        print '=' * 80
+
+        print "random seed =", self.random_seed
 
         print "N = %i" % self.nVars
         print "L = %i" % self.nLeft
@@ -111,7 +117,7 @@ class Samplex:
             assert False, 'Bad function %s' % str(x[0])
 
         self.eq_list.sort(key=eq_key)
-        print "random seed =", ran_set_seed(0)
+        #print "random seed =", ran_set_seed(0)
         #print self.data
 
         if 0:
@@ -123,13 +129,15 @@ class Samplex:
                     else:
                         out.write("%.4e " % i)
                 out.write("\n")
-            out = open('eqs2', 'w')
+            print 'Writing out equations...'
+            out = open('eqs-new', 'w')
             for f,a in self.eq_list:
                 if f == self._eq:  fs = 'eq'
                 if f == self._geq: fs = 'geq'
                 if f == self._leq: fs = 'leq'
                 print_array(out, fs, a)
             out.close()
+            print 'done.'
 
         print "Building matrix"
         for f,a in self.eq_list:
@@ -194,7 +202,7 @@ class Samplex:
         self.curr_sol = self.package_solution()                
         self.moca     = self.curr_sol.vertex.copy()
 
-        yield self.curr_sol.vertex[0:self.nVars+1]
+        #yield self.curr_sol.vertex[0:self.nVars+1]
 
         #spanvars = slice(1,self.nVars+self.nSlack+1)
         #self.moca = self.data[spanvars, 0].copy()
