@@ -444,7 +444,7 @@ if __name__ == "__main__":
     #Integrator options [simps/trapz] + number of points to use:
     integrator = simps
     intpnts = 99
-    interpnts = -1
+    interpnts = None 
     
     #Which test suite to use [0,1,2,3 ...]:
     testsuite = 1
@@ -518,7 +518,7 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Calculate the Abel integral to obtain rho(r) and mass(r)
     #-------------------------------------------------------------------------
-    if interpnts < 0: interpnts = len(f1['R'])*2
+    if not interpnts: interpnts = len(f1['R'])*2
     r = logspace(log10(amin(f1['R'])/10),log10(amax(f1['R'])*10),
                  num=interpnts)
     print 'Using sample points in r:', interpnts
@@ -599,8 +599,11 @@ if __name__ == "__main__":
     loglog(r,rhoa,label='Python result from abelsolve()')
     loglog(r,rho,label='Python result from cumsolve()')
     if trueans == 1: plot(f2['r'],f2['rho'],label='Right result')
-    plot([imagemax,imagemax],[1e-2,amax(rho)])
-    plot([imagemin,imagemin],[1e-2,amax(rho)])
+    axvline(imagemax)
+    axvline(imagemin)
+    #plot([imagemax,imagemax],[1e-2,amax(rho)])
+    #plot([imagemin,imagemin],[1e-2,amax(rho)])
+    gca().set_ylim(5e6,5e9)
     gca().set_xlim(0,imagemax*10)
     title('Deprojected data')
     xlabel(r'$r(\mathrm{kpc})$')
