@@ -60,7 +60,6 @@ def scales(zl, zs):
     csfpg = 1.665000e15   # c^2/4piG in M_sol/kpc
 
     Dl = Dr = angdist(0, zl)
-    if zs != 0: Dr *= angdist(0,zs) / angdist(zl,zs)
     return {'time':    (1+zl)*gfac*Dr, 
             'timebg':  (1+zl)*Dr, 
             'angdist': cee*gfac*Dl*206265, # 206265 arcsec/rad OR AU/parsec
