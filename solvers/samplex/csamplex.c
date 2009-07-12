@@ -173,7 +173,8 @@ typedef struct pivot_thread_s
 
 typedef struct 
 {
-    int32_t nthreads;               // Total number of threads
+    int32_t total_threads;          // Total number of threads
+    int32_t nthreads;               // Number of usable threads 
     int32_t active_threads;         // Number of threads currently executing doPivot
     int32_t threads_initialized;
     pivot_thread_t *thr;
@@ -181,7 +182,7 @@ typedef struct
     pthread_cond_t activate_all;
     pthread_cond_t thread_finished;
 } thread_pool_t;
-#define EMPTY_POOL {0,0,0,NULL, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}
+#define EMPTY_POOL {0,0,0,0,NULL, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}
 
 
 /*==========================================================================*/
@@ -223,17 +224,18 @@ PyMODINIT_FUNC initcsamplex()
 
 void pivot_thread_init(pivot_thread_t *pt, int32_t id)
 {
-    pt->thr_id   = 0;
-    pt->id       = id;
-    pt->start    = 
-    pt->end      = 0;
-    pt->action   = doPivot;
+    pt->thr_id = 0;
+    pt->id     = id;
+    pt->start  = 
+    pt->end    = 0;
+    pt->action = doPivot;
 }
 
 void pivot_thread_reset(pivot_thread_t *pt, int32_t start, int32_t end)
 { 
-    pt->start = start;
-    pt->end   = end;
+    pt->start  = start;
+    pt->end    = end;
+    pt->action = NULL;
 }
 
 void *pivot_thread_run(void *arg)
@@ -267,6 +269,7 @@ void *pivot_thread_run(void *arg)
     {
         pthread_mutex_lock(&pool.lock);
         pool.active_threads--;
+        assert(pool.active_threads >= 0);
         DBG(1) fprintf(stderr, "THREAD %i done at=%i\n", pt->id, pool.active_threads);
 
         pthread_cond_signal(&pool.thread_finished);
@@ -285,7 +288,7 @@ void *pivot_thread_run(void *arg)
 static inline void startup_threads()
 {
     pthread_mutex_lock(&pool.lock);
-    pool.active_threads = pool.nthreads-1;
+    pool.active_threads = pool.total_threads-1;
     pthread_cond_broadcast(&pool.activate_all);
     pthread_mutex_unlock(&pool.lock);
 }
@@ -315,6 +318,7 @@ void init_threads(int32_t n)
     pthread_attr_setschedpolicy(&attr, SCHED_RR);
 
     pool.nthreads       = n;
+    pool.total_threads  = n;
     pool.active_threads = 0;
 
 #if SET_THREAD_AFFINITY
@@ -334,14 +338,14 @@ void init_threads(int32_t n)
     //--------------------------------------------------------------------------
     // Create the worker threads
     //--------------------------------------------------------------------------
-    pool.thr = CALLOC(pivot_thread_t, pool.nthreads); assert(pool.thr != NULL);
+    pool.thr = CALLOC(pivot_thread_t, pool.total_threads); assert(pool.thr != NULL);
 
     //--------------------------------------------------------------------------
     // Notice we start from 1 not 0, because we handle the first thread
     // specially later on. 
     //--------------------------------------------------------------------------
-    pool.active_threads = pool.nthreads-1;
-    for (i=1; i < pool.nthreads; i++)
+    pool.active_threads = pool.total_threads-1;
+    for (i=1; i < pool.total_threads; i++)
     {
         pivot_thread_init(&pool.thr[i], i);
         pthread_create(&pool.thr[i].thr_id, &attr, pivot_thread_run, (void *)&pool.thr[i]);
@@ -652,7 +656,7 @@ void assign_threads(int32_t lo, int32_t hi)
     int32_t i,n;
     const int32_t ncols = (int32_t)ceil((double)(hi+1 - lo) / pool.nthreads);
 
-    for (i=0; i < pool.nthreads; i++) 
+    for (i=0; i < pool.total_threads; i++) 
         pivot_thread_reset(pool.thr+i, lo,lo);
 
     for (i=lo,n=0; i < hi+1; i += ncols, n++)
@@ -739,13 +743,69 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 #endif
 
     double stime = CPUTIME;
+    double now = stime;
+    double bestperftime = 0;
+    int bestnthreads = 0;
     clock_t st = times(NULL);
+
+    struct timespec t;
+
+    int searchdir = -1;
 
     //for (n=0; n<1; n++)
     for (n=0;; n++)
     {
-        if ((n&((1<<8)-1)) == 0) 
-            fprintf(stderr, "\riter %8i  %24.15e", n, tabl.data[0]);
+        if ((n&((1<<9)-1)) == 0) 
+        {
+            fprintf(stderr, "\riter %8i  %24.15e [%i]", n, tabl.data[0], pool.nthreads);
+
+            double then = now;
+            now = CPUTIME;
+            double perftime = now - then;
+
+            if (!bestperftime) bestperftime = perftime;
+            double r = perftime / bestperftime;
+
+            //------------------------------------------------------------------
+            // If performance was 20% poorer, reverse direction.
+            //------------------------------------------------------------------
+            if (r > 1.2) searchdir *= -1;
+
+            //------------------------------------------------------------------
+            // Increment or decrement the number of threads according to the
+            // search direction.
+            //------------------------------------------------------------------
+            if (searchdir == -1)
+            {
+                if (pool.nthreads < pool.total_threads) 
+                {
+                    bestperftime = perftime;
+
+                    pool.nthreads++;
+                    need_assign_pivot_threads = 1;
+                }
+            }
+            else
+            {
+                if (pool.nthreads > 1) 
+                {
+                    pool.nthreads--;
+                    need_assign_pivot_threads = 1;
+                }
+            }
+
+
+            //------------------------------------------------------------------
+            // 15% of the time we will forget what we know and begin searching
+            // again. Helps getting stuck on a "best time" that applied to
+            // a different system load.
+            //------------------------------------------------------------------
+            if (drand48() < .15)
+            {
+                bestperftime = 0;
+                searchdir = 1;
+            }
+        }
 
         //if (n == 5) exit(0);
 
