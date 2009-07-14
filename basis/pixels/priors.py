@@ -115,12 +115,12 @@ def time_delay(o, leq, eq, geq):
 #               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
 #               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
 
-            if len(delays) == 1:
-                d = delays[0]
+            if len(delay) == 1:
+                d = delay[0]
                 if d is None: row[H0] =  0; geq(row)
                 else:         row[H0] = -d;  eq(row)
             else:
-                l,u = delays
+                l,u = delay
                 if   l is None: row[H0] = -u; leq(row)
                 elif u is None: row[H0] = -l; geq(row)
                 else:

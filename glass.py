@@ -13,6 +13,7 @@ from potential import *
 #import filters
 
 def str_range(v, fmt):
+    print v
     if v is None:
         return str(v)
     if isinstance(v, (int, float)):
@@ -44,14 +45,18 @@ def report():
     print '=' * 80
     for i,o in enumerate(_env.objects):
         print pp('%i. %s at z=%.4f' % (i+1, o.name, o.z), '')
-        print pp('    Map radius            = %.4f' % o.maprad, '[arcsec]')
-        print pp('    Map radius g=14       = %.4f' % Arcsec_to_Kpc(obj,o.maprad,14), '[kpc]')
+        if o.maprad:
+            print pp('    Map radius            = %.4f' % o.maprad, '[arcsec]')
+            print pp('    Map radius g=14       = %.4f' % Arcsec_to_Kpc(obj,o.maprad,14), '[kpc]')
+        else:
+            print pp('    Map radius            = Not specified', '')
+            print pp('    Map radius g=14       = Not specified', '')
         print pp('    Time scale            = %.4f' % o.scales['time'],    '[g days/arcsec^2]')
         print pp('    Angular distance      = %.4f' % o.scales['angdist'], '[g kpc/arcsec]')
         print pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]')
         print pp('    Critical density g=14 = %.4e' \
-            % KappaArcsec2_to_MsunKpc2(obj,1,14), '[Msun/kpc^2]')
-        print pp('    Shear                 = %s' % str_range(o.shear, '%.4f'), '')
+            % KappaArcsec2_to_MsunKpc2(o,1,14), '[Msun/kpc^2]')
+        print pp('    Shear                 = %.4f' % o.shear.phi, '')
         print pp('    Steepness             = %s' % str_range(o.steep, '%.4f'), '')
         print
         for src in o.sources:
@@ -62,7 +67,7 @@ def report():
             print pp('        Dos/Dls              = %.4f' % src.zcap, '')
             for img in src.images:
                 print '        Image at (%.4f,%.4f) : angle=%.4f parity=%s elongation=[%.4f,%.4f,%.4f]' \
-                    % (img.pos[0], img.pos[1], img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2])
+                    % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2])
 
     print 
     print '=' * 80

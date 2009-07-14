@@ -1,5 +1,5 @@
 from __future__ import division
-import numpy, os
+import numpy, os, subprocess
 from numpy import arctan2, pi, linspace, atleast_2d, abs
 from potential import poten2d
 
@@ -17,7 +17,8 @@ def _detect_cpus():
             if isinstance(ncpus, int) and ncpus > 0:
                 return ncpus
         else: # OSX:
-            return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+            #return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+            return int(subprocess.Popen("sysctl -n hw.ncpu",shell=True,stdout=subprocess.PIPE).communicate()[0])
     # Windows:
     if os.environ.has_key("NUMBER_OF_PROCESSORS"):
         ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
