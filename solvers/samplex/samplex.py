@@ -105,7 +105,7 @@ class Samplex:
 
         # Tag the first element because we shouldn't be using it.
         #self.lhv = [numpy.nan]  # numpy on MacOSX doesn't like this
-        self.lhv = [0]
+        self.lhv = [999999]
         self.rhv = range(self.nVars+1)
 
         self.geq_count = 0
@@ -397,8 +397,8 @@ class Samplex:
 
         #for i in sol.lhv: print sol.vertex[i], self.moca[i]
 
-        iv    = sol.vertex[sol.lhv]
-        dist  = iv - self.moca[sol.lhv]
+        iv    = sol.vertex[sol.lhv[1:]]
+        dist  = iv - self.moca[sol.lhv[1:]]
         a = dist > self.SML
         scale = iv[a] / dist[a]
         if not len(dist[a]): return self.moca.copy(), 'g'
@@ -424,9 +424,9 @@ class Samplex:
         spanvars = slice(1,self.nVars+self.nSlack+1)
         self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
         #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
-        assert all(self.moca[1:] >= -self.SML), (self.moca[self.moca < 0], self.moca)
+        assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
-        return self.moca.copy()[0:self.nVars+1]
+        return self.moca.copy()[:self.nVars+1]
 
 
     #=========================================================================

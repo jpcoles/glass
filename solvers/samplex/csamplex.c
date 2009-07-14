@@ -36,7 +36,7 @@
 /* that each thread will be working with local to the CPU. This yields a    */
 /* 2x overall speed up.                                                     */
 /*==========================================================================*/
-#define REORGANIZE_TABLE_MEMORY 0
+#define REORGANIZE_TABLE_MEMORY 1
 #define SET_THREAD_AFFINITY     0
 
 #define WITH_GOOGLE_PROFILER 0
@@ -683,7 +683,6 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     int32_t i,j;
     matrix_t tabl;
 
-    import_array();
 
     PyObject *o = args;
     DBG(3) fprintf(stderr, "5> pivot()\n");
@@ -734,12 +733,12 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     long Zorig = Z;
 
-    Py_BEGIN_ALLOW_THREADS
 
     init_threads(T); 
 
     /* Remember, this is in FORTRAN order */
 #if REORGANIZE_TABLE_MEMORY
+    import_array();
     PyObject *orig = PyObject_GetAttrString(o, "data");
     assert(PyArray_CHKFLAGS(orig, NPY_F_CONTIGUOUS));
     assert(PyArray_CHKFLAGS(orig, NPY_FORTRAN));
@@ -785,6 +784,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     struct timespec t;
 
     int searchdir = -1;
+
+    Py_BEGIN_ALLOW_THREADS
 
     //for (n=0; n<1; n++)
     for (n=0;; n++)

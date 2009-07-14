@@ -197,7 +197,7 @@ class PixelBasis:
         self.nbrs  = []
         self.nbrs2 = []
 
-        if 0:
+        if 1:
             self.nbrs = [ [i, r, argwhere(logical_and(abs(self.int_ploc-r) < 1.5*s, abs(self.int_ploc-r) > 0)).ravel()] 
                           for i,[r,s] in enumerate(izip(self.int_ploc, self.int_cell_size)) ]
 #           self.nbrs = []
@@ -213,6 +213,8 @@ class PixelBasis:
 #           print 'done!'
             self.nbrs2 = [ [i, r, argwhere(logical_and(abs(self.int_ploc-r) <= s, abs(self.int_ploc-r) > 0)).ravel()] 
                           for i,[r,s] in enumerate(izip(self.int_ploc, self.int_cell_size)) ]
+        else:
+            print "SKIPPING NEIGHBOR FINDING!"
 
         #print self.nbrs
 
