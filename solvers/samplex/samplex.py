@@ -103,7 +103,9 @@ class Samplex:
         self.nTemp = 0
         self.nRight = self.nVars
 
-        self.lhv = [numpy.nan]
+        # Tag the first element because we shouldn't be using it.
+        #self.lhv = [numpy.nan]  # numpy on MacOSX doesn't like this
+        self.lhv = [0]
         self.rhv = range(self.nVars+1)
 
         self.geq_count = 0
@@ -155,6 +157,7 @@ class Samplex:
         print "%6s %6s %6s\n%6i %6i %6i" \
             % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
+        print self.lhv
         self.lhv = array(self.lhv, dtype=numpy.int32)
         self.rhv = array(self.rhv, dtype=numpy.int32)
 

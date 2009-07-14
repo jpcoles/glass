@@ -36,8 +36,8 @@
 /* that each thread will be working with local to the CPU. This yields a    */
 /* 2x overall speed up.                                                     */
 /*==========================================================================*/
-#define REORGANIZE_TABLE_MEMORY 1
-#define SET_THREAD_AFFINITY     1
+#define REORGANIZE_TABLE_MEMORY 0
+#define SET_THREAD_AFFINITY     0
 
 #define WITH_GOOGLE_PROFILER 0
 
@@ -149,7 +149,8 @@ long total_alloc = 0;
 /*==========================================================================*/
 typedef struct
 {
-    uint32_t w,h;
+    uint32_t cols,rows;
+    dble_t *orig;
     dble_t *data;
 } matrix_t;
 
@@ -206,6 +207,7 @@ void doPivot0(matrix_t *tabl,
     const dble_t piv, 
     const int32_t lpiv, const int32_t rpiv,
     int32_t start, const int32_t end);
+void copymem(pivot_thread_t *thr);
 
 static PyMethodDef csamplex_methods[] = 
 {
@@ -398,7 +400,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L,
 
     for (r = start; r < end; r++)
     {
-        const dble_t * __restrict  col = &tabl->data[r * tabl->w + 0];
+        const dble_t * __restrict  col = &tabl->data[r * tabl->rows + 0];
 
         DBG(2) fprintf(stderr, "r=%i\n", r);
 
@@ -681,6 +683,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     int32_t i,j;
     matrix_t tabl;
 
+    import_array();
+
     PyObject *o = args;
     DBG(3) fprintf(stderr, "5> pivot()\n");
 
@@ -690,11 +694,10 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     long T = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
 
-    /* Remember, this is in FORTRAN order */
-    PyObject *data = PyObject_GetAttrString(o, "data");
-    tabl.data = (dble_t *)PyArray_DATA(data);
-    tabl.w    = PyArray_DIM(data,0);
-    tabl.h    = PyArray_DIM(data,1);
+#if 0
+    fprintf(stderr, "%ld %ld // %ld %ld\n", PyArray_DIM(data,0), PyArray_DIM(data,1),
+                                            PyArray_DIM(orig,0), PyArray_DIM(orig,1));
+#endif
 
     PyObject *lhv = PyObject_GetAttrString(o, "lhv");
     PyObject *rhv = PyObject_GetAttrString(o, "rhv");
@@ -702,15 +705,13 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     int32_t *left  = (int32_t *)PyArray_DATA(lhv), 
             *right = (int32_t *)PyArray_DATA(rhv);
 
-    assert(PyArray_CHKFLAGS(data, NPY_F_CONTIGUOUS));
-    assert(PyArray_CHKFLAGS(data, NPY_FORTRAN));
 
 #if 0
     fprintf(stderr, "tabl dims = %i : %ix%i\n"
                     "L=%i R=%i Z=%i\n"
                     "len(left)=%i, len(right)=%i\n"
                     "nthreads=%i\n", 
-                    PyArray_NDIM(data), tabl.h, tabl.w,
+                    PyArray_NDIM(data), tabl.cols, tabl.rows,
                     L, R, Z,
                     PyArray_DIM(lhv,0),
                     PyArray_DIM(rhv,0),
@@ -723,7 +724,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     dble_t piv;     /* Value of pivot element */
 
 #if 0
-        col = &(tabl.data[0 * tabl.w + 0]);
+        col = &(tabl.data[0 * tabl.rows + 0]);
         for (i=0; i <= L; i++)
             fprintf(stderr, "%.4f ", col[i]);
         fprintf(stderr, "\n");
@@ -735,8 +736,41 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     Py_BEGIN_ALLOW_THREADS
 
-
     init_threads(T); 
+
+    /* Remember, this is in FORTRAN order */
+#if REORGANIZE_TABLE_MEMORY
+    PyObject *orig = PyObject_GetAttrString(o, "data");
+    assert(PyArray_CHKFLAGS(orig, NPY_F_CONTIGUOUS));
+    assert(PyArray_CHKFLAGS(orig, NPY_FORTRAN));
+    PyObject *data = PyArray_EMPTY(2, PyArray_DIMS(orig), NPY_DOUBLE, 1);
+    tabl.orig = (dble_t *)PyArray_DATA(orig);
+    tabl.data = (dble_t *)PyArray_DATA(data);
+    tabl.rows = PyArray_DIM(data,0);
+    tabl.cols = PyArray_DIM(data,1);
+
+    assign_threads(0,R); 
+    for (i=0; i < pool.nthreads; i++)
+    {
+        pool.thr[i].tabl      = &tabl;
+        pool.thr[i].L         = L;
+        pool.thr[i].piv       = piv;
+        pool.thr[i].lpiv      = lpiv;
+        pool.thr[i].rpiv      = rpiv;
+        pool.thr[i].action    = copymem;
+    }
+
+    startup_threads();
+    copymem(&pool.thr[0]);
+    wait_for_threads();
+#else
+    PyObject *data = PyObject_GetAttrString(o, "data");
+    assert(PyArray_CHKFLAGS(data, NPY_F_CONTIGUOUS));
+    assert(PyArray_CHKFLAGS(data, NPY_FORTRAN));
+    tabl.data = (dble_t *)PyArray_DATA(data);
+    tabl.rows = PyArray_DIM(data,0);
+    tabl.cols = PyArray_DIM(data,1);
+#endif
 
 #if WITH_GOOGLE_PROFILER
     ProfilerStart("googperf.out");
@@ -746,7 +780,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     double now = stime;
     double bestperftime = 0;
     int bestnthreads = 0;
-    clock_t st = times(NULL);
+    //clock_t st = times(NULL);
 
     struct timespec t;
 
@@ -858,7 +892,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             // Update pivot column
             //----------------------------------------------------------------------
             DBG(2) fprintf(stderr, "piv=%f\n", piv);
-            dble_t *__restrict pcol = &tabl.data[rpiv * tabl.w + 0];
+            dble_t *__restrict pcol = &tabl.data[rpiv * tabl.rows + 0];
             for (i=0; i <= L; i++)
                 pcol[i] /= piv;
             pcol[lpiv] = 1.0 / piv;
@@ -872,9 +906,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
                     right+rpiv+1, 
                     sizeof(*right)*(R-rpiv)); /* (R+1)-(rpiv+1) */
 
-            memmove(tabl.data + (rpiv+0)*tabl.w, 
-                    tabl.data + (rpiv+1)*tabl.w,
-                    sizeof(*tabl.data) * (R-rpiv)*tabl.w);
+            memmove(tabl.data + (rpiv+0)*tabl.rows, 
+                    tabl.data + (rpiv+1)*tabl.rows,
+                    sizeof(*tabl.data) * (R-rpiv)*tabl.rows);
 
             Z--; 
             R--;
@@ -887,7 +921,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         {
             for (i=0; i <= R; i++)
             {
-                dble_t *col = &(tabl.data[i * tabl.w + 0]);
+                dble_t *col = &(tabl.data[i * tabl.rows + 0]);
                 for (j=0; j <= L; j++)
                     if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
                     {
@@ -910,7 +944,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     //fprintf(stderr, "\n");
 
     double etime = CPUTIME;
-    clock_t et = times(NULL);
+    //clock_t et = times(NULL);
 
 #if WITH_GOOGLE_PROFILER
     ProfilerStop();
@@ -925,6 +959,10 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     PyObject_SetAttrString(o, "nRight", PyInt_FromLong(R));
     PyObject_SetAttrString(o, "nTemp", PyInt_FromLong(Z));
+#if REORGANIZE_TABLE_MEMORY
+    PyObject_SetAttrString(o, "data", data);
+    //Py_XDECREF(orig);
+#endif
 
     return PyInt_FromLong(ret);
 }
@@ -946,6 +984,14 @@ void doPivot(pivot_thread_t *thr)
              thr->rpiv, 
              thr->start, 
              thr->end);
+}
+
+void copymem(pivot_thread_t *thr)
+{
+    DBG(1) fprintf(stderr, "%i copy segment %i to %i\n", thr->id, thr->start, thr->end);
+    memcpy(thr->tabl->data + thr->start * thr->tabl->rows, 
+           thr->tabl->orig + thr->start * thr->tabl->rows,
+           (thr->end - thr->start) * thr->tabl->rows * sizeof(dble_t));
 }
 
 //------------------------------------------------------------------------------
@@ -1038,24 +1084,24 @@ void doPivot0(matrix_t *tabl,
     //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%i lpiv=%i\n", start, end, L, R, rpiv, lpiv);
 
     int32_t r=start;
-    const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->w + 0]; 
+    const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->rows + 0]; 
 
 #if 0
     if (start== 0)
     {
-        in0(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        in0(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
         start++;
     }
 #endif
 
     if (start <= rpiv && rpiv < end)
     {
-        for (r=start; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
-        for (++r; r < end; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        for (r=start; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+        for (++r; r < end; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
     }
     else
     {
-        for (r=start; r < end; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->w + 0], pcol);
+        for (r=start; r < end; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
     }
 
     DBG(2)
@@ -1063,12 +1109,12 @@ void doPivot0(matrix_t *tabl,
         int32_t i,j;
         for (i=1; i <= L; i++)
         {
-            double v0 = tabl->data[0 * tabl->w + i];
+            double v0 = tabl->data[0 * tabl->rows + i];
             if (v0 == 0)
             {
                 for (j=1; j < end; j++)
                 {
-                    double v1 = tabl->data[j * tabl->w + i];
+                    double v1 = tabl->data[j * tabl->rows + i];
                     if (v1 == 0)
                     {
                         fprintf(stderr, "ACK %i %i\n", i, j);
