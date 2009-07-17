@@ -753,9 +753,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     {
         pool.thr[i].tabl      = &tabl;
         pool.thr[i].L         = L;
-        pool.thr[i].piv       = piv;
-        pool.thr[i].lpiv      = lpiv;
-        pool.thr[i].rpiv      = rpiv;
+        pool.thr[i].piv       = 0;
+        pool.thr[i].lpiv      = 0;
+        pool.thr[i].rpiv      = 0;
         pool.thr[i].action    = copymem;
     }
 
@@ -794,6 +794,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         {
             fprintf(stderr, "\riter %8i  %24.15e [%i]", n, tabl.data[0], pool.nthreads);
 
+#if 0
             double then = now;
             now = CPUTIME;
             double perftime = now - then;
@@ -840,6 +841,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
                 bestperftime = 0;
                 searchdir = 1;
             }
+#endif
         }
 
         //if (n == 5) exit(0);
@@ -992,7 +994,7 @@ void copymem(pivot_thread_t *thr)
     DBG(1) fprintf(stderr, "%i copy segment %i to %i\n", thr->id, thr->start, thr->end);
     memcpy(thr->tabl->data + thr->start * thr->tabl->rows, 
            thr->tabl->orig + thr->start * thr->tabl->rows,
-           (thr->end - thr->start) * thr->tabl->rows * sizeof(dble_t));
+           (thr->end - thr->start) * thr->tabl->rows * sizeof(*(thr->tabl->data)));
 }
 
 //------------------------------------------------------------------------------
@@ -1000,6 +1002,7 @@ void copymem(pivot_thread_t *thr)
 // objective function. We special-case this column to print error messages if
 // we find a negative value.
 //------------------------------------------------------------------------------
+#if 0
 inline void in0(const int32_t r, 
                 int32_t kp, 
                 const int32_t lpiv0, 
@@ -1044,7 +1047,9 @@ inline void in0(const int32_t r,
         assert(0);
     }
 }
+#endif
 
+#if 0
 inline void in(const int32_t r, 
                int32_t kp, 
                const int32_t lpiv0, 
@@ -1073,6 +1078,7 @@ inline void in(const int32_t r,
     }
     col[lpiv0] = -xx;
 }
+#endif
 
 void doPivot0(matrix_t *tabl,
     const long L,
@@ -1085,7 +1091,10 @@ void doPivot0(matrix_t *tabl,
     //DBG(3) fprintf(stderr, "doPivot called: %i %i L=%ld R=%ld rpiv=%i lpiv=%i\n", start, end, L, R, rpiv, lpiv);
 
     int32_t r=start;
-    const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->rows + 0]; 
+    //const dble_t *__restrict  pcol = &tabl->data[rpiv * tabl->rows + 0]; 
+
+    const dble_t *__restrict pcol = alloca(tabl->rows * sizeof(*(tabl->data)));
+    memcpy(pcol, tabl->data + (rpiv * tabl->rows), tabl->rows * sizeof(*(tabl->data)));
 
 #if 0
     if (start== 0)
@@ -1097,12 +1106,69 @@ void doPivot0(matrix_t *tabl,
 
     if (start <= rpiv && rpiv < end)
     {
-        for (r=start; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
-        for (++r; r < end; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+        //for (r=start; r < rpiv; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+
+        for (r=start; r < rpiv; ++r)
+        {
+            dble_t *__restrict col = &tabl->data[r * tabl->rows + 0];
+            const dble_t col_lpiv = col[lpiv];
+            int32_t i;
+
+            const double xx = col_lpiv / piv;
+            //fprintf(stderr, "%e %e %e\n", col_lpiv, piv, xx);
+
+            //if (xx != 0)
+            {
+                if (ABS(xx) >= SML)
+                    for (i=0; i <= L; i++) col[i] -= pcol[i] * xx;
+                else
+                    for (i=0; i <= L; i++) col[i] -= (pcol[i] * col_lpiv) / piv;
+            }
+            col[lpiv] = -xx;
+        }
+
+        //for (++r; r < end; ++r)      in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+        for (++r; r < end; ++r)
+        {
+            dble_t *__restrict col = &tabl->data[r * tabl->rows + 0];
+            const dble_t col_lpiv = col[lpiv];
+            int32_t i;
+
+            const dble_t xx = col_lpiv / piv;
+            //fprintf(stderr, "%e %e %e\n", col_lpiv, piv, xx);
+
+            //if (xx != 0)
+            {
+                if (ABS(xx) >= SML)
+                    for (i=0; i <= L; i++) col[i] -= pcol[i] * xx;
+                else
+                    for (i=0; i <= L; i++) col[i] -= (pcol[i] * col_lpiv) / piv;
+            }
+            col[lpiv] = -xx;
+        }
     }
     else
     {
-        for (r=start; r < end; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+        //for (r=start; r < end; ++r) in(r, L, lpiv, piv, &tabl->data[r * tabl->rows + 0], pcol);
+
+        for (r=start; r < end; ++r)
+        {
+            dble_t *__restrict col = &tabl->data[r * tabl->rows + 0];
+            const dble_t col_lpiv = col[lpiv];
+            int32_t i;
+
+            const dble_t xx = col_lpiv / piv;
+            //fprintf(stderr, "%e %e %e\n", col_lpiv, piv, xx);
+
+            //if (xx != 0)
+            {
+                if (ABS(xx) >= SML)
+                    for (i=0; i <= L; i++) col[i] -= pcol[i] * xx;
+                else
+                    for (i=0; i <= L; i++) col[i] -= (pcol[i] * col_lpiv) / piv;
+            }
+            col[lpiv] = -xx;
+        }
     }
 
     DBG(2)
