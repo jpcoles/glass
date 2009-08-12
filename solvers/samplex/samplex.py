@@ -64,10 +64,10 @@ class Samplex:
     n_solutions = 0
 
     def __init__(self, ncols=None, nthreads=1):
-        #print "Samplex created"
-        #print "    ncols = %i" % ncols
+        print "Samplex created"
+        print "    ncols = %i" % ncols
         if ncols is not None:
-            self.nVars = ncols-1
+            self.nVars = ncols
             self.nRight = self.nVars
 
         self.random_seed = ran_set_seed(0)
@@ -142,8 +142,10 @@ class Samplex:
             print 'done.'
 
         print "Building matrix"
-        for f,a in self.eq_list:
+        for i,[f,a] in enumerate(self.eq_list):
             f(a)
+            if i%500 == 0:
+                print "%i/%i" % (i,len(self.eq_list))
 
         #print self.data
 
@@ -157,7 +159,7 @@ class Samplex:
         print "%6s %6s %6s\n%6i %6i %6i" \
             % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
-        print self.lhv
+        #print self.lhv
         self.lhv = array(self.lhv, dtype=numpy.int32)
         self.rhv = array(self.rhv, dtype=numpy.int32)
 
@@ -438,7 +440,7 @@ class Samplex:
         if self.nVars is None: 
             self.nVars = len(a)-1
             self.nRight = self.nVars
-        assert len(a) == self.nVars+1
+        assert len(a) == self.nVars+1, '%i != %i' % (len(a), self.nVars+1)
         self.nLeft += 1
         self.nTemp += 1
         self.eq_count += 1
@@ -514,10 +516,14 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            for n in xrange(self.nVars+1):
-                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+#           for n in xrange(self.nVars+1):
+#               if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+#                   if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
 
+            if self.data[self.nLeft,0] == 0: 
+                self.data[self.nLeft, 0] += self.SML * random()
+                w = abs(self.data[self.nLeft, 1:]) > self.EPS
+                self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
 
     def _leq(self, a): 
         self.leq_count += 1
@@ -549,9 +555,14 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            for n in xrange(self.nVars+1):
-                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+#           for n in xrange(self.nVars+1):
+#               if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+#                   if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+
+            if self.data[self.nLeft,0] == 0: 
+                self.data[self.nLeft, 0] += self.SML * random()
+                w = abs(self.data[self.nLeft, 1:]) > self.EPS
+                self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
 
             self.data[self.nLeft, self.nRight] = 1.0
 
