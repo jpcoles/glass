@@ -33,12 +33,12 @@
        law exponent as a function of radius
 
    sigpsolve(r,rho,integrator,intpnts,upper,alphalim,Gsp,
-             light,lpars,beta)
+             light,beta)
      - calculates the projected velocity dispersion profile sigp(R)
      - rho(r) is calculated in abelsolve()
      - integrator/intpnts/alphalim as above
      - Gsp is the value of the gravitational const. (sets the units)
-     - light+lpars set the light distribution [see massmodel folder]
+     - light set the light distribution [see massmodel folder]
      - beta sets the constant velocity aniostropy
 
    sigpsingle(rin,sigp,light,lpars,aperture,integrator):
@@ -344,7 +344,7 @@ def dlnrhodlnr(rmin,rmax,alphalim,r,rho,mass,R,sigma,massp,rin):
     return output
 
 def sigpsolve(r,rho,mass,R,sigma,massp,integrator,intpnts,alphalim,Gsp,
-              light,lpars,beta):
+              light,beta):
     '''Solve the integral to obtain sigp(r). See Wilkinson et al. 2004 for
     details. Note typos in equation (1) of their paper. Int.  limits for f(r)
     should be r-->infty and GM(r)/r should be GM(r)/r**2'''
@@ -361,20 +361,20 @@ def sigpsolve(r,rho,mass,R,sigma,massp,integrator,intpnts,alphalim,Gsp,
     for i in xrange(len(r)):
         lower = r[i]
         rint = lower/cth
-        rhostar = light.den(rint,lpars)
+        rhostar = light.den(rint)
         mtot = masstot(rmin,rmax,alphalim,r,rho,mass,
                        R,sigma,massp,rint)
         integrand = rhostar*rint**(2*beta-2)*Gsp*\
                     mtot*gRr(rint,beta,lower)
         sigp2[i] = integrator(integrand*lower*sth/cth2,theta)
 
-    w = light.surf(r,lpars) > 0
-    sigp2[w] = sigp2[w] * 2/light.surf(r[w],lpars)
+    w = light.surf(r) > 0
+    sigp2[w] = sigp2[w] * 2/light.surf(r[w])
     sigp = sqrt(sigp2)
 
     return sigp
 
-def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
+def sigpsingle(rin,sigp,light,aperture,integrator):
     '''Reduce the projected velocity disp profile to a single mean dispersion
     value rms averaged over some aperture.  aperture must be passed with the
     same units as rin'''
@@ -383,7 +383,7 @@ def sigpsingle(rin,sigp,light,lpars,aperture,integrator):
 
     R = rin[:ap]
     sigp2 = sigp[:ap]**2
-    IR = light.surf(R,lpars)
+    IR = light.surf(R)
 
     return sqrt(integrator(sigp2*IR*R,R)/\
                 integrator(IR*R,R))
@@ -415,7 +415,7 @@ def findrs(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax):
 
     return bisect(lambda x: c1-c2*x**3*nfwmint(alp,bet,renc/x),rmin,rmax)
 
-def drhonfw(c,delta,z,omegam,omegal,h,alp,renc,Mrenc,rmin,rmax,r):
+def drhonfw(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax,r):
     '''Calculates dlnrhodlnr for a generalised NFW profile'''
 
     rs = findrs(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax)
@@ -458,8 +458,9 @@ if __name__ == "__main__":
         alphalim = 3
 
         #Light distribution parameters + vel anisotropy: 
-        import massmodel.hernquist as light
+        import massmodel.hernquist
         lpars = [1,15,1,intpnts]
+        light = massmodel.hernquist.Hernquist(lpars)
         beta = 0
         aperture = 30
 
@@ -481,9 +482,9 @@ if __name__ == "__main__":
 
         #Light distribution parameters + vel anisotropy: 
         arctokpc = 7.71687843482
-        import massmodel.datafile as lightdata
-        light = lightdata.fromfile(surffile=datadir+'jj_circular.dat')
+        import massmodel.datafile 
         lpars = [0,arctokpc,1,1,intpnts]
+        light = massmodel.datafile.DataFileModel(None,datadir+'jj_circular.dat',lpars)
         beta = 0
         aperture = 0.4*arctokpc
 
@@ -550,12 +551,12 @@ if __name__ == "__main__":
     Gsp = 6.67e-11 * 1.989e30 / 3.086e19
     sigpa = sigpsolve(r,rhoa,massa, f1['R'],f1['sigma'],massp,
                       integrator,intpnts,alphalim,Gsp,
-                      light,lpars,beta)/1000
+                      light,beta)/1000
     sigp = sigpsolve(r,rho,mass, f1['R'],f1['sigma'],massp,
                      integrator,intpnts,alphalim,Gsp,
-                     light,lpars,beta)/1000
-    sigpsinga = sigpsingle(r,sigpa,light,lpars,aperture,integrator)
-    sigpsing = sigpsingle(r,sigp,light,lpars,aperture,integrator)
+                     light,beta)/1000
+    sigpsinga = sigpsingle(r,sigpa,light,aperture,integrator)
+    sigpsing = sigpsingle(r,sigp,light,aperture,integrator)
 
     print 'Final rms mean projected vel. dispersion [abelsolve()]:',\
           sigpsinga
@@ -641,7 +642,7 @@ if __name__ == "__main__":
         for j in xrange(len(c)):
             labelstr = 'alpha=%f, c=%f' % (alp[i],c[j])
             drhoover = drhonfw(c[j],delta,z,omegam,omegal,h,
-                               alp[i],renc,Mrenc,5*amin(r),amax(rinterp),
+                               alp[i],bet,renc,Mrenc,5*amin(r),amax(rinterp),
                                rinterp)
             plot(rinterp,drhoover,'--',label=labelstr)
 
