@@ -55,15 +55,16 @@ def scales(zl, zs):
 
         where g = 978.
     """
-    gfac  = 8.584977      # H0^-1 in g days/arcsec^2
+    #gfac = 8.584977      # H0^-1 in g days/arcsec^2
+    gfac = 365.25e9 / (206265*206265)
     cee   = 8.393000e-7   # speed of light in kpc/day
     csfpg = 1.665000e15   # c^2/4piG in M_sol/kpc
 
-    Dl = Dr = angdist(0, zl)
-    return {'time':    (1+zl)*gfac*Dr, 
-            'timebg':  (1+zl)*Dr, 
-            'angdist': cee*gfac*Dl*206265, # 206265 arcsec/rad OR AU/parsec
-            'critden': cee*gfac*Dr*csfpg,
+    Dl = angdist(0, zl)   # radians
+    return {'time':    (1+zl)*gfac*Dl, 
+            'timebg':  (1+zl)*Dl, 
+            'angdist': cee*gfac*Dl*206265, # 206265 arcsec/rad
+            'critden': cee*gfac*Dl*csfpg,
             'g': 978}
 
     #return zl, (1+zl)*gfac*Dr, (1+zl)*Dr, cee*gfac*Dl*206265, cee*gfac*Dr*csfpg

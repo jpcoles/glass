@@ -3,10 +3,11 @@ import sys
 import numpy
 from numpy import isfortran, asfortranarray, sign, logical_and
 from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty
+from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt
 from numpy import argwhere, argmin, inf, isinf
 from numpy import histogram, logspace, flatnonzero, isinf
-from glrandom import random, ran_set_seed
+from numpy.random import random, normal, seed as ran_set_seed
+#from glrandom import random, ran_set_seed
 
 from pylab import figimage, show, imshow, hist, matshow, figure
 
@@ -268,7 +269,14 @@ class Samplex:
         return s
 
     def start_new_objective(self):
-        if 1:
+        kind=0
+
+        if kind==0:
+            xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
+            r = sqrt(dot(xs,xs)) # or should we take half the radius?
+            self.obj = xs/r
+
+        elif kind==1:
             self.obj = random(1+self.nVars+self.nSlack) - 0.5
             t = abs(self.obj) * (1-2*self.SML)
             t += self.SML
@@ -493,14 +501,26 @@ class Samplex:
         #print a
         #print self.nVars
         #print self.data.shape
-        a[abs(a) < self.EPS] = 0
+        #a[abs(a) < self.EPS] = 0
         self.data[self.nLeft, 0:1+self.nVars] = a
 
-    def _geq(self, a): 
+    def add_noise(self, a):
+        if a[0] == 0: 
+            a[0] += self.SML * random()
+            w = abs(a[1:]) > self.EPS
+            a[w] += self.SML * (2*random(len(w.nonzero())) - 1)
+#           a[0] += self.SML * random()
+#           w = abs(a[1:]) > self.EPS
+#           a[w] += self.SML * random(len(w.nonzero()))
+
+    def _geq(self, a, with_noise=True): 
         self.geq_count += 1
+
+        #if with_noise: self.add_noise(a) 
+
         if a[0] < 0: 
             a *= -1
-            self._leq(a)
+            self._leq(a, with_noise=False)
             self.leq_count -= 1
         else:
             self.nLeft  += 1
@@ -516,20 +536,19 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-#           for n in xrange(self.nVars+1):
-#               if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-#                   if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+            for n in xrange(self.nVars+1):
+                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
 
-            if self.data[self.nLeft,0] == 0: 
-                self.data[self.nLeft, 0] += self.SML * random()
-                w = abs(self.data[self.nLeft, 1:]) > self.EPS
-                self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
+#           self.add_noise(self.data[self.nLeft])
 
-    def _leq(self, a): 
+
+    def _leq(self, a, with_noise=True): 
         self.leq_count += 1
+        #if with_noise: self.add_noise(a) 
         if a[0] <= 0: 
             a *= -1
-            self._geq(a)
+            self._geq(a, with_noise=False)
             self.geq_count -= 1
         else:
             self.nLeft += 1
@@ -555,14 +574,17 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-#           for n in xrange(self.nVars+1):
-#               if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-#                   if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+            for n in xrange(self.nVars+1):
+                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
 
-            if self.data[self.nLeft,0] == 0: 
-                self.data[self.nLeft, 0] += self.SML * random()
-                w = abs(self.data[self.nLeft, 1:]) > self.EPS
-                self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
+#           if self.data[self.nLeft,0] == 0: 
+#               self.data[self.nLeft, 0] += self.SML * random()
+#               w = abs(self.data[self.nLeft, 1:]) > self.EPS
+#               self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
 
+#           self.add_noise(self.data[self.nLeft])
+
+            print '**\n',self.nRight
             self.data[self.nLeft, self.nRight] = 1.0
 

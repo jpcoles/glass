@@ -2,31 +2,39 @@ import os
 from distutils.core import setup, Extension
 from distutils.sysconfig import get_python_lib
 
-libraries=None #['rt']
+libraries=[#'profiler', 
+           'gomp']
+#libraries=None #['rt']
 extra_compile_args = [#'-mssse3', 
                       #'-mfpmath=sse',
-                      '-ftree-vectorizer-verbose=3', '-ftree-vectorize',
+                      '-ftree-vectorizer-verbose=7', '-ftree-vectorize',
                       '-fno-omit-frame-pointer',
-                      '-floop-optimize2',
+                      #'-floop-optimize2',
                       '-funroll-loops',
                       '-fprefetch-loop-arrays',
                       '-fstrict-aliasing',
-                      '-fnested-functions',
+                      '-mpreferred-stack-boundary=4',
+                      '-std=c99',
+                      '-fopenmp',
+                      #'-I/local/ATLAS/include',
                       #'-malign-double',
                       #'-march=core2',
                       #'-O0',
                       '-Wall']
 
+#extra_compile_args += ['-fnested-functions']
 #extra_compile_args += ['-arch_only i386']
+extra_link_args = [] #'-L/local/ATLAS/lib']
 
 
 incdir = os.path.join(get_python_lib(plat_specific=1), 'numpy/core/include')
 csamplex = Extension('solvers.samplex.csamplex',
-                     sources = ['solvers/samplex/csamplex.c'],
+                     sources = ['solvers/samplex/csamplex_omp.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
              libraries=libraries,
-             extra_compile_args=extra_compile_args)
+             extra_compile_args=extra_compile_args,
+             extra_link_args=extra_link_args)
 
 setup(name = 'Glass',
       author = 'Jonathan Coles',

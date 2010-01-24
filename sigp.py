@@ -1,6 +1,6 @@
 from __future__ import division
 from numpy import logspace, sin, log10, amin, amax
-from scipy.integrate.quadrature import simps
+from scipy.integrate.quadrature import simps as integrator
 from spherical_deproject import cumsolve, sigpsolve, sigpsingle, dlnrhodlnr, masstot, abelsolve
 from scales import density_to_physical, distance_to_physical
 
@@ -20,7 +20,6 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
     sigma   = data['sigma']
 
     intpnts = lpars[-1]
-    integrator = simps
 
     aperture_phys = distance_to_physical(objmodel, aperture)
     lpars_phys    = lpars[:]
@@ -55,12 +54,14 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
     #-------------------------------------------------------------------------
     #units of M=Msun, L=kpc, V=km/s:
     Gsp      = 6.67e-11 * 1.989e30 / 3.086e19
-    #sigp     = sigpsolve(r,rho,mass3d,integrator,intpnts,alphalim,Gsp,light,lpars_phys,beta) / 1000
+    light.set_pars(lpars_phys)
+
     sigp = sigpsolve(r,  rho,mass3d, 
                      R,sigma,mass2d,
                      integrator,intpnts,alphalim,Gsp,
-                     light,lpars_phys,beta)/1000
-    sigpsing = sigpsingle(r,sigp,light,lpars_phys,aperture_phys,integrator)
+                     light,beta)/1000
+    sigpsing = sigpsingle(r,sigp,light,aperture_phys,integrator)
+
     #rhint   = rhoint(imagemin,imagemax,alphalim,r,rho,mass3d,r)
 
 #   sigpa     = sigpsolve(r,rhoa,mass3da,integrator,intpnts,alphalim,Gsp,light,lpars_phys,beta) / 1000
@@ -75,6 +76,7 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
     data['sigp:mass3d'   ] = mass3d
     data['sigp:sigp'     ] = sigp
     data['sigp:sigp_sing'] = sigpsing
+    data['sigp:scale-factor'] = lpars_phys[1]
 
 #   data['sigp:rhoa'      ] = rhoa
 #   data['sigp:rhointa'   ] = rhinta
@@ -92,6 +94,8 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
 def sigpf(objmodel, vdisp, tol, chisq_cut):
     """Return True if chi-squared value for the object's sigp is <= chisq_cut."""
     obj,data = objmodel
-    print ((vdisp - data['sigp:sigp_sing'])**2 / tol**2)
-    return ((vdisp - data['sigp:sigp_sing'])**2 / tol**2) <= chisq_cut
+    chisq = (vdisp - data['sigp:sigp_sing'])**2 / tol**2
+    print 'chi2 is', chisq
+    data['sigp:chisq'] = chisq
+    return chisq <= chisq_cut
 

@@ -98,6 +98,8 @@ class Source:
 
         if isinstance(delay, (list, tuple)):
             delay = tuple(delay)
+        else:
+            delay = [delay]
         self.time_delays.append((A,B,delay))
 
 
@@ -115,14 +117,18 @@ class Environment:
         # For use in cosmo.py
         self.omega_matter = 0.26
         self.omega_lambda = 0.74
-        self.h_spec       = None
+
+        self.omega_matter = 0.3
+        self.omega_lambda = 0.7
+
+        self.h_spec       = [None, None]
         self.g            = None
         self.filled_beam  = True
 
         self.ncpus_detected = _detect_cpus()
         self.ncpus          = self.ncpus_detected
         #self.ncpus = 3
-
+        self.argv = []
 
     def current_object(self):
         return self._current_object
@@ -140,6 +146,9 @@ class Environment:
 _env = Environment()
 def env():
     return _env
+
+def new_env():
+    set_env(Environment())
 
 #FIXME: Resetting the environment discards options set on the commandline (e.g., ncpus)
 def set_env(env):

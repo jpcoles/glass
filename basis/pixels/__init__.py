@@ -12,7 +12,7 @@ def _expand_array(nvars, offs, f):
        shifted to the right by offs, which places the input into a region
        of the solver matrix that is just for the same object."""
     def work(eq):
-        new_eq = zeros(nvars, order='Fortran')
+        new_eq = zeros(nvars+1, order='Fortran')
         new_eq[0] = eq[0]
         new_eq[offs+1:offs+len(eq)] = eq[1:]
         global cons
@@ -23,7 +23,7 @@ def _expand_array(nvars, offs, f):
 
     return work
 
-def init_model_generator(regenerate=False):
+def init_model_generator(nmodels, regenerate=False):
     """Construct the linear constraint equations by applying all the
        enabled priors."""
 
@@ -39,6 +39,9 @@ def init_model_generator(regenerate=False):
     print '=' * 80
     print 'PIXEL BASIS MODEL GENERATOR'
     print '=' * 80
+    if nmodels == 0:
+        print "No models requested."
+
     print 'Priors:'
     for p in all_priors:
         print '    %s' % p.f.__name__,
@@ -48,28 +51,39 @@ def init_model_generator(regenerate=False):
     lp = filter(lambda x: x.where == 'object_prior',   priors)
     gp = filter(lambda x: x.where == 'ensemble_prior', priors)
 
-    nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0) - len(objs) + 1
+    nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0)
 
     mg = env().model_gen = env().model_gen_factory(nvars)
 
-    #print "nvars=",nvars
+    print "nvars=",nvars
 
     #lp = [smooth,steepness ]
 
     offs = 0
     #obj_offs = [offs]
     for o in objs:
-        o.basis.array_offset = offs
-        for p in lp:
-            leq = _expand_array(nvars, offs, mg.leq)
-            eq  = _expand_array(nvars, offs, mg.eq)
-            geq = _expand_array(nvars, offs, mg.geq)
-            p.f(o, leq, eq, geq)
-        offs += o.basis.nvar - 1
+        o.basis.array_offset = 1+offs
+        print 'array offset', o.basis.array_offset
+        if nmodels:
+            for p in lp:
+                leq = _expand_array(nvars, offs, mg.leq)
+                eq  = _expand_array(nvars, offs, mg.eq)
+                geq = _expand_array(nvars, offs, mg.geq)
+                p.f(o, leq, eq, geq)
+        offs += o.basis.nvar 
         #obj_offs.append(offs)
 
-    for p in gp:
-        p.f(objs, nvars, mg.leq, mg.eq, mg.geq)
+    if nmodels:
+        for p in gp:
+            p.f(objs, nvars, mg.leq, mg.eq, mg.geq)
+
+    global acc_objpriors
+    global acc_enspriors
+    del acc_objpriors[:]
+    del acc_enspriors[:]
+
+    acc_objpriors += lp
+    acc_enspriors += gp
 
 def packaged_solution(obj, sol):
     return obj.basis.packaged_solution(sol)
@@ -82,6 +96,12 @@ def generate_models(objs, n):
     
     mg.start()
     for sol in mg.next(n):
+        for o in objs:
+            for p in acc_objpriors:
+                if p.check: p.check(o, sol)
+        for p in acc_enspriors:
+            if p.check: p.check(objs, sol)
+
         yield {'sol':  sol,
                'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
                'tagged':  False}

@@ -66,7 +66,7 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
     return src
 
 def delay(A,B, delay):
-    """ Add a time delay between images A and B such that B arrive delay days after A. """
+    """ Add a time delay between images A and B such that B arrives 'delay' days after A. """
     src = env().current_object().current_source()
     a = src.images[src.images.index(A)]
     b = src.images[src.images.index(B)]

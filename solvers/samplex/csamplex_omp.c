@@ -16,8 +16,6 @@
 #include <sys/times.h>
 #include <signal.h>
 
-#include <pthread.h>
-#include <semaphore.h>
 #include <sched.h>
 #include <errno.h>
 
@@ -30,15 +28,6 @@
 /* is no benefit from using long double.                                    */
 /*==========================================================================*/
 #define USE_LONG_DOUBLE 0
-
-/*==========================================================================*/
-/* After the table has been allocated we can reorganize it by letting each  */
-/* thread reallocate a bit of the table memory. This puts the memory        */
-/* that each thread will be working with local to the CPU. This yields a    */
-/* 2x overall speed up.                                                     */
-/*==========================================================================*/
-#define REORGANIZE_TABLE_MEMORY 0
-#define SET_THREAD_AFFINITY     1
 
 #define WITH_GOOGLE_PROFILER 0
 
@@ -218,58 +207,60 @@ PyMODINIT_FUNC initcsamplex()
 int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 { 
+    typedef struct
+    {
+        int32_t l;
+        dble_t cpiv, cinc, col0;
+    } thread_t;
+
     int32_t k, r;
     dble_t * restrict bcol = &tabl->data[0];
 
-    int32_t res = NOPIVOT; 
-    dble_t coef = 0,
-           inc  = 0;
+    thread_t * restrict t = malloc((R+1) * sizeof(thread_t));
+    memset(t, 0, (R+1) * sizeof(thread_t));
 
-    int32_t rpivq = 0,
-            lpiv  = 0,
-            rpiv  = 0;
-
-    dble_t piv = 0;
+    int32_t accept;
+    int32_t l, cleft;
+    dble_t cpiv, cinc, tinc;
+    dble_t * restrict col;
 
     DBG(3) fprintf(stderr, "> choosePivot()\n");
 
+    #pragma omp parallel for  \
+            private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
+            shared(bcol, t, L, tabl)
     for (r = 1; r <= R; r++)
     {
-        const dble_t * restrict col = &tabl->data[r * tabl->rows + 0];
+        col = &tabl->data[r * tabl->rows + 0];
 
         DBG(2) fprintf(stderr, "r=%i\n", r);
-
-        if (col[0] <= coef) continue;
-
-        //----------------------------------------------------------------------
-        // Assume we will find a pivot element.
-        //----------------------------------------------------------------------
-        res = FOUND_PIVOT;
 
         //----------------------------------------------------------------------
         // We now look for the column entry that causes the objective function
         // to increase the most.  Set |l,cleft,cpiv,cinc| for candidate pivot
         //----------------------------------------------------------------------
-        int32_t l     = 0,
-                cleft = 0; 
-        dble_t cpiv  = 0,
-               cinc  = 0;
+
+        l = 0;
+        cleft = 0;
+        cpiv = 0;
+        cinc = 0;
+
         for (k=1; k <= L; k++) 
         { 
             if (col[k] >= -SML) continue; /* only interested in negative values */
 
-            const dble_t tinc = -bcol[k] * col[0]/col[k];
+            tinc = -bcol[k] * col[0]/col[k];
             DBG(1) assert(!isinf(tinc));
 
             //------------------------------------------------------------------
             // Accept this pivot element if we haven't found anything yet.
             //------------------------------------------------------------------
-            int32_t accept = 0;
+            accept = 0;
             if (l==0) 
             {
                 accept = 1;
             }
-#if 0
+#if 1
             else if (ABS(tinc-cinc) < EPS) 
             { 
                 if (left[k] > 0 && cleft > 0)  
@@ -290,16 +281,38 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
             //------------------------------------------------------------------
             // Remeber this pivot element for later.
             //------------------------------------------------------------------
-            l = k; 
+            l     = k; 
             cleft = left[k]; 
             cpiv  = col[k]; 
             cinc  = tinc;
+
+            t[r].l    = k;
+            t[r].cinc = cinc;
+            t[r].cpiv = cpiv;
+            t[r].col0 = col[0];
         }
+    }
+
+    dble_t piv  = 0,
+           coef = 0,
+           inc  = 0;
+
+    int32_t rpivq = 0,
+            lpiv  = 0,
+            rpiv  = 0;
+
+    int32_t res = NOPIVOT; 
+
+    for (r = 1; r <= R; r++)
+    {
+        if (t[r].col0 <= coef) continue;
+
+        res = FOUND_PIVOT;
 
         //----------------------------------------------------------------------
         // Maybe update |lpiv,rpiv,rpivq,piv,inc,coef|
         //----------------------------------------------------------------------
-        if (l == 0) 
+        if (t[r].l == 0) 
         {
             lpiv = -1;
             rpiv = -1;
@@ -308,28 +321,31 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
             break;
         }
 
-        int32_t accept = 0;
+        accept = 0;
         if (lpiv==0)
             accept = 1;
-        else if (ABS(cinc-inc) < EPS)
+        else if (ABS(t[r].cinc-inc) < EPS)
             accept = (right[r] < rpivq);
         else  
-            accept = (cinc > inc);
+            accept = (t[r].cinc > inc);
 
-        if (!accept) continue;
+        if (accept)
+        {
+            lpiv  = t[r].l;
+            rpiv  = r; 
 
-        lpiv  = l;    
-        rpiv  = r; 
+            rpivq = right[r];
 
-        rpivq = right[r];
-
-        piv = cpiv; 
-        inc = cinc; 
-        
-        coef = col[0];
+            piv = t[r].cpiv; 
+            inc = t[r].cinc; 
+            
+            coef = t[r].col0;
+        }
     }
 
     DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
+
+    free(t);
 
     *lpiv0 = lpiv;
     *rpiv0 = rpiv;
@@ -363,32 +379,12 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     long R = PyInt_AsLong(PyObject_GetAttrString(o, "nRight")); /* # of variables   (columns) */
     long Z = PyInt_AsLong(PyObject_GetAttrString(o, "nTemp"));
 
-    long T = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
-
-#if 0
-    fprintf(stderr, "%ld %ld // %ld %ld\n", PyArray_DIM(data,0), PyArray_DIM(data,1),
-                                            PyArray_DIM(orig,0), PyArray_DIM(orig,1));
-#endif
-
     PyObject *lhv = PyObject_GetAttrString(o, "lhv");
     PyObject *rhv = PyObject_GetAttrString(o, "rhv");
 
     int32_t *left  = (int32_t *)PyArray_DATA(lhv), 
             *right = (int32_t *)PyArray_DATA(rhv);
 
-
-#if 0
-    fprintf(stderr, "tabl dims = %i : %ix%i\n"
-                    "L=%i R=%i Z=%i\n"
-                    "len(left)=%i, len(right)=%i\n"
-                    "nthreads=%i\n", 
-                    PyArray_NDIM(data), tabl.cols, tabl.rows,
-                    L, R, Z,
-                    PyArray_DIM(lhv,0),
-                    PyArray_DIM(rhv,0),
-                    T
-                    );
-#endif
 
     int32_t lpiv,    /* Pivot row              */
             rpiv;    /* Pivot column           */
@@ -407,50 +403,32 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
 
     /* Remember, this is in FORTRAN order */
-#if REORGANIZE_TABLE_MEMORY
-    import_array();
-    PyObject *orig = PyObject_GetAttrString(o, "data");
-    assert(PyArray_CHKFLAGS(orig, NPY_F_CONTIGUOUS));
-    assert(PyArray_CHKFLAGS(orig, NPY_FORTRAN));
-    //PyObject *data = PyArray_EMPTY(2, PyArray_DIMS(orig), NPY_DOUBLE, 1);
-
-    tabl.orig = (dble_t *)PyArray_DATA(orig);
-    tabl.rows = PyArray_DIM(orig,0);
-    tabl.cols = PyArray_DIM(orig,1);
-
-    tabl.data = malloc(tabl.rows*tabl.cols*sizeof(*tabl.data));
-
-    PyObject *data = PyArray_NewFromDescr(&PyArray_Type, 
-                                          PyArray_DESCR(orig), 
-                                          2,
-                                          PyArray_DIMS(orig), 
-                                          PyArray_STRIDES(orig), 
-                                          tabl.data,
-                                          PyArray_FLAGS(orig),
-                                          NULL);
-
-#else
     PyObject *data = PyObject_GetAttrString(o, "data");
     assert(PyArray_CHKFLAGS(data, NPY_F_CONTIGUOUS));
     assert(PyArray_CHKFLAGS(data, NPY_FORTRAN));
     tabl.data = (dble_t *)PyArray_DATA(data);
     tabl.rows = PyArray_DIM(data,0);
     tabl.cols = PyArray_DIM(data,1);
+
+#if 0
+    fprintf(stderr, "tabl dims = %i : %ix%i\n"
+                    "L=%i R=%i Z=%i\n"
+                    "len(left)=%i, len(right)=%i\n"
+                    "nthreads=%i\n", 
+                    PyArray_NDIM(data), tabl.cols, tabl.rows,
+                    L, R, Z,
+                    PyArray_DIM(lhv,0),
+                    PyArray_DIM(rhv,0),
+                    T
+                    );
 #endif
 
-    tabl.pcol = malloc(tabl.rows * sizeof(*(tabl.data)));
 
 #if WITH_GOOGLE_PROFILER
     ProfilerStart("googperf.out");
 #endif
 
     double stime = CPUTIME;
-    double now = stime;
-    double bestperftime = 0;
-
-    struct timespec t;
-
-    int searchdir = -1;
 
     signal(SIGALRM, periodic_report);
     alarm(1);
@@ -507,14 +485,13 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             {
                 dble_t *col = &(tabl.data[i * tabl.rows + 0]);
                 for (j=0; j <= L; j++)
+                {
                     if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
                     {
                         fprintf(stderr, "+++++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
                         //assert(0);
                     }
-
-                    //fprintf(stderr, "%.4f ", col[j]);
-                //fprintf(stderr, "\n");
+                }
             }
         }
 
@@ -525,80 +502,24 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         }
     }
 
-    //fprintf(stderr, "\n");
-
-    double etime = CPUTIME;
-    //clock_t et = times(NULL);
-
 #if WITH_GOOGLE_PROFILER
     ProfilerStop();
 #endif
 
-    //fprintf(stderr, "time: %f\n", (etime-stime));
-            //fprintf(stderr, "\riter %8i  %24.15e", n, tabl.data[0]);
-    fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
-    //fprintf(stderr, "time: %f\n", (etime-stime) / pool.nthreads);
-
-    free(tabl.pcol);
-
     Py_END_ALLOW_THREADS
+
+    double etime = CPUTIME;
 
     alarm(0);
     signal(SIGALRM, SIG_DFL);
 
+    fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
+
     PyObject_SetAttrString(o, "nRight", PyInt_FromLong(R));
     PyObject_SetAttrString(o, "nTemp", PyInt_FromLong(Z));
-#if REORGANIZE_TABLE_MEMORY
-    PyObject_SetAttrString(o, "data", data);
-    //Py_XDECREF(orig);
-#endif
 
     return PyInt_FromLong(ret);
 }
-
-#define IN \
-do { \
-    int32_t i;     \
-    dble_t * restrict col = tabl->data + (r * tabl->rows); \
-    const dble_t col_lpiv = col[lpiv];     \
-    const dble_t xx = col_lpiv / piv;  \
-    {  \
-        if (ABS(xx) >= SML)    \
-        {\
-            for (i=0; i <= L; i++) \
-                col[i] -= pcol[i] * xx;  \
-        }\
-        else   \
-        {\
-            for (i=0; i <= L; i++) \
-                col[i] -= (pcol[i] * col_lpiv) / piv;   \
-        }\
-    }  \
-    col[lpiv] = -xx;   \
-} while(0);
-
-#define XIN \
-do { \
-    int32_t i;     \
-    dble_t * restrict col = tabl->data + (r * tabl->rows); \
-    dble_t * restrict col1 = col; \
-    dble_t * restrict pcol1 = pcol; \
-    const dble_t col_lpiv = col[lpiv];     \
-    const dble_t xx = col_lpiv / piv;  \
-    {  \
-        if (ABS(xx) >= SML)    \
-        {\
-            for (i=0; i <= L; i++) \
-                *col1++ -= *pcol1++ * xx;  \
-        }\
-        else   \
-        {\
-            for (i=0; i <= L; i++) \
-                *col1++ -= (*pcol1++ * col_lpiv) / piv;   \
-        }\
-    }  \
-    col[lpiv] = -xx;   \
-} while(0);
 
 void doPivot0(
     matrix_t * restrict tabl,
@@ -640,13 +561,28 @@ void doPivot0(
             for (i=0; i <= L; i++) 
                 col[i] -= (pcol[i] * col_lpiv) / piv;   
         }
+
         col[lpiv] = -xx;   
     }
 
-    #pragma omp parallel for shared(pcol, piv, L)
+    //#pragma omp parallel for shared(pcol, piv, L)
     for (i=0; i <= L; i++)
         pcol[i] /= piv;
     pcol[lpiv] = 1.0 / piv;
+
+    DBG(1)
+    {
+        int f=0;
+        for (i=1; i <= L; i++)
+        {
+            if (tabl->data[i] <= -SML)
+            {
+                fprintf(stderr, "%e\n", tabl->data[i]);
+                f = 1;
+            }
+        }
+        assert(f==0);
+    }
 
 
     //DBG(3) fprintf(stderr, "< doPivot()\n");

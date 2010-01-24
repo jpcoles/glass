@@ -1,7 +1,7 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy, pylab
-from environment import env
+from environment import env, set_env, new_env
 import cosmo
 from handythread import parallel_map
 
@@ -13,6 +13,9 @@ from potential import *
 #import filters
 
 def str_range(v, fmt):
+    def tostr(v):
+        return str(v) if v is None else fmt%v
+
     print v
     if v is None:
         return str(v)
@@ -21,7 +24,7 @@ def str_range(v, fmt):
     elif len(v) == 1:
         return fmt % v[0]
     elif len(v) > 1:
-        return '(' + ', '.join(map(lambda x: fmt%x, v)) + ')'
+        return '(' + ', '.join(map(tostr, v)) + ')'
     else:
         return str(v)
 
@@ -35,29 +38,32 @@ def report():
     print '=' * 80
     print 'COSMOLOGY'
     print '=' * 80
-    print pp('Omega Matter = %.4f' % _env.omega_matter, '')
-    print pp('Omega Lambda = %.4f' % _env.omega_lambda, '')
-    print pp('g            = %s'   % str_range(_env.g, '%.4f'), '[Gyr]')
-    print pp('1/g          = %s'   % str_range(_env.h_spec, '%.4f'), '[km/s/Mpc]')
+    print pp('Omega Matter = %.4g' % _env.omega_matter, '')
+    print pp('Omega Lambda = %.4g' % _env.omega_lambda, '')
+    print pp('g            = %s'   % str_range(_env.g, '%.4g'), '[Gyr]')
+    print pp('1/g          = %s'   % str_range(_env.h_spec, '%.4g'), '[km/s/Mpc]')
     print 
     print '=' * 80
     print 'OBJECTS'
     print '=' * 80
     for i,o in enumerate(_env.objects):
-        print pp('%i. %s at z=%.4f' % (i+1, o.name, o.z), '')
+        print pp('%i. %s at z=%.4g' % (i+1, o.name, o.z), '')
         if o.maprad:
-            print pp('    Map radius            = %.4f' % o.maprad, '[arcsec]')
-            print pp('    Map radius g=14       = %.4f' % Arcsec_to_Kpc(obj,o.maprad,14), '[kpc]')
+            print pp('    Map radius            = %.4g' % o.maprad, '[arcsec]')
+            print pp('    Map radius g=14       = %.4g' % Arcsec_to_Kpc(o,o.maprad,14), '[kpc]')
         else:
             print pp('    Map radius            = Not specified', '')
             print pp('    Map radius g=14       = Not specified', '')
-        print pp('    Time scale            = %.4f' % o.scales['time'],    '[g days/arcsec^2]')
-        print pp('    Angular distance      = %.4f' % o.scales['angdist'], '[g kpc/arcsec]')
+        print pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]')
+        print pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]')
         print pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]')
         print pp('    Critical density g=14 = %.4e' \
-            % KappaArcsec2_to_MsunKpc2(o,1,14), '[Msun/kpc^2]')
-        print pp('    Shear                 = %.4f' % o.shear.phi, '')
-        print pp('    Steepness             = %s' % str_range(o.steep, '%.4f'), '')
+            % Kappa_to_MsunKpc2(o,1,14), '[Msun/kpc^2]')
+        if o.shear:
+            print pp('    Shear                 = %.4g' % o.shear.phi, '')
+        else:
+            print pp('    Shear                 = Not specified', '')
+        print pp('    Steepness             = %s' % str_range(o.steep, '%.4g'), '')
         print
         for src in o.sources:
             print '    Source at z=%.4f' % src.z,
@@ -66,7 +72,7 @@ def report():
             print pp('        Distance (Lens->Src) = %.4f' % cosmo.angdist(o.z,src.z), '[arcsec]')
             print pp('        Dos/Dls              = %.4f' % src.zcap, '')
             for img in src.images:
-                print '        Image at (%.4f,%.4f) : angle=%.4f parity=%s elongation=[%.4f,%.4f,%.4f]' \
+                print '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' \
                     % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2])
 
     print 
@@ -93,7 +99,7 @@ def model(nmodels):
 
     report()
 
-    init_model_generator()
+    init_model_generator(nmodels)
 
     env().models = []
     env().solutions = []
@@ -122,9 +128,10 @@ def reprocess(state_file):
         print o.name
         o.init()
 
-    env().solutions = loadstate(state_file, setenv=False).solutions
+    e = loadstate(state_file, setenv=False)
+    env().solutions = e.solutions
 
-    init_model_generator()
+    init_model_generator(len(env().solutions))
 
     env().models = [ m for m in regenerate_models(env().objects) ]
     _post_process()
@@ -139,7 +146,7 @@ def XXXreprocess(state_file):
 
     env().solutions = loadstate(state_file, setenv=False).solutions
 
-    init_model_generator()
+    init_model_generator(len(env().solutions))
 
     env().models = []
     for i,m in enumerate(regenerate_models(env().objects)):
@@ -172,7 +179,9 @@ if __name__ == "__main__":
     with open(list[0], 'r') as f:
         env().input_file = f.read()
 
-#    try:
+    env().argv = list[1:]
+
+#   try:
     if 1:
         #-----------------------------------------------------------------------
         # We exec the original file, not the text we stored in input_file
