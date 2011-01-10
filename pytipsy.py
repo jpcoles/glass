@@ -1,1 +1,0 @@
-/Users/jonathan/jcode/pytipsy/pytipsy.py
