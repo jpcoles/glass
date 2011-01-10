@@ -203,24 +203,24 @@ def estimated_Re(obj, ps, src_index):
 
     kappa = ps['enckappa'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
 
-    print map(len,obj.basis.rings)
+    #print map(len,obj.basis.rings)
 
-    print '^' * 10
-    print kappa
-    print '^' * 10
+    #print '^' * 10
+    #print kappa
+    #print '^' * 10
     w = kappa >= 1.0
 
-    print w
+    #print w
 
     if not w.any(): return None
 
     w = where(w)[0][-1]
 
-    print w
+    #print w
 
     r = obj.basis.ploc[obj.basis.rings[w][0]]
 
-    print r
+    #print r
 
     Vl = abs(r)
     Vs = abs(r)
