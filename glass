@@ -1,0 +1,10 @@
+#!/bin/bash
+
+ROOT="$HOME/GLASS/glass-DEV"
+
+PYTHON=python
+PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
+GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
+
+$GLASS $*
+
