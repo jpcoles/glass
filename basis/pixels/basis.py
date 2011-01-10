@@ -145,7 +145,7 @@ def visual_neighbor_verification(self, nbrs):
         draw()
         raw_input()
 
-def estimated_Re(obj, ps):
+def Xestimated_Re(obj, ps, src_index):
 
     #---------------------------------------------------------------------
     # Estimate an Einstein radius. 
@@ -158,10 +158,15 @@ def estimated_Re(obj, ps):
     # solution would be to use the maximum extent of each pixel.
     #---------------------------------------------------------------------
 
-    w = ps['kappa'] >= 1.0
+    kappa = ps['kappa'] / obj.sources[src_index].zcap
+
+    w = kappa >= 1.0
+
+    if not w.any(): return None
+
     r = obj.basis.ploc[w]
     I = matrix(zeros((3,3)))
-    m = ps['kappa'][w]
+    m = kappa[w]
     I[0,0] =  sum(m*(r.real**2 + r.imag**2))
     I[1,1] =  sum(m*(r.imag**2))
     I[2,2] =  sum(m*(r.real**2))
@@ -182,6 +187,48 @@ def estimated_Re(obj, ps):
         D1,D2 = D1,D2
 
     return mean([Vl,Vs]), Vl, Vs, arctan2(D1[1], D1[0]) * 180/pi
+
+def estimated_Re(obj, ps, src_index):
+
+    #---------------------------------------------------------------------
+    # Estimate an Einstein radius. 
+    # Take the inertia tensor of the pixels above kappa_crit and use the
+    # eigenvalues to scale the most distance pixel position to the major
+    # and minor axes. Re is then defined here as the mean of the two.
+    #
+    # TODO: On convergence. Since the centers of each pixel are used, as
+    # the resolution increases, Re will tend to move outward. A better
+    # solution would be to use the maximum extent of each pixel.
+    #---------------------------------------------------------------------
+
+    kappa = ps['enckappa'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
+
+    print map(len,obj.basis.rings)
+
+    print '^' * 10
+    print kappa
+    print '^' * 10
+    w = kappa >= 1.0
+
+    print w
+
+    if not w.any(): return None
+
+    w = where(w)[0][-1]
+
+    print w
+
+    r = obj.basis.ploc[obj.basis.rings[w][0]]
+
+    print r
+
+    Vl = abs(r)
+    Vs = abs(r)
+    if Vl < Vs: 
+        Vl,Vs = Vs,Vl
+        D1,D2 = D1,D2
+
+    return mean([Vl,Vs]), Vl, Vs, 0
 
 class PixelBasis: 
 
@@ -450,10 +497,10 @@ class PixelBasis:
         ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ] \
                        if obj.shear else array([0,0])
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
-        ps['src']    = array([   complex(sol[o+i],       sol[o+i+1]) 
-                               - complex(self.map_shift, self.map_shift)
-                        for i in xrange(self.srcpos_start, self.srcpos_end,2)])
-
+        ps['src']    = [complex(sol[o+i], sol[o+i+1]) / obj.sources[j].zcap - complex(self.map_shift, self.map_shift)
+                        for j,i in enumerate(xrange(self.srcpos_start, self.srcpos_end,2))]
+        ps['src'] = array(ps['src'])
+ 
         Gyr = 1e9 * 365.25*60*60*24
         km = 1000
         Mpc = 3.086e22
@@ -462,9 +509,6 @@ class PixelBasis:
         ps['H0']     = sol[o+self.H0] * (Mpc/km/Gyr)
         ps['nu']     = sol[o+self.H0]
         ps['1/H0']   = H0inv
-
-
-        ps['Re'] = estimated_Re(obj, ps)
 
 
         #---------------------------------------------------------------------
@@ -488,9 +532,11 @@ class PixelBasis:
         ps['R']     = self.rs + self.radial_cell_size / 2
         ps['R_kpc'] = ps['R'] * rscale
 
-        ps['enckappa'] = cumsum([    sum(ps['kappa'][r])         for r in self.rings])
+        ps['enckappa'] = cumsum([    sum(ps['kappa'][r])                              for r in self.rings])
         ps['encmass']  = cumsum([    sum(ps['kappa'][r]*self.cell_size[r]**2)*dscale1 for r in self.rings])
         ps['sigma']    =  array([average(ps['kappa'][r]                     )*dscale2 for r in self.rings])
+
+        ps['Re'] = estimated_Re(obj, ps,0)
 
         return ps
 

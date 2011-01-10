@@ -1,11 +1,15 @@
 from __future__ import division
 from math import sin,sinh, sqrt
 from numpy import abs
+from scipy.integrate import quadrature, quad
 from environment import env
 
-def angdist(z1, z2):
+def angdist(zi, zf):
     M = env().omega_matter
     L = env().omega_lambda
+
+    if zf < zi:
+        zi,zf = zf,zi
 
     #---------------------------------------------------------------------------
     # Curvature of the universe.
@@ -17,38 +21,29 @@ def angdist(z1, z2):
     elif M+L-tol > 1:
         k = 1
 
-    dz = 5e-4
-    if    z1 < z2: zi,zf = z1,z2
-    else:          zi,zf = z2,z1
+    if env().filled_beam:
+        f = lambda z: 1. / sqrt(M * (z+1)**3 + (1-M-L) * (z+1)**2 + L)
+    else:
+        f = lambda z: 1. / sqrt(M * (z+1)**3 + (1-M-L) * (z+1)**2 + L) / (z+1)**2
+
+    factor = quad(f, zi, zf)[0]
 
     if env().filled_beam:
-        z = zi + dz/2.
-        factor = 0
-        while z <= zf:
-            w = z + 1
-            factor += dz / sqrt(M * w**3 + (1-M-L) * w**2 + L)
-            z += dz
 
         if k == 0:
             delksi = factor
-            dis = delksi / (z2+1)
+            dist = delksi / (zf+1)
         else:
             delksi = sqrt(abs(M+L-1) * factor)
             if k == 1:
-                dis = sin(delksi)/(z2+1)/sqrt(abs(M+L-1))
+                dist = sin (delksi)/(zf+1)/sqrt(abs(M+L-1))
             else:
-                dis = sinh(delksi)/(z2+1)/sqrt(abs(M+L-1))
+                dist = sinh(delksi)/(zf+1)/sqrt(abs(M+L-1))
 
     else:
-        z = zi + dz/2
-        factor = 0
-        while z <= zf:
-            w = z + 1
-            factor += dz / sqrt(M * w**3 + (1-M-L) * w**2 + L) / w**2
-            z += dz
-        dis = (zi+1) * factor
+        dist = (zi+1) * factor
 
-    return dis
+    return dist
 
 def scales(zl, zs):
     """Returns the following scaling factors as a dictionary:

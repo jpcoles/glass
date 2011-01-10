@@ -95,8 +95,8 @@ def image_pos(o, leq, eq, geq):
 #               rows[1,offs] = -o.ptmass.poten_dy(n+1, img.pos)
 
             srcpos = srcpos_start + 2*i
-            rows[0,srcpos:srcpos+2] = -src.zcap,     0
-            rows[1,srcpos:srcpos+2] =     0,     -src.zcap
+            rows[0,srcpos:srcpos+2] = -1,  0
+            rows[1,srcpos:srcpos+2] =  0, -1
 
             eq(rows[0])
             eq(rows[1])
@@ -131,8 +131,8 @@ def check_image_pos(o, sol):
                 r1 += sol[shear_start+1] * -o.shear.poten_d2y(img.pos)
 
             srcpos = srcpos_start + 2*i
-            r0 += sol[srcpos+0] * -src.zcap
-            r1 += sol[srcpos+1] * -src.zcap
+            r0 += sol[srcpos+0]
+            r1 += sol[srcpos+1]
 
             r0 = log10(abs(r0)) if r0 else 0
             r1 = log10(abs(r1)) if r1 else 0
@@ -181,7 +181,7 @@ def time_delay(o, leq, eq, geq):
 
             # The beta term
             row[srcpos:srcpos+2]  = x0-x1, y0-y1
-            row[srcpos:srcpos+2] *= src.zcap
+            #row[srcpos:srcpos+2] *= src.zcap
 
             # The ln terms
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
@@ -247,7 +247,7 @@ def JPC1time_delay(o, leq, eq, geq):
 
             # The beta term
             row[srcpos:srcpos+2]  = x0-x1, y0-y1
-            row[srcpos:srcpos+2] *= src.zcap
+            #row[srcpos:srcpos+2] *= src.zcap
 
             # The ln terms
             row[pix_start:pix_end] -= poten(img1 - b.ploc, b.cell_size)

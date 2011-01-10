@@ -107,6 +107,7 @@ class Environment:
         self._current_object = None
         self.model_gen_factory = None #model_generator
         self.model_gen = None
+        self.model_gen_options = {}
         self.solutions = None
         self.models = None
         self.accepted_models = None

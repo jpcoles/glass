@@ -85,6 +85,7 @@ def Re_plot(models=None, obj_index=0, color=None):
 
     for m in models:
         obj,data = m['obj,data'][obj_index]
+        if not data['Re']: continue
         Re, a,b, theta = data['Re']
         #gca().add_artist(Circle((rl.real,rl.imag), 0.1, fill=False, lw=2, color='r'))
         #gca().add_artist(Circle((rs.real,rs.imag), 0.1, fill=False, lw=2, color='r'))

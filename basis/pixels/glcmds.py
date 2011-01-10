@@ -1,20 +1,21 @@
 from __future__ import division
 from environment import env
-from basis import PixelBasis as basis_class
 from solvers.samplex.samplex import Samplex
+from basis import PixelBasis as basis_class
 from numpy import load, mean, pi, radians
 from scales import convert
 
 def minsteep(a):                assert False, "minsteep not supported. Use steepness()."
 def maxsteep(a):                assert False, "maxsteep not supported. Use steepness()."
 
-def _foo(nvars):
-   return Samplex(nvars, nthreads=env().ncpus) 
+def _foo(options):
+   return Samplex(**options)
+   #return Samplex(nvars, nthreads=env().ncpus) 
 
 def globject(name):
     co = env().new_object(name)
     co.basis = basis_class()
-    env().model_gen_factory = _foo
+    #env().model_gen_factory = _foo
     return co
 
 def pixrad(r):

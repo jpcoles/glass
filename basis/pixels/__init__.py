@@ -1,4 +1,6 @@
 from __future__ import division
+from solvers.samplex.samplex import Samplex
+from solvers.samplex.glcmds import *
 from glcmds import *
 from priors import *
 from priors import include_prior, exclude_prior, \
@@ -74,7 +76,12 @@ def init_model_generator(nmodels, regenerate=False):
     #---------------------------------------------------------------------------
     # Initialize our model generator, the simplex.
     #---------------------------------------------------------------------------
-    mg = env().model_gen = env().model_gen_factory(nvars)
+    opts = env().model_gen_options
+    opts['ncols'] = nvars
+    if not opts.has_key('nthreads'): opts['nthreads'] = env().ncpus
+
+    #mg = env().model_gen = env().model_gen_factory(env().model_gen_options)
+    mg = env().model_gen = Samplex(**env().model_gen_options)
 
     #---------------------------------------------------------------------------
     # Apply the object priors

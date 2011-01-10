@@ -42,14 +42,21 @@ class Samplex:
     SML = 1e-6
     EPS = 1e-14
 
-    def __init__(self, ncols=None, nthreads=1):
+    def __init__(self, **kw):
+
+        ncols    = kw.get('ncols', None)
+        nthreads = kw.get('nthreads', 1)
+        rngseed  = kw.get('rngseed',  0)
+        
+
         Log( "Samplex created" )
         Log( "    ncols = %i" % ncols )
         if ncols is not None:
             self.nVars = ncols
             self.nRight = self.nVars
 
-        self.random_seed = ran_set_seed(0)
+        ran_set_seed(rngseed)
+        self.random_seed = rngseed
 
         self.nthreads = nthreads
         Samplex.pivot = lambda s: csamplex.pivot(s)
@@ -62,9 +69,9 @@ class Samplex:
         self.rhv = []
         self.nVars = None            # Number of variables + 1(constant column) [N]
         self.nLeft = 0               # Number of left hand variables            [L]
-        self.nSlack = 0               # Number of slack variables               [S]
+        self.nSlack = 0              # Number of slack variables                [S]
         self.nTemp = 0               # Number of temporary variables            [Z]
-        self.nRight = 0               # Number of right hand variables          [R]
+        self.nRight = 0              # Number of right hand variables           [R]
         self.eq_count = 0
         self.leq_count = 0
         self.geq_count = 0
@@ -93,6 +100,7 @@ class Samplex:
         Log( '=' * 80 )
 
         Log( "random seed = %s" % self.random_seed )
+        Log( "threads = %s" % self.nthreads )
 
         Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
