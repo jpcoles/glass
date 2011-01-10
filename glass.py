@@ -88,7 +88,7 @@ def report():
     Log( 'SYSTEM' )
     Log( '=' * 80 )
     Log( 'Number of CPUs detected = %i' % _env.ncpus_detected )
-    Log( 'Number of CPUS used     = %i' % _env.ncpus )
+    Log( 'Number of CPUs used     = %i' % _env.ncpus )
     Log( )
 
 

@@ -90,40 +90,30 @@ def savestate_PixeLens(fname):
 
     with open(fname, 'w') as f:
         print >>f, '#BEGIN INPUT'
-        print >>f, '''\
-object sim
-pixrad 10
-maprad 50
-zlens 0.3
-models 600
-g 14
-cosm %.2f %.2f
-minsteep 0
-multi 4 1.0
--3.013622e+01  1.360461e+00 1
- 2.287190e+01  4.055235e-01 1
- 2.153107e+01  8.125506e+00 2
- 1.989196e+01 -9.990781e+00 2
-multi 4 1.5
--3.209855e+01 -8.905267e+00 1
- 2.917315e+01 -1.335862e+01 1
- 4.959569e+00 -2.999205e+01 2
- 3.193337e+00  2.776801e+01 2
-multi 4 1.8
- 3.546026e+01 -6.865813e-01 1
--3.386628e+01  1.663847e-01 1
--4.480872e+00 -3.021939e+01 2
--3.476083e+00  3.138001e+01 2
-multi 4 2.0
- 3.056711e+01 -1.958938e+01 1
--2.916247e+01 -2.045603e+01 1
--4.859099e+00 -3.425608e+01 2
--5.889194e-01  2.922841e+01 2
-multi 4 2.5
- 3.280539e+01 -1.885161e+01 1
--3.257931e+01 -1.841556e+01 1
--2.726673e+00 -3.591265e+01 2
--1.633044e-01  3.124377e+01 2''' % (env().omega_matter, env().omega_lambda)
+
+        for obj in env().objects:
+            print >>f, '''\
+object %(objname)s
+pixrad %(pixrad)i
+maprad %(maprad)f
+zlens %(zlens).2f
+models %(models)i
+g %(g).2f
+cosm %(om).2f %(ol).2f''' % { \
+            'objname': obj0.name,
+            'pixrad':obj0.basis.pixrad, 
+            'maprad':obj0.basis.maprad,
+            'zlens': obj0.z,
+            'models': len(env().models),
+            'g': convert('nu to H0^-1 in Gyr', env().nu),
+            'om':env().omega_matter, 
+            'ol':env().omega_lambda,
+             }
+
+            for src in obj0.sources:
+                print >>f, 'multi %i %.2f' % (len(src.images), src.z)
+                for img in src.images:
+                    print >>f, '% 12.12e % 12.12e %i' % (img.pos.real, img.pos.imag, img.parity+1)
 
         #print >>f, env().input_file
         print >>f, '#END INPUT'
