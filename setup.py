@@ -2,8 +2,8 @@ import os
 from distutils.core import setup, Extension
 from distutils.sysconfig import get_python_lib
 
-libraries=[#'profiler', 
-           'gomp']
+libraries=[#'profiler', 'gomp'
+]
 #libraries=None #['rt']
 extra_compile_args = [#'-mssse3', 
                       #'-mfpmath=sse',
@@ -23,7 +23,7 @@ extra_compile_args = [#'-mssse3',
                       '-Wall']
 
 #extra_compile_args += ['-fnested-functions']
-#extra_compile_args += ['-arch_only i386']
+#extra_compile_args += ['-arch_only x86_64']
 extra_link_args = [] #'-L/local/ATLAS/lib']
 
 

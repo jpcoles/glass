@@ -10,13 +10,15 @@ from glcmds import *
 from plots import *
 from scales import *
 from potential import *
+from log import log as Log, setup_log
+from pytipsy import load_tipsy
+
 #import filters
 
 def str_range(v, fmt):
     def tostr(v):
         return str(v) if v is None else fmt%v
 
-    print v
     if v is None:
         return str(v)
     if isinstance(v, (int, float)):
@@ -35,58 +37,59 @@ def pp(str, units, width=80):
 
 def report():
     _env = env()
-    print '=' * 80
-    print 'COSMOLOGY'
-    print '=' * 80
-    print pp('Omega Matter = %.4g' % _env.omega_matter, '')
-    print pp('Omega Lambda = %.4g' % _env.omega_lambda, '')
-    print pp('g            = %s'   % str_range(_env.g, '%.4g'), '[Gyr]')
-    print pp('1/g          = %s'   % str_range(_env.h_spec, '%.4g'), '[km/s/Mpc]')
-    print 
-    print '=' * 80
-    print 'OBJECTS'
-    print '=' * 80
+    Log( '=' * 80 )
+    Log( 'COSMOLOGY' )
+    Log( '=' * 80 )
+    Log( pp('Omega Matter = %.4g' % _env.omega_matter, '') )
+    Log( pp('Omega Lambda = %.4g' % _env.omega_lambda, '') )
+    Log( pp('g            = %s'   % str_range(_env.g, '%.4g'), '[Gyr]') )
+    Log( pp('1/g          = %s'   % str_range(_env.h_spec, '%.4g'), '[km/s/Mpc]') )
+    Log(  )
+    Log( '=' * 80 )
+    Log( 'OBJECTS' )
+    Log( '=' * 80 )
     for i,o in enumerate(_env.objects):
-        print pp('%i. %s at z=%.4g' % (i+1, o.name, o.z), '')
+        Log( pp('%i. %s at z=%.4g  Distance(Obs->Lens) = %.4f' % (i+1, o.name, o.z, cosmo.angdist(0,o.z)), '') )
         if o.maprad:
-            print pp('    Map radius            = %.4g' % o.maprad, '[arcsec]')
-            print pp('    Map radius g=14       = %.4g' % Arcsec_to_Kpc(o,o.maprad,14), '[kpc]')
+            Log( pp('    Map radius            = %.4g' % o.maprad, '[arcsec]') )
+            Log( pp('    Map radius g=14       = %.4g' % Arcsec_to_Kpc(o,o.maprad,14), '[kpc]') )
         else:
-            print pp('    Map radius            = Not specified', '')
-            print pp('    Map radius g=14       = Not specified', '')
-        print pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]')
-        print pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]')
-        print pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]')
-        print pp('    Critical density g=14 = %.4e' \
-            % Kappa_to_MsunKpc2(o,1,14), '[Msun/kpc^2]')
+            Log( pp('    Map radius            = Not specified', '') )
+            Log( pp('    Map radius g=14       = Not specified', '') )
+        Log( pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]') )
+        Log( pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]') )
+        Log( pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]') )
+        Log( pp('    Critical density g=14 = %.4e' \
+            % Kappa_to_MsunKpc2(o,1,14), '[Msun/kpc^2]') )
         if o.shear:
-            print pp('    Shear                 = %.4g' % o.shear.phi, '')
+            pass
+            #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )
         else:
-            print pp('    Shear                 = Not specified', '')
-        print pp('    Steepness             = %s' % str_range(o.steep, '%.4g'), '')
-        print
+            Log( pp('    NO SHEAR', '') )
+            #Log( pp('    Shear                 = Not specified', '') )
+#       Log( pp('    Steepness             = %s' % str_range(o.steep, '%.4g'), '') )
+        Log( )
         for src in o.sources:
-            print '    Source at z=%.4f' % src.z,
-            print '[NO IMAGES]' if len(src.images) == 0 else ''
-            print pp('        Distance (Obs->Src)  = %.4f' % cosmo.angdist(0,src.z), '[arcsec]')
-            print pp('        Distance (Lens->Src) = %.4f' % cosmo.angdist(o.z,src.z), '[arcsec]')
-            print pp('        Dos/Dls              = %.4f' % src.zcap, '')
-            for img in src.images:
-                print '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' \
-                    % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2])
+            Log( '    Source at z=%.4f %s' % (src.z, '[NO IMAGES]' if len(src.images) == 0 else '' ))
+            Log( pp('        Distance (Obs->Src)  = %.4f' % cosmo.angdist(0,src.z), '[arcsec]') )
+            Log( pp('        Distance (Lens->Src) = %.4f' % cosmo.angdist(o.z,src.z), '[arcsec]') )
+            Log( pp('        Dos/Dls              = %.4f' % src.zcap, '') )
+            for img in src.images: 
+                Log( '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' 
+                    % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2]) )
 
-    print 
-    print '=' * 80
-    print 'MISCELLANEOUS'
-    print '=' * 80
-    print 'filled_beam = %s' % _env.filled_beam
-    print 
-    print '=' * 80
-    print 'SYSTEM'
-    print '=' * 80
-    print 'Number of CPUs detected = %i' % _env.ncpus_detected
-    print 'Number of CPUS used     = %i' % _env.ncpus
-    print 
+    Log(  )
+    Log( '=' * 80 )
+    Log( 'MISCELLANEOUS' )
+    Log( '=' * 80 )
+    Log( 'filled_beam = %s' % _env.filled_beam )
+    Log(  )
+    Log( '=' * 80 )
+    Log( 'SYSTEM' )
+    Log( '=' * 80 )
+    Log( 'Number of CPUs detected = %i' % _env.ncpus_detected )
+    Log( 'Number of CPUS used     = %i' % _env.ncpus )
+    Log( )
 
 
 # Although this is technically a command, we need it here so that it
@@ -104,7 +107,7 @@ def model(nmodels):
     env().models = []
     env().solutions = []
     for i,m in enumerate(generate_models(env().objects, nmodels)):
-        print 'Model %i/%i complete.' % (i+1, nmodels)
+        Log( 'Model %i/%i complete.' % (i+1, nmodels) )
         env().models.append(m)
         env().solutions.append(m['sol'])
 
@@ -116,7 +119,7 @@ def _post_process():
     nmodels = len(env().models)
     for i,m in enumerate(env().models):
         for o,data in m['obj,data']:
-            print 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name)
+            Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )
             for f,args,kwargs in o.post_process_funcs:
                 f((o,data), *args, **kwargs)
 
@@ -125,7 +128,7 @@ def _post_process():
 # input file.
 def reprocess(state_file):
     for o in env().objects:
-        print o.name
+        Log( o.name )
         o.init()
 
     e = loadstate(state_file, setenv=False)
@@ -141,7 +144,7 @@ def reprocess(state_file):
 
 def XXXreprocess(state_file):
     for o in env().objects:
-        print o.name
+        Log( o.name )
         o.init()
 
     env().solutions = loadstate(state_file, setenv=False).solutions
@@ -176,28 +179,30 @@ if __name__ == "__main__":
             assert ncpus > 0
             env().ncpus = ncpus
 
+
     with open(list[0], 'r') as f:
         env().input_file = f.read()
 
     env().argv = list[1:]
 
-#   try:
-    if 1:
+    try:
+#    if 1:
         #-----------------------------------------------------------------------
         # We exec the original file, not the text we stored in input_file
         # because if there is an exception the stack trace will print the
         # correct filename instead of <string>.
         #-----------------------------------------------------------------------
         execfile(list[0])
-#   except (SyntaxError, TypeError, KeyError, NameError, ValueError):
-#       traceback.print_exc(file=sys.stderr, limit=0)
-#   except Exception:
-#       fname = 'glass-crash.%i' % os.getpid()
-#       savestate(fname)
-#       traceback.print_exc(file=sys.stderr)
-#       print >>sys.stderr
-#       print >>sys.stderr, "********************************************************************************"
-#       print >>sys.stderr, "* GLASS EXCEPTION CAUGHT. State automatically saved to %s." % fname
-#       print >>sys.stderr, "********************************************************************************"
-#       print >>sys.stderr
+    except (SyntaxError, TypeError, KeyError, NameError, ValueError, KeyboardInterrupt):
+        traceback.print_exc(file=sys.stderr)
+        #traceback.print_exc(file=sys.stderr, limit=0)
+    except: #(Exception, Error):
+        fname = 'glass-crash.%i' % os.getpid()
+        savestate(fname)
+        traceback.print_exc(file=sys.stderr)
+        print >>sys.stderr
+        print >>sys.stderr, "********************************************************************************"
+        print >>sys.stderr, "* GLASS EXCEPTION CAUGHT. State automatically saved to %s." % fname
+        print >>sys.stderr, "********************************************************************************"
+        print >>sys.stderr
 

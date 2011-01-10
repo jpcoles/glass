@@ -1,5 +1,5 @@
 from __future__ import division
-from numpy import arctan, log, vectorize
+from numpy import arctan, log, vectorize, array
 from math import pi, sin, cos
 
 @vectorize
@@ -141,9 +141,9 @@ def maginv(r, theta, a):
 
     kappa = (xx+yy)/2
     gamma = (xx-yy)/2
-    return [    0 - sn*gamma + cs*delta,
-            kappa + cs*gamma + sn*delta,
-            kappa - cs*gamma - sn*delta]
+    return array([    0 - sn*gamma + cs*delta,
+                  kappa + cs*gamma + sn*delta,
+                  kappa - cs*gamma - sn*delta])
 
 def maginv_new(r, theta, a):
     #print 'maginv', r, theta, a

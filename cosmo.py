@@ -1,5 +1,5 @@
 from __future__ import division
-from math import sinh, sqrt
+from math import sin,sinh, sqrt
 from numpy import abs
 from environment import env
 
@@ -10,9 +10,12 @@ def angdist(z1, z2):
     #---------------------------------------------------------------------------
     # Curvature of the universe.
     #---------------------------------------------------------------------------
-    if M+L < 0: k = -1
-    if M+L > 0: k =  1
-    if abs(M+L-1) < 1e-4: k = 0
+    tol = 1e-4
+    k = 0
+    if M+L+tol < 1:
+        k = -1
+    elif M+L-tol > 1:
+        k = 1
 
     dz = 5e-4
     if    z1 < z2: zi,zf = z1,z2
@@ -32,9 +35,9 @@ def angdist(z1, z2):
         else:
             delksi = sqrt(abs(M+L-1) * factor)
             if k == 1:
-                dis = sin(delksi)/(zs+1)/sqrt(abs(M+L-1))
+                dis = sin(delksi)/(z2+1)/sqrt(abs(M+L-1))
             else:
-                dis = sinh(delksi)/(zs+1)/sqrt(abs(M+L-1))
+                dis = sinh(delksi)/(z2+1)/sqrt(abs(M+L-1))
 
     else:
         z = zi + dz/2
@@ -55,17 +58,22 @@ def scales(zl, zs):
 
         where g = 978.
     """
-    #gfac = 8.584977      # H0^-1 in g days/arcsec^2
-    gfac = 365.25e9 / (206265*206265)
-    cee   = 8.393000e-7   # speed of light in kpc/day
-    csfpg = 1.665000e15   # c^2/4piG in M_sol/kpc
+    gfac = 365.25e9 / (206265**2) # H0^-1 in g days/arcsec^2
+    cee   = 8.393000e-7           # speed of light in kpc/day
+    csfpg = 1.665000e15           # c^2/4piG in M_sol/kpc
 
     Dl = angdist(0, zl)   # radians
-    return {'time':    (1+zl)*gfac*Dl, 
+    return {'time':    (1+zl)*Dl*gfac, 
             'timebg':  (1+zl)*Dl, 
-            'angdist': cee*gfac*Dl*206265, # 206265 arcsec/rad
-            'critden': cee*gfac*Dl*csfpg,
+            'angdist':    cee*Dl*gfac*206265, # 206265 arcsec/rad
+            'critden':    cee*Dl*gfac*csfpg,
             'g': 978}
+
+#   return {'time':    (1+zl)*Dl*gfac, 
+#           'timebg':  (1+zl)*Dl, 
+#           'angdist':    cee*Dl*gfac*206265, # 206265 arcsec/rad
+#           'critden':    cee*Dl*gfac*csfpg,
+#           'g': 978}
 
     #return zl, (1+zl)*gfac*Dr, (1+zl)*Dr, cee*gfac*Dl*206265, cee*gfac*Dr*csfpg
 

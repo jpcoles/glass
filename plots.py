@@ -1,15 +1,18 @@
 from __future__ import division
-from numpy import array, mat, empty_like, amin, amax, repeat, logspace, arange, ptp, amin, amax, sqrt, sort, abs
-from numpy import put, empty, zeros, ogrid, mgrid, atleast_2d, linspace, meshgrid, log10, log, diff, ravel, meshgrid, vstack, argsort, logical_and
+from numpy import array, mat, empty_like, amin, amax, repeat, logspace, arange, \
+                  ptp, amin, amax, sqrt, sort, abs, put, empty, zeros, ogrid, \
+                  mgrid, atleast_2d, linspace, meshgrid, log10, log, diff, ravel, \
+                  meshgrid, vstack, argsort, logical_and, inf
 from numpy.random import random
 from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
                   hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
-                  suptitle, figure, grid, gray, jet, semilogx, imread, imshow, errorbar
+                  suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
+                  text, xlim, ylim
 import matplotlib
 import matplotlib.cm as cm  
 from matplotlib import rc
 from matplotlib.ticker import LogLocator
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Ellipse
 from matplotlib.lines import Line2D
 from scales import density_to_physical, distance_to_physical, Arcsec_to_Kpc
 import math
@@ -17,12 +20,14 @@ import math
 #import matplotlib.axes3d as p3
 import mpl_toolkits.mplot3d as p3
 
+from environment import env, Object
 
 
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 
 rc('text', usetex=True)
+rc('text', dvipnghack=True)
 
 _styles = [{'label':r'rejected', 'c':'r', 'ls':'-', 'z':-1, 'line':Line2D([],[],c='r',ls='-')},
            {'label':r'accepted', 'c':'b', 'ls':'-', 'z': 0, 'line':Line2D([],[],c='b',ls='-')},
@@ -34,14 +39,16 @@ _source_colors = 'c'
 def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
 
-def img_plot(model, src_index=None):
+def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None):
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]
 
-    if isinstance(model, (list, tuple)):
-        obj,_ = model
-    else:
-        obj = model
+    obj,_ = model['obj,data'][obj_index]
+
+#   if isinstance(model, (list, tuple)):
+#       obj,_ = model
+#   else:
+#       obj = model
 
     for i,src in enumerate(obj.sources):
         if src_index is not None and i not in src_index: continue
@@ -49,20 +56,48 @@ def img_plot(model, src_index=None):
 
         for img in src.images:
             #print img.pos
+            if not with_maximum and img.parity_name == 'max': continue
+
             xs.append(img.pos.real)
             ys.append(img.pos.imag)
-            if img.parity_name == 'unk':
-                cs.append('red')
+            if not color:
+                if img.parity_name == 'unk':
+                    cs.append('red')
+                else:
+                    cs.append(source_color(i))
             else:
-                cs.append(source_color(i))
+                cs.append(color)
 
         if xs and ys:
-            over(scatter,xs, ys, s=80, c=cs, zorder=1000)
+            over(scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=0.5)
             a = gca()
             for x,y in zip(xs,ys):
                 a.add_artist(Circle((0,0),sqrt(x**2 + y**2), fill=False))
 
-def src_plot(models, hilite_model=None):
+def Re_plot(models=None, obj_index=0, color=None):
+
+    if models is None:
+        models = env().models
+    elif not hasattr(models, '__getslice__'):
+        models = [models]
+
+    if not color: color = 'k'
+
+    for m in models:
+        obj,data = m['obj,data'][obj_index]
+        Re, a,b, theta = data['Re']
+        #gca().add_artist(Circle((rl.real,rl.imag), 0.1, fill=False, lw=2, color='r'))
+        #gca().add_artist(Circle((rs.real,rs.imag), 0.1, fill=False, lw=2, color='r'))
+        #gca().add_artist(Line2D([0,A[0]], [0,A[1]], lw=2, color=color))
+        #gca().add_artist(Line2D([0,B[0]], [0,B[1]], lw=2, color=color))
+        #gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
+        #gca().add_artist(Circle((0,0), b, fill=False, lw=2, color=color))
+        gca().add_artist(Ellipse((0,0), 2*a,2*b, theta, fill=False, lw=2, color=color))
+        #gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
+
+def src_plot(models=None, obj_index=0, hilite_model=None, hilite_color='g'):
+
+    if models is None: models = env().models
 
     def plot(model, hilite=False):
         obj, data = model
@@ -74,20 +109,25 @@ def src_plot(models, hilite_model=None):
             ys.append(data['src'][i].imag)
             cs.append(source_color(i))
         if hilite:
-            over(scatter,xs, ys, s=80, c='g', zorder=2000)
+            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000)
         else:
             over(scatter,xs, ys, s=80, c=cs, zorder=1000)
 
-    if isinstance(models, (list,tuple)) and len(models)>0 and isinstance(models[0], (list,tuple)):
+    if isinstance(models, dict):
+        plot(models['obj,data'][obj_index])
+    else:
         for mi,model in enumerate(models):
             for m in model['obj,data']:
                 plot(m, mi==hilite_model)
-    else:
-        plot(models)
+
+    #if isinstance(models, (list,tuple)) and len(models)>0 and isinstance(models[0], (list,tuple)):
+    #else:
 
 _src_hist_xlabel = r'$r$ $(\mathrm{arcsec})$'
 _src_hist_ylabel = r'$\mathrm{Number}$'
-def src_hist(models, hilite_model=None):
+def src_hist(models=None, hilite_model=None):
+    if models is None: models = env().models
+
     d = []
     hilite=[]
     for mi,model in enumerate(models):
@@ -117,159 +157,48 @@ def image_plot(im, extent):
 #
 #    grid
 
-def mass_plot(model, with_contours=True, only_contours=False, clevels=30):
+def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels=30):
     print "WARNING: use of mass_plot is deprecated. Use kappa_plot instead."
-    return kappa_plot(model, with_contours, only_contours, clevels)
+    return kappa_plot(model, obj_index, with_contours, only_contours, clevels)
 
-def kappa_plot(model, with_contours=True, only_contours=False, clevels=30, with_colorbar=True):
-    obj, data = model
+def kappa_plot(model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
+    obj, data = model['obj,data'][obj_index]
 
     R = obj.basis.mapextent
 
     grid = obj.basis.kappa_grid(data)
+    #grid = grid.copy()
+    #grid[grid >= 1] = 0
 
     kw = {'extent': [-R,R,-R,R],
           'interpolation': 'nearest',
           'aspect': 'equal',
-          'origin': 'upper'}
+          'origin': 'upper',
+          'cmap': cm.terrain,
+          'fignum': False,
+          'vmin': -1,
+          'vmax':  1}
 
     if not only_contours:
-        imshow(grid, **kw)
+        matshow(log10(grid), **kw)
         #imshow(grid, fignum=False, **kw)
         #matshow(grid, fignum=False, **kw)
         if with_colorbar: colorbar()
 
     if with_contours:
+        kw.pop('cmap')
         over(contour, grid, clevels, extend='both', colors='w', alpha=0.7, **kw)
 
     xlabel('arcsec')
     ylabel('arcsec')
 
-def kappa_ensemble_plot(models, obj, with_contours=True, only_contours=False, clevels=30, with_colorbar=True):
-
-    grid = None
-
-    n = 0
-    for mi,model in enumerate(models):
-        for oi,od in enumerate(model['obj,data']):
-            if oi == obj:
-                o,d = od
-                if grid is None:
-                    grid = o.basis.kappa_grid(d).copy()
-                    L    = o.basis.pixrad
-                    R    = o.basis.mapextent
-                    S    = o.basis.subdivision
-                else:
-                    grid += o.basis.kappa_grid(d)
-                n+=1
-
-    grid /= len(models)
-
-    if not only_contours:
-        matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
-        if with_colorbar: colorbar()
-
-    if with_contours:
-        over(contour, grid, clevels, extent=[-R,R,-R,R], extend='both', colors='w', alpha=0.7, origin='upper')
-
-    xlabel('arcsec')
-    ylabel('arcsec')
-
-def kappa_plot3d(model, with_contours=True, only_contours=False, clevels=30, with_colorbar=True):
-    obj, data = model
-
-    L = obj.basis.pixrad
-    R = obj.basis.mapextent
-    r = obj.maprad
-    S = obj.basis.subdivision
-
-    coords = obj.basis.xy
-
-    X = linspace(-R, R, (2*L+1) * S)
-    Y = X
-    X, Y = meshgrid(X, Y)
-    Z = obj.basis.kappa_grid(data)
-
-    print Z.shape
-    print (2*L+1) * S
-
-    ax = p3.Axes3D(gcf(), rect=gca().get_position())
-    #ax.plot_wireframe(X,Y,Z, rstride=1, cstride=1, cmap=cm.jet)
-    ax.plot_surface(X,Y,Z, rstride=1, cstride=1, cmap=cm.jet)
-    #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.jet, levels=clevels)
-
-def kappa_ensemble_plot3d(models, obj, with_contours=True, only_contours=False, clevels=30, with_colorbar=True):
-
-    Z = None
-
-    for mi,model in enumerate(models):
-        for oi,od in enumerate(model['obj,data']):
-            if oi == obj:
-                o,d= od
-                if Z is None:
-                    Z = o.basis.kappa_grid(d).copy()
-                    L = o.basis.pixrad
-                    R = o.basis.mapextent
-                    S = o.basis.subdivision
-                else:
-                    Z += o.basis.kappa_grid(d)
-
-    Z /= len(models)
-
-    X = linspace(-R, R, (2*L+1) * S)
-    Y = X
-    X, Y = meshgrid(X, Y)
-
-    ax = p3.Axes3D(gcf(), rect=gca().get_position())
-    #ax.plot_wireframe(X,Y,Z, rstride=1, cstride=1, cmap=cm.jet)
-    ax.plot_surface(X,Y,Z, rstride=1, cstride=1, cmap=cm.jet)
-    #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.jet, levels=clevels)
-
-def kappa_compare_plot(models, obj, base):
-    obj0,data0 = base
-    N  = len(models)
-    Nk = len(data0['kappa'])
-    kappas = empty((N, Nk))
-
-    i=0
-    for mi,model in enumerate(models):
-        for oi,od in enumerate(model['obj,data']):
-            if oi == obj:
-                kappas[i,:] = od[1]['kappa']
-                i += 1
-
-    bs = argsort(data0['kappa'])
-    ks = kappas.take(bs, axis=1)
-
-    every=2
-    ks.sort(axis=0) 
-    xs = arange(Nk)[::every]
-    ys = ks[int(N*0.50),:][::every]
-    ds = data0['kappa'][bs][::every]
-
-    hi = ks[int(N*1.00)-1,:][::every]
-    lo = ks[int(N*0.00),:][::every]
-    es = vstack((ys-lo, hi-ys))
-    errorbar(xs, ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
-
-    print sum(logical_and(lo <= ds, ds <= hi))/(Nk/every)
-
-    hi = ks[int(N*0.84),:][::every]
-    lo = ks[int(N*0.16),:][::every]
-    es = vstack((ys-lo, hi-ys))
-    errorbar(xs, ys, es, ecolor="#555555", ls='None', barsabove=True)
-
-    print sum(logical_and(lo <= ds, ds <= hi))/(Nk/every)
-
-    plot(xs, ds, "k-", lw=4)
-
-def potential_plot(model, sys):
-    obj, data = model
+def potential_plot(model, obj_index, src_index, with_colorbar=True):
+    obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     grid = obj.basis.potential_grid(data)
     levs = obj.basis.potential_contour_levels(data)
 #   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
-    matshow(grid, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+    matshow(grid, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
     colorbar()
 #   contour(grid, extent=[-R,R,-R,R], origin='upper')
     #print levs
@@ -277,19 +206,25 @@ def potential_plot(model, sys):
         over(contour, grid, lev, colors = system_color(i), 
              extent=[-R,R,-R,R], origin='upper', extend='both')
 
+
     xlabel('arcsec')
     ylabel('arcsec')
+    figure();
+    xs = linspace(-R, R, grid.shape[0])
+    plot(xs, grid[grid.shape[1]//2, :], 'k-')
+    plot(xs, 5*xs, 'r-')
+
     #suptitle('Potential')
 
-def critical_curve_plot(model, src_index):
-    obj, data = model
+def critical_curve_plot(model, obj_index, src_index):
+    obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     g = obj.basis.maginv_grid(data)[src_index]
-    matshow(g, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
     over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
 
-def arrival_plot(model, src_index, only_contours=False, clevels=300, with_colorbar=True):
-    obj, data = model
+def arrival_plot(model, obj_index, src_index, only_contours=False, clevels=30, with_colorbar=False):
+    obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
 
@@ -298,7 +233,7 @@ def arrival_plot(model, src_index, only_contours=False, clevels=300, with_colorb
     if lev: lev = lev[src_index]
 
     if not only_contours:
-        matshow(g, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+        matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
         if with_colorbar: colorbar()
         #lev = 50 if not lev else lev[src_index]
 
@@ -308,9 +243,9 @@ def arrival_plot(model, src_index, only_contours=False, clevels=300, with_colorb
     loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
     print loglev
     over(contour, g, 
-         loglev,
-         #clevels, #logspace(amin(g), amax(g), 50),  
-         colors='w',
+         #loglev,
+         clevels, #logspace(amin(g), amax(g), 50),  
+         colors='k',
          linewidths=1, 
          extent=[-R,R,-R,R], 
          origin='upper')
@@ -321,35 +256,36 @@ def arrival_plot(model, src_index, only_contours=False, clevels=300, with_colorb
              extent=[-R,R,-R,R], origin='upper')
     #grid()
 
-def srcdiff_plot(model, src_index):
-    obj, data = model
+def srcdiff_plot(model, obj_index, src_index, with_colorbar=False):
+    obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
 
     g   = obj.basis.srcdiff_grid(data)[src_index]
 
-    matshow(g, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+    if with_colorbar: colorbar()
 #   over(contour, g, 50,  colors='w',               linewidths=1, 
 #        extent=[-R,R,-R,R], origin='upper', extend='both')
     #grid()
 
-def deflect_plot(model, which, src_index):
-    obj, data = model
+def deflect_plot(model, obj_index, which, src_index):
+    obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
 
     g = obj.basis.deflect_grid(data, which, src_index)
 
-    matshow(g, fignum=False, cmap=cm.jet, extent=[-R,R,-R,R], interpolation='nearest')
+    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
     #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
-def grad_tau(model, which, src_index):
+def grad_tau(model, obj_index, which, src_index):
 
     assert which in ['x','y'], "grad_tau: 'which' must be one of 'x' or 'y'"
 
     print "grad_tau"
-    obj,ps = model
+    obj,ps = model['obj,data'][obj_index]
     R = obj.basis.mapextent
 
     #---------------------------------------------------------------------------
@@ -367,7 +303,7 @@ def grad_tau(model, which, src_index):
     d[d<0] = -1
     matshow(d, fignum=False, extent=[-R,R,-R,R])
 
-def deriv(model, src_index, m, axis, R):
+def deriv(model, obj_index, src_index, m, axis, R):
     w = central_diff_weights(5)
     #d = correlate1d(m, w, axis=axis, mode='constant')
     d = (correlate1d(m, -w, axis=0, mode='constant')) \
@@ -387,7 +323,7 @@ def deriv(model, src_index, m, axis, R):
     #R -= model[0].basis.top_level_cell_size * 2
     matshow(d, extent=[-R,R,-R,R])
     colorbar()
-    arrival_plot(model, src_index, only_contours=True, clevels=200)
+    arrival_plot(model, obj_index, src_index, only_contours=True, clevels=200)
     #img_plot(model, src_index=src_index)
     #matshow(d)
 
@@ -397,76 +333,98 @@ def deriv(model, src_index, m, axis, R):
 #   matshow(d, extent=[-R,R,-R,R])
 #   img_plot(model, src_index=src_index)
 
-def inout_plot(model, src_index):
+def inout_plot(model, obj_index, src_index):
     print "inout"
-    obj,ps = model
+    obj,ps = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     arrival = obj.basis.arrival_grid(ps)[src_index]
 
-    deriv(model, src_index, arrival, 0, R)
-    deriv(model, src_index, arrival, 1, R)
+    deriv(model, obj_index, src_index, arrival, 0, R)
+    deriv(model, obj_index, src_index, arrival, 1, R)
 
 def _data_plot(models, X,Y, x_label, y_label, **kwargs):
     with_legend = False
     use = [0,0,0]
+    if models is None:
+        models = env().models
+    elif not hasattr(models, '__getslice__'):
+        models = [models]
+
+
     every = kwargs.get('every', 1)
     plotf = kwargs.get('plotf', loglog)
-    mark_images = kwargs.get('mark_images', False)
+    mark_images = kwargs.get('mark_images', True)
     hilite_model = kwargs.get('hilite_model', None)
+    hilite_color = kwargs.get('hilite_color', 'g')
+
+    convert = (lambda x: x) if mark_images == 'arcsec' \
+              else (lambda x: Arcsec_to_Kpc([obj,data], x))
+
     normal = []
     hilite = []
     imgs = {}
+    xmin, xmax = inf, -inf
+    ymin, ymax = inf, -inf
     for mi,m in enumerate(models[::every]):
         for [obj, data] in m['obj,data']:
+
+            if not data.has_key(X): 
+                print "Missing information for object %s with key %s. Skipping plot." % (obj.name,X)
+                continue
+            if not data.has_key(Y): 
+                print "Missing information for object %s with %s. Skipping plot." % (obj.name,Y)
+                continue
 
             si = m.get('accepted', 2)
             use[si] = 1
 
             s = _styles[si]
 
+            #xmin, xmax = min(xmin, amin(data[X])), max(xmax, amax(data[X]))
+            #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
+
             if hilite_model == mi:
-                hilite += [data[X], data[Y], 'g' + s['ls']]
+                hilite += [data[X], data[Y], hilite_color + s['ls']]
             else:
                 normal += [data[X], data[Y], s['c'] + s['ls']]
 
-            if mark_images == 'arcsec':
+            if mark_images:
                 for i,src in enumerate(obj.sources):
                     for img in src.images:
-                        imgs[abs(img.pos)] = 0
-                        #axvline(abs(img.pos), c=system_color(i), ls='-', zorder=-2, alpha=0.5)
-            elif mark_images:
-                for i,src in enumerate(obj.sources):
-                    for img in src.images:
-                        x = Arcsec_to_Kpc([obj, data], abs(img.pos))
-                        imgs[x] = 0
+                        imgs[convert(abs(img.pos))] = 0
 
-    if normal:
-        #plotf(*normal, zorder=0)
-        plotf(*normal, zorder=0, drawstyle='steps')
-    if hilite:
-        #plotf(*hilite, zorder=1000)
-        plotf(*hilite, zorder=1000, drawstyle='steps')
+    if normal: plotf(*normal, zorder=0,    drawstyle='steps-post', alpha=0.5)
+    if hilite: plotf(*hilite, zorder=1000, drawstyle='steps-post', lw=2, alpha=0.5)
 
-    for x in imgs.keys():
+    for x in imgs.iterkeys():
         axvline(x, c=system_color(0), ls='-', zorder=-2, alpha=0.5)
 
     if use[0] or use[1]:
-        lines = [s['line']  for s,u in zip(_styles, use) if u]
+        lines  = [s['line']  for s,u in zip(_styles, use) if u]
         labels = [s['label'] for s,u in zip(_styles, use) if u]
         legend(lines, labels)
 
+    #axis('scaled')
     xlabel(x_label)
     ylabel(y_label)
+    #xlim(xmin, xmax)
+    #ylim(0, ymax)
 
 _enckappa_xlabel = r'$R$ $(\mathrm{arcsec})$'
 _enckappa_ylabel = r'$\kappa(<R)$'
-def enckappa_plot(models, **kwargs):
+def enckappa_plot(models=None, **kwargs):
+    #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
+    kwargs.setdefault('mark_images', 'arsec')
     _data_plot(models, 'R', 'enckappa', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
 
 _sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
 def sigma_plot(models, **kwargs):
-    _data_plot(models, 'R_kpc', 'sigma', _sigma_xlabel, _sigma_ylabel, plotf=plot,**kwargs)
+    kwargs.setdefault('mark_images', 'arsec')
+    xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
+    xlabel = kwargs.setdefault('xlabel',      _sigma_xlabel)
+    kwargs.setdefault('plotf',       semilogy)
+    _data_plot(models, xaxis, 'sigma', xlabel, _sigma_ylabel, **kwargs)
 
 _sigp_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigp_ylabel = r'$\sigma_p$ $()$'
@@ -507,11 +465,17 @@ def drhoa_plot(models, **kwargs):
 _encmass_xlabel = r'$R$ $(\mathrm{kpc})$'
 _encmass_ylabel = r'$M(<R)$ $(M_\odot)$'
 def encmass_plot(models, **kwargs):
-    _data_plot(models, 'R_kpc', 'encmass', _encmass_xlabel, _encmass_ylabel, plotf=plot, **kwargs)
+    kwargs.setdefault('mark_images', 'arsec')
+    xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
+    xlabel = kwargs.setdefault('xlabel',      _encmass_xlabel)
+    kwargs.setdefault('plotf',       semilogy)
+    _data_plot(models, xaxis, 'encmass', xlabel, _encmass_ylabel, **kwargs)
+    #_data_plot(models, 'R_kpc', 'encmass', _encmass_xlabel, _encmass_ylabel, plotf=plot, **kwargs)
 
 
 _H0_xlabel = r'$H_0^{-1}$ (Gyr)'
-def H0_plot(models, objects=None, key='accepted'):
+def H0_plot(models=None, objects=None, key='accepted'):
+    if models is None: models = env().models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -536,14 +500,22 @@ def H0_plot(models, objects=None, key='accepted'):
     xlabel(_H0_xlabel)
     ylabel(r'$\mathrm{Number}$')
 
-    if accepted:
-        h = array(accepted)
+    if accepted or not not_accepted:
+        if accepted:
+            h = array(accepted)
+        else:
+            h = array(accepted + notag)
+
         hs = sort(h)
         l = len(hs)
 
         m = hs[l * 0.50]
         u = hs[l * 0.68]
         l = hs[l * 0.32]
+
+        axvline(m, c='r', ls='-', zorder = 2)
+        axvline(u, c='g', ls='-', zorder = 2)
+        axvline(l, c='g', ls='-', zorder = 2)
 
         print 'H0_plot: ', m, u, l
         print 'H0_plot: ', m, (u-m), (m-l)
@@ -552,7 +524,8 @@ def H0_plot(models, objects=None, key='accepted'):
 
 
 _scale_factor_xlabel = r'Scale factor'
-def scale_factor_plot(models, objects=None, key='accepted'):
+def scale_factor_plot(models=None, objects=None, key='accepted'):
+    if models is None: models = env().models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -575,7 +548,8 @@ def scale_factor_plot(models, objects=None, key='accepted'):
 
 
 _chisq_xlabel = r'$\chi^2$'
-def chisq_plot(models, objects=None, key='accepted'):
+def chisq_plot(models=None, objects=None, key='accepted'):
+    if models is None: models = env().models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]

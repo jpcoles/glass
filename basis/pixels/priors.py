@@ -1,11 +1,16 @@
 from __future__ import division
 from environment import env
 import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi
+from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians
 from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
 from itertools import izip
+from log import log as Log
+from scales import convert
+
+from basis import neighbors
 
 all_priors = []
+def_priors = []
 inc_priors = []
 exc_priors = []
 acc_objpriors = []
@@ -17,27 +22,32 @@ def _make_prior(f, where):
             self.f, self.check, self.where = f, None, where
         def __eq__(self, f):
             return self.f == f
-    print f
+    #print f
     all_priors.append(P(f, where))
     return all_priors[-1]
 
-def object_prior(f):   return _make_prior(f, 'object_prior')
+def object_prior(f):   return  _make_prior(f, 'object_prior')
 def ensemble_prior(f): return  _make_prior(f, 'ensemble_prior')
+def default_prior(p):  
+    def_priors.append(p)
+    return p
 
 def object_prior_check(check): 
     def x(f):
         all_priors[all_priors.index(check)].check = f
     return x
 
-def include_prior(f):
-    assert not exc_priors, 'Cannot both include and exclude priors.'
-    i = all_priors.index(f)
-    inc_priors.append(all_priors[i])
+def include_prior(*f):
+    #assert not exc_priors, 'Cannot both include and exclude priors.'
+    for p in f:
+        i = all_priors.index(p)
+        inc_priors.append(all_priors[i])
 
-def exclude_prior(f):
-    assert not inc_priors, 'Cannot both include and exclude priors.'
-    i = all_priors.index(f)
-    exc_priors.append(all_priors[i])
+def exclude_prior(*f):
+    #assert not inc_priors, 'Cannot both include and exclude priors.'
+    for p in f:
+        i = all_priors.index(p)
+        exc_priors.append(all_priors[i])
 
 
 ##############################################################################
@@ -51,9 +61,10 @@ def new_row(obj, n=1):
 ##############################################################################
 
 
+@default_prior
 @object_prior
 def image_pos(o, leq, eq, geq):
-    print "Image Position"
+    Log( "Image Position" )
 
     b = o.basis
 
@@ -65,7 +76,7 @@ def image_pos(o, leq, eq, geq):
     for i,src in enumerate(o.sources):
         for img in src.images:
             rows = new_row(o, 2)
-            print "\tposition", img.pos #, b.cell_size
+            Log( "\tposition %s" % img.pos ) #, b.cell_size
             rows[0,0] = (img.pos.real + b.map_shift) * src.zcap
             rows[1,0] = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
@@ -92,10 +103,9 @@ def image_pos(o, leq, eq, geq):
 
 @object_prior_check(image_pos)
 def check_image_pos(o, sol):
-    print "Check Image Position"
+    Log( "Check Image Position (' ':-12  '.':-11  '-':-10  '*':-9)" )
     b    = o.basis
     offs = b.array_offset
-    print offs
 
     pix_start,    pix_end    = offs+b.pix_start,    offs+b.pix_end
     srcpos_start, srcpos_end = offs+b.srcpos_start, offs+b.srcpos_end
@@ -104,7 +114,7 @@ def check_image_pos(o, sol):
 
     rows = new_row(o, 2)
     for i,src in enumerate(o.sources):
-        print 'src.zcap=',src.zcap
+        res = ''
         for img in src.images:
             rows[:,:] = 0
             r0 = (img.pos.real + b.map_shift) * src.zcap
@@ -124,15 +134,25 @@ def check_image_pos(o, sol):
             r0 += sol[srcpos+0] * -src.zcap
             r1 += sol[srcpos+1] * -src.zcap
 
-            print r0, r1
+            r0 = log10(abs(r0)) if r0 else 0
+            r1 = log10(abs(r1)) if r1 else 0
+            res += '['
+            res += ' ' if r0 <= -12 else '.' if r0 <= -11 else '-' if r0 <= -10 else '*' if r0 <= -9 else '%-4i' % r0
+            res += ' '
+            res += ' ' if r1 <= -12 else '.' if r1 <= -11 else '-' if r1 <= -10 else '*' if r1 <= -9 else '%-4i' % r1
+            res += ']'
+            #res += '[%-4i %-4i]' % (r0, r1)
+
+        Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )
 
 
+@default_prior
 @object_prior
 def time_delay(o, leq, eq, geq):
-    print "Time Delay"
+    Log( "Time Delay" )
 
     b  = o.basis
-    H0 = 1+b.H0
+    nu = 1+b.H0
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
@@ -141,8 +161,12 @@ def time_delay(o, leq, eq, geq):
 
     tscale = o.scales['time']
 
+    zLp1 = o.z + 1
+
     for i, src in enumerate(o.sources):
         for img0,img1,delay in src.time_delays:
+
+            delay = [d / zLp1 if d else d for d in delay]
 
             row = new_row(o)
 
@@ -175,16 +199,16 @@ def time_delay(o, leq, eq, geq):
 
             if len(delay) == 1:
                 d = delay[0]
-                if d is None: row[H0] =  0 / tscale; geq(row)
-                else:         row[H0] = -d / tscale;  eq(row)
+                if d is None: row[nu] =  0; geq(row)
+                else:         row[nu] = -d;  eq(row)
             else:
                 l,u = delay
-                if   l is None: row[H0] = -u / tscale; leq(row)
-                elif u is None: row[H0] = -l / tscale; geq(row)
+                if   l is None: row[nu] = -u; leq(row)
+                elif u is None: row[nu] = -l; geq(row)
                 else:
                     row2 = row.copy()
-                    row[H0]  = -l / tscale; geq(row)
-                    row2[H0] = -u / tscale; leq(row2)
+                    row[nu]  = -l; geq(row)
+                    row2[nu] = -u; leq(row2)
 
             #print 'row:', len(row), row
 
@@ -192,11 +216,10 @@ def time_delay(o, leq, eq, geq):
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
-    print "JPC Time Delay"
-
+    Log( "JPC Time Delay" )
 
     b  = o.basis
-    H0 = 1+b.H0
+    nu = 1+b.H0
 
     pix_start, pix_end = 1+b.pix_start, 1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
@@ -238,54 +261,39 @@ def JPC1time_delay(o, leq, eq, geq):
 
             # TODO: Ptmass
 
-            row[H0] = 0
+            row[nu] = 0
             leq(row)
 
             #print row
 
+@default_prior
 @object_prior
 def hubble_constant(o, leq, eq, geq):
     """This requires a particular hubble constant for the object."""
-    print "Hubble Constant"
-    on = False
+    Log( "Hubble Constant" + str(env().h_spec))
 
-    H0 = 1+o.basis.H0
+    nu = 1+o.basis.H0
 
-#   if not env().h_spec:
-#       row = zeros(o.basis.nvar)
-#       row[0] = 0
-#       row[o.basis.H0] = -1
-#       geq(row)
-    if len(env().h_spec) == 1:
-        h, = env().h_spec
+    if len(env().nu) == 1:
+        h, = env().nu
         row = new_row(o)
-        row[0] = h
-        row[H0] = -1
+        row[ [0,nu] ] = h, -1
         eq(row)
     else:
-        lb, ub = env().h_spec
+        lb, ub = env().nu
         if ub is not None:
             row = new_row(o)
-            row[0] = ub
-            row[H0] = -1
+            row[ [0,nu] ] = ub, -1
             leq(row)
 
         if lb is not None:
             row = new_row(o)
-            row[0] = lb
-            row[H0] = -1
+            row[ [0,nu] ] = lb, -1
             geq(row)
-
-#       row = zeros(1+o.basis.nvar)
-#       row[0] = env().h_spec / o.scales['time']
-#       row[H0] = -1
-#       eq(row)
-        on = True
-    print "\t", on
 
 #@object_prior
 def parity(o, leq, eq, geq):
-    print "Parity"
+    Log( "Parity" )
 
     b = o.basis
 
@@ -329,9 +337,10 @@ def parity(o, leq, eq, geq):
                 geq(rows[0])
                 leq(rows[1])
 
+@default_prior
 @object_prior
 def J1parity(o, leq, eq, geq):
-    print "J1 Parity"
+    Log( "J1 Parity" )
 
     b = o.basis
 
@@ -375,97 +384,9 @@ def J1parity(o, leq, eq, geq):
 
 
 #@object_prior
-def J2parity(o, leq, eq, geq):
-    print "Parity"
-
-    b = o.basis
-
-    MINIMUM, SADDLE, MAXIMUM = 0,1,2
-
-    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
-
-# B1115 Iterations
-
-    M = [[ (-0.93447255300632492414, -0.35603517758480146549),
-           (0.74714385909724179147, -0.66466236076167328761),
-           (0.98996250756997195008, -0.14133022891714641656),
-           (0.79116942416136204486,  0.6115970423997967309)]]
-
-    M = [[ (-0.99973532389059382997,  0.02300613321202587061),
-           (0.84458748009647599542, -0.53541758326028543458),
-           (0.97789726566482826353, -0.20908595793417703024),
-           (0.87275959025376470546,  0.48815028179862884894) ]]
-
-    M = [[ (-0.93454685931096703744, -0.35584008733138494662),
-           (0.74792424441611915498, -0.66378409487918377252),
-           (0.98990206260351198964, -0.14175297687637017363),
-           (0.78633424730469037023,  0.61780130423605139622) ]]
-
-    M = [[ (-0.93403178581837331684, -0.35718989778679405278),
-           (0.74726696353443322618, -0.66452395382711970662),
-           (0.98991661792316720803, -0.14165129565082729135),
-           (0.7862352941716893584,  0.6179272305043345126) ]]
-
-# D0_0211 iterations
-
-    if 0:
-        M = [[ (0.8817900298449217189,   0.47164217714925804614),
-               (0.95420449518838390546, -0.29915511254578502909) ],
-             [ (-0.99975063472780190121 ,-0.02233088357761452841),
-               (-0.96364089936189545327, -0.26720070560722203323) ]]
-
-        M = [[ (0.99840037595348163357,  0.05653927215614497348),
-               (0.99783543748806946549, -0.06576047211655966507) ],
-             [ (-0.99814953668160477651,  0.06080709187502369995),
-               (0.88598184776783817096, -0.46371992131661438075) ]]
-
-#       M = [[ (0.99998158084853316918, -0.00606942861138636339),
-#              (0.99811561515346303164, -0.06136137862551745148) ],
-#            [ (-0.99987787876445743951, -0.01562778159205616135),
-#              (-0.77811691937027627208, -0.62811946299228049728) ]]
-
-    for i,src in enumerate(o.sources):
-        for j,img in enumerate(src.images):
-            parity = img.parity
-
-            c,s = M[i][j]
-
-            xy,xx,yy = maginv_new5(img.pos - o.basis.ploc, o.basis.cell_size, c,s)
-
-            rows = new_row(o,2)
-            rows[0,0] = src.zcap * (c**2 + s**2)
-            rows[1,0] = src.zcap * (c**2 + s**2)
-
-            # TODO: Shear term
-
-            rows[0,pix_start:pix_end] = xx
-            rows[1,pix_start:pix_end] = yy
-
-            if parity == MINIMUM:
-                #rows[0,0] -= 1e-4
-                #rows[1,0] -= 1e-4
-                geq(rows[0])
-                geq(rows[1])
-
-            if parity == MAXIMUM:
-                #rows[0,0] += 1e-4
-                #rows[1,0] += 1e-4
-                leq(rows[0])
-                leq(rows[1])
-
-            if parity == SADDLE:
-                #rows[0,0] -= 1e-4
-                #rows[1,0] += 1e-4
-                geq(rows[0])
-                leq(rows[1])
-
-#@object_prior
 def magnification(o, leq, eq, geq):
 
-    print "Magnification"
+    Log( "Magnification" )
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
@@ -545,44 +466,44 @@ def magnification(o, leq, eq, geq):
 
             for r in rows: leq(r)
 
+@default_prior
 @object_prior
 def annular_density(o, leq, eq, geq):
-    print "Annular density"
-    on = False
-    if o.kann_spec != 0:
+    theta = o.prior_options.get('annular_density', None)
+    Log( "Annular density %s" % theta )
+    if theta is not None and theta != 0:
         row = new_row(o)
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
             row[o.basis.rings[r]] = -1
-            row[0] = kann_spec * len(o.basis.rings[r])
+            row[0] = theta * len(o.basis.rings[r])
         eq(row)
         on = True
-
-    print "\t", on
         
+@default_prior
 @object_prior
 def external_shear(o, leq, eq, geq):
-    print "External Shear"
-    on = False
+    on = None
     for s in xrange(1+o.basis.shear_start, 1+o.basis.shear_end):
         row = new_row(o)
-        row[0] =  0.1
-        row[s] = -1
+        row[ [0,s] ] = 0.1, -1
         geq(row)
-        on = True
+        on = [0.1, -1]
 
-    print "\t", on
+    Log( "External Shear %s" % on)
 
 ##############################################################################
 
+@default_prior
 @object_prior
-def steepness(o, leq, eq, geq):
-    print "Steepness" 
+def profile_steepness(o, leq, eq, geq):
+    steep = o.prior_options.get('steepness', None)
 
-    if o.steep is None: return
+    Log( "Profile Steepness %s" % steep )
 
-    minsteep, maxsteep = o.steep
+    if steep is None: return
 
-    assert maxsteep >= minsteep
+    minsteep, maxsteep = steep
+    assert maxsteep is None or maxsteep >= minsteep
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -614,8 +535,6 @@ def steepness(o, leq, eq, geq):
             lpc = -((l+1) ** minsteep)
             row[pix_start+r0] = lc  / len(r0)
             row[pix_start+r1] = lpc / len(r1)
-            #print r0,r1
-            #print row
             eq(row)
         else:
             row = new_row(o)
@@ -623,17 +542,16 @@ def steepness(o, leq, eq, geq):
             lpc = -((l+1) ** minsteep)
             row[pix_start+r0] = lc  / len(r0)
             row[pix_start+r1] = lpc / len(r1)
-            #print r0,r1
-            #print row
             geq(row)
 
-            row = new_row(o)
-            lc  = l ** maxsteep
-            lpc = -((l+1) ** maxsteep)
-            row[pix_start+r0] = lc  / len(r0)
-            row[pix_start+r1] = lpc / len(r1)
-            leq(row)
-            c += 1
+            if maxsteep is not None:
+                row = new_row(o)
+                lc  = l ** maxsteep
+                lpc = -((l+1) ** maxsteep)
+                row[pix_start+r0] = lc  / len(r0)
+                row[pix_start+r1] = lpc / len(r1)
+                leq(row)
+                c += 1
 
 
 #   print "\tmaxsteep=", maxsteep, "minsteep=",minsteep
@@ -647,15 +565,18 @@ def steepness(o, leq, eq, geq):
 #       row[pix_start+r1] = lpc / len(r1)
 #       geq(row)
 #       c += 1
-    print "\tsteepness eqs =", c
+    Log( "\t# eqs = %i" % c )
         
+#@default_prior
 #@object_prior
 def gradient(o, leq, eq, geq):
-    print "Gradient"
+    cen_ang = o.prior_options.get('gradient', pi/4)
+
+    Log( "Gradient %s" % cen_ang )
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
-    cs = cos(o.cen_ang)
-    sn = sin(o.cen_ang)
+    cs = cos(cen_ang)
+    sn = sin(cen_ang)
     c = 0
     for ri,r,nbrs in o.basis.nbrs2:
         if ri == o.basis.central_pixel: continue
@@ -694,16 +615,20 @@ def gradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    print "\tgradient eqs =", c
-    print "\tsn=", sn
+    Log( "\t# eqs = %i" % c )
+    Log( "\tsn=%g" % sn )
 
+#@default_prior
 @object_prior
 def Pgradient(o, leq, eq, geq):
-    print "PGradient"
+    cen_ang = o.prior_options.get('gradient', pi/4)
+
+    Log( "PGradient %s" % cen_ang )
+
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
-    cs = cos(o.cen_ang)
-    sn = sin(o.cen_ang)
+    cs = cos(cen_ang)
+    sn = sin(cen_ang)
     c = 0
     for ri,r,nbrs in o.basis.nbrs2:
         if ri == o.basis.central_pixel: continue
@@ -731,107 +656,319 @@ def Pgradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    print "\tgradient eqs =", c
-    print "\tsn=", sn
+    Log( "\tgradient eqs = %i" % c )
+    Log( "\tsn=%g" % sn )
 
-#@object_prior
+@default_prior
+@object_prior
+def J2gradient(o, leq, eq, geq):
+
+    opts = o.prior_options.get('J2Gradient', None)
+
+    if not opts:
+        opts = {}
+        #Log( 'J2Gradient NOT ACTIVE' )
+        #return
+
+    Lmin = 1.1*o.basis.top_level_cell_size
+
+    theta = opts.get('theta', 45)
+    L     = opts.get('size',  Lmin)
+
+    assert (L >= 1.1*o.basis.top_level_cell_size), 'size=%f < %f is too small' % (L, Lmin)
+
+    Log( "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    theta = radians(90-theta)
+    cs = cos(theta)
+    sn = sin(theta)
+    c = 0
+    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+        if i == o.basis.central_pixel: continue
+
+        nbrs = neighbors(r,L, o.basis.ploc)
+
+        px = r.real
+        py = r.imag
+        x = cs*px - sn*py
+        y = sn*px + cs*py
+
+        #dr = ri - o.basis.int_ploc[nbrs]
+        dr = r - o.basis.ploc[nbrs]
+        dir = dr / abs(dr)
+
+        dW = abs(dr)*(L + o.basis.top_level_cell_size - abs(dr))
+        #dW = abs(dr)*(o.basis.grad_rmax + 1 - abs(dr))
+
+        row = new_row(o)
+        row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real
+        geq(row)
+        c += 1
+
+        if sn != 0:
+            x =  cs*px + sn*py
+            y = -sn*px + cs*py
+            row = new_row(o)
+            row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real
+            geq(row)
+            c += 1
+
+    Log( "\tgradient eqs = %i" % c )
+    Log( "\tsn=%g" % sn )
+
+#@default_prior
+@object_prior
 def central_pixel_as_maximum(o, leq, eq, geq):
     cp = o.basis.central_pixel + 1+o.basis.pix_start
-    print "Central pixel as maximum", cp
+    Log( "Central pixel as maximum %i" % cp )
 
     for i in xrange(1+o.basis.pix_start, 1+o.basis.pix_end):
         if i == cp: continue
         row = new_row(o)
-        row[cp] = 1
-        row[i]  = -1
+        row[ [cp,i] ] = 1, -1
         geq(row)
 
 @object_prior
-def smoothness(o, leq, eq, geq):
+def central_pixel_max(o, leq, eq, geq):
+
+    cp = o.basis.central_pixel + 1+o.basis.pix_start
+    Log( "Central pixel maximum %i" % cp )
+
+    g = o.prior_options.get('central_pixel_maximum')
+    M     = g['M']
+    H0inv = g['H0inv']
+    nu    = g['nu']
+
+    max_nu = env().nu[-1] # should this be min?
+
+    M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
+
+    row = new_row(o)
+    row[ [0,cp] ] = -M, 1
+    leq(row)
+
+@object_prior
+def PLsmoothness(o, leq, eq, geq):
     """A pixel cannot be more that twice the average of the neighbouring pixels."""
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
-    smoothness_factor = 2
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "Smoothness [None]" )
+        return
 
-    print "Smoothness (factor=%.1f)" % smoothness_factor
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,r,nbrs in o.basis.nbrs:
-        #-----------------------------------------------------------------------
-        # Skip the central pixel. This allows any value of mass.
-        # XXX: Some versions of PixeLens don't.
-        #-----------------------------------------------------------------------
-        #if i == o.basis.central_pixel: continue
+        if not include_central_pixel and i == o.basis.central_pixel: continue
 
         row = new_row(o)
         row[pix_start + nbrs] = 1
         row[pix_start + i]    = -len(nbrs) / smoothness_factor
-        # XXX: row[pix_start + i]    = -len(nbrs) / 2
 
         geq(row)
         c += 1
 
-    print "\tsmoothness eqs =", c
+    Log( "\t# eqs = %i" % c )
 
-#@object_prior
-def more_smoothness(o, leq, eq, geq):
-    """The average of the neighbouring pixels can't be more than twice
-       the value of a given pixel."""
+@object_prior
+def JCsmoothness(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
 
-    print "More Smoothness"
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
-    smoothness_factor = 3
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "Smoothness [None]" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,r,nbrs in o.basis.nbrs:
-        #-----------------------------------------------------------------------
-        # Skip the central pixel. This allows any value of mass.
-        # XXX: Some versions of PixeLens don't.
-        #-----------------------------------------------------------------------
-        #if i == o.basis.central_pixel: continue
+        if not include_central_pixel and i == o.basis.central_pixel: continue
 
-        for n in nbrs:
-            row = new_row(o)
-            row[pix_start + i] = 1
-            row[pix_start + n]  = -smoothness_factor
-            leq(row)
-            c += 1
+        row = new_row(o)
+        row[pix_start + nbrs] = 1
+        row[pix_start + i]    = -len(nbrs) / ((smoothness_factor-1) * (1 - abs(r) / o.basis.pixrad) + 1)
 
-    print "\tsmoothness factor =", smoothness_factor
-    print "\tsmoothness eqs =", c
+        geq(row)
+        c += 1
 
+    Log( "\t# eqs = %i" % c )
+
+@default_prior
+@object_prior
+def smoothness(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {})
+
+    Lmin = 1.5*o.basis.top_level_cell_size
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    L                     = smth.get('L', Lmin)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( "Smoothness (factor=%.1f L=%.1f include_central_pixel=%s)" % (smoothness_factor, L, include_central_pixel) )
+
+    c=0
+    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+        if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        nbrs = neighbors(r,L, o.basis.ploc)
+
+        row = new_row(o)
+        row[pix_start + nbrs] = 1
+        row[pix_start + i]    = -len(nbrs) / ((smoothness_factor-1) * (1 - abs(ri) / o.basis.pixrad) + 1)
+
+        geq(row)
+        c += 1
+
+    Log( "\t# eqs = %i" % c )
+
+@default_prior
 @ensemble_prior
 def shared_h(objs, nvars, leq, eq, geq):
     """This requires that all objects have the same hubble constant."""
-    print "Shared h"
+    Log( "Shared h" )
     on = False
     for o1,o2 in izip(objs[:-1], objs[1:]):
         offs1 = o1.basis.array_offset
         offs2 = o2.basis.array_offset
         row = zeros(1+nvars)
-        row[offs1 + o1.basis.H0] =  1 #o1.scales['time']
-        row[offs2 + o2.basis.H0] = -1 #o2.scales['time']
+        row[offs1 + o1.basis.H0] =  1
+        row[offs2 + o2.basis.H0] = -1
         eq(row) 
         on = True
-    print "\t", on
+    Log( "\t%s" % on )
 
 
-#@object_prior
+@object_prior
 def max_kappa(o, leq, eq, geq):
+    Log( "Maximum Kappa" )
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
     for i in xrange(pix_start, pix_end):
         row = new_row(o)
-        row[i] = 1
-        row[0] = -6
+        row[ [0,i] ] = -6, 1
         leq(row)
 
     
-#@object_prior
+@object_prior
 def min_kappa(o, leq, eq, geq):
+    Log( "Minimum Kappa" )
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
     for i in xrange(pix_start, pix_end):
         row = new_row(o)
-        row[i] = 1
-        row[0] = -0.6
+        row[ [0,i] ] = -0.6, 1
         geq(row)
 
+@object_prior
+def min_kappa_grid(o, leq, eq, geq):
+
+    g = o.prior_options.get('minkappa')
+
+    if not g: 
+        Log( "Minimum Kappa Grid [None]" )
+        return
+
+    Log( "Minimum Kappa Grid" )
+
+    X,Y,M = g['grid']
+    H0inv = g['H0inv']
+    nu    = g['nu']
+
+    max_nu = env().nu[-1]
+
+    g  = o.basis.grid_mass(X,Y,M, H0inv, to_kappa=False)
+    #g *= convert('den_stel to den_lum', 1., o.dL, nu) 
+    g *= convert('Msun/ly^2 to kappa',  1., o.dL, max_nu)
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    a = g.ravel()[o.basis.insideL].take(o.basis.pmap)
+
+    #nu = 1+o.basis.H0
+
+    for i,j in enumerate(xrange(pix_start, pix_end)):
+        row = new_row(o)
+        #row[ [nu,j] ] = -a[i], 1
+        row[ [0,j] ] = -a[i], 1
+        geq(row)
+
+#@object_prior
+def Xmin_kappa_grid(o, leq, eq, geq):
+
+    g = o.prior_options.get('minkappa')
+
+    if not g: 
+        Log( "Minimum Kappa Grid [None]" )
+        return
+
+    Log( "Minimum Kappa Grid" )
+
+    X,Y,M = g['grid']
+    H0inv = g['H0inv']
+
+    g = o.basis.grid_mass(X,Y,M, H0inv) * H0inv
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    a = g.ravel()[o.basis.insideL].take(o.basis.pmap)
+
+    nu = 1+o.basis.H0
+
+    for i,j in enumerate(xrange(pix_start, pix_end)):
+        row = new_row(o)
+        row[ [nu,j] ] = -a[i], 1
+        #row[ [0,j] ] = -a[i], 1
+        geq(row)
+
+@object_prior
+def min_kappa_model(o, leq, eq, geq):
+    Log( "Minimum Kappa Model" )
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    a = o.basis.min_kappa_model
+
+    for i,j in enumerate(xrange(pix_start, pix_end)):
+        row = new_row(o)
+        row[ [0,j] ] = -a[i], 1
+        geq(row)
+
+@object_prior
+def smoothness2(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness2', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "Smoothness [None]" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    for i,r,nbrs in o.basis.nbrs:
+        if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        for n in nbrs:
+            row = new_row(o)
+            row[pix_start + i] = 1
+            row[pix_start + n] = -smoothness_factor
+
+            leq(row)
+            c += 1
+
+    Log( "\t# eqs = %i" % c )

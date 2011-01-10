@@ -6,14 +6,13 @@ from environment import env, set_env, Image, Source
 from shear import Shear
 import cosmo
 #from handythread import parallel_map
+from scales import convert
 
 def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
 def redshifts(*args):           assert False, "redshifts not implemented"
 def double(*args):              assert False, "double() not supported. Use source()."
 def quad(*args):                assert False, "quad() not supported. Use source()."
 def multi(*args):               assert False, "multi() not supported. Use source()."
-def minsteep(a):                assert False, "minsteep not supported. Use steepness()."
-def maxsteep(a):                assert False, "maxsteep not supported. Use steepness()."
 
 
 def globject(name):
@@ -27,11 +26,13 @@ def zlens(z):
     o = env().current_object()
     assert o.z is None, 'zlens() can only be called once per object.'
     o.z = z
+    o.dL = cosmo.angdist(0,o.z)
     o.scales = cosmo.scales(o.z, 0)
 
-def cosm(om, ol):
-    cosmo.omega_matter = om
-    cosmo.omega_lambda = ol
+def omega(om, ol):
+    assert len(env().objects) == 0, 'omega() must be used before any objects are created.'
+    env().omega_matter = om
+    env().omega_lambda = ol
 
 #def lens(zsrc, img0, img0parity, *imgs):
 #    print 'lens() is now deprecated. Use source() instead.'
@@ -59,6 +60,7 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
                                      prev.pos.real-img[0]) * 180/math.pi
             image = Image(img, parity)
             src.add_image(image)
+            if time_delay: time_delay = convert('days to years', time_delay)
             src.add_time_delay(prev,image, time_delay)
             prev = image
 
@@ -77,21 +79,18 @@ def symm(v=False):
     assert False, "Symmetry not yet supported."
     env().current_object().symm = v
 
-def dgcone(theta):
-    assert (0 < theta <= 90), "dgcone: need 0 < theta <= 90"
-    env().current_object().cen_ang = (90-theta) * math.pi/180
-
-def steep(lb, ub):
-    env().current_object().steep = [lb, ub]
-
 def g(*args):
     env().g      = array(args)
     env().h_spec = 1 / array(args)
     #h = args if len(args) > 1 else [args[0], args[0]]
     #env().h_spec = (1/h[0], 1/h[1])
 
-def kann(theta):
-    env().current_object().kann_spec = theta
+def t0(*args):
+    """Set H0^-1 (or a range) in Gyr"""
+
+    #env().H0inv   = args
+    env().nu      = convert('H0^-1 in Gyr to nu', array(args))
+    #env().h_spec = 1 / array(args)
 
 def maprad(r):
     env().current_object().maprad = r

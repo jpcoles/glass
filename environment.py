@@ -2,6 +2,7 @@ from __future__ import division
 import numpy, os, subprocess
 from numpy import arctan2, pi, linspace, atleast_2d, abs
 from potential import poten2d
+from collections import defaultdict 
 
 def _detect_cpus():
     """
@@ -37,16 +38,12 @@ class Object:
         self.shear      = None
         self.scales     = None
         self.z          = None       # [redshift]
-        self.kann_spec  = 0.0   
-        #self.h_spec     = 0.0       # [Gyr]
-        self.steep      = None      
-        #self.maxsteep   = self.minsteep # TODO: This should be right, but setting to 0 skips a test in priors
-        self.cen_ang    = pi/4
         self.symm       = False
 
         self.maprad     = None      # [arcsec]
 
         self.basis = None
+        self.prior_options = defaultdict(dict)
 
         self.post_process_funcs = []
         self.post_filter_funcs = []
@@ -123,6 +120,7 @@ class Environment:
 
         self.h_spec       = [None, None]
         self.g            = None
+        self.nu           = None
         self.filled_beam  = True
 
         self.ncpus_detected = _detect_cpus()
@@ -148,7 +146,11 @@ def env():
     return _env
 
 def new_env():
+    inp = env().input_file
+    ncpus = env().ncpus
     set_env(Environment())
+    env().ncpus = ncpus
+    env().input_file = inp
 
 #FIXME: Resetting the environment discards options set on the commandline (e.g., ncpus)
 def set_env(env):

@@ -226,9 +226,9 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
     DBG(3) fprintf(stderr, "> choosePivot()\n");
 
-    #pragma omp parallel for  \
-            private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
-            shared(bcol, t, L, tabl)
+//  #pragma omp parallel for  \
+//          private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
+//          shared(bcol, t, L, tabl)
     for (r = 1; r <= R; r++)
     {
         col = &tabl->data[r * tabl->rows + 0];
@@ -382,6 +382,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     PyObject *lhv = PyObject_GetAttrString(o, "lhv");
     PyObject *rhv = PyObject_GetAttrString(o, "rhv");
 
+    long nthreads = PyInt_AsLong(PyObject_GetAttrString(o, "nthreads"));
+    if (nthreads < 1) nthreads = 1;
+
     int32_t *left  = (int32_t *)PyArray_DATA(lhv), 
             *right = (int32_t *)PyArray_DATA(rhv);
 
@@ -434,6 +437,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     alarm(1);
 
     Py_BEGIN_ALLOW_THREADS
+
+//    omp_set_num_threads(nthreads);
 
     for (n=0;; n++)
     {
@@ -540,9 +545,9 @@ void doPivot0(
 
     dble_t * restrict pcol = tabl->data + (rpiv * tabl->rows);
 
-    #pragma omp parallel for \
-            private(i, col, col_lpiv, xx) \
-            shared(pcol, piv, L, tabl, lpiv)
+//  #pragma omp parallel for \
+//          private(i, col, col_lpiv, xx) \
+//          shared(pcol, piv, L, tabl, lpiv)
     for (r=0; r <= R; ++r)
     {
         if (r == rpiv) continue;

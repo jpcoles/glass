@@ -1,8 +1,12 @@
 from __future__ import division
 from glcmds import *
 from priors import *
+from priors import include_prior, exclude_prior, \
+                   def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
+from plots  import *
 
-cons = 0
+from log import log as Log
+
 def _expand_array(nvars, offs, f):
     """Returns a function that will properly prepare a constraint equation
        for the solver. The solver expects all equations to be of the same
@@ -15,10 +19,6 @@ def _expand_array(nvars, offs, f):
         new_eq = zeros(nvars+1, order='Fortran')
         new_eq[0] = eq[0]
         new_eq[offs+1:offs+len(eq)] = eq[1:]
-        global cons
-        #print "EQ", cons, f
-        cons += 1
-        #if eq[0] == 12.86: print "HAHAHAH"
         f(new_eq)
 
     return work
@@ -29,53 +29,75 @@ def init_model_generator(nmodels, regenerate=False):
 
     objs = env().objects
 
-    if inc_priors:
-        priors = inc_priors
-    elif exc_priors:
-        priors = filter(lambda x: x not in exc_priors, all_priors)
-    else:
-        priors = all_priors
+    # ------------- 
 
-    print '=' * 80
-    print 'PIXEL BASIS MODEL GENERATOR'
-    print '=' * 80
+    nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0)
+    Log( "Number of variables (nvars) = %i" % nvars )
+
+
+    offs = 0
+    for o in objs:
+        o.basis.array_offset = 1+offs
+        offs += o.basis.nvar 
+
+    # ------------- 
+
+    Log( '=' * 80 )
+    Log( 'PIXEL BASIS MODEL GENERATOR' )
+    Log( '=' * 80 )
     if nmodels == 0:
-        print "No models requested."
+        Log( "No models requested." )
+        return
 
-    print 'Priors:'
+    #---------------------------------------------------------------------------
+    # Decide which priors to use. The initial list is the list of default
+    # priors. The user can then modify this list be selecting which priors
+    # should be included from the entire list, or which ones should be excluded.
+    #
+    #---------------------------------------------------------------------------
+    priors = def_priors
+
+    if exc_priors:
+        priors = filter(lambda x: x not in exc_priors, priors)
+
+    if inc_priors:
+        priors += filter(lambda x: x not in priors, inc_priors)
+
+
+    Log( 'Priors:' )
     for p in all_priors:
-        print '    %s' % p.f.__name__,
-        print '[EXCLUDED]' if p not in priors else ''
-    #print ',\n        '.join(map(lambda x: x.f.__name__, priors))
+        Log( '    %s %s' % (p.f.__name__, '[EXCLUDED]' if p not in priors else '') )
 
     lp = filter(lambda x: x.where == 'object_prior',   priors)
     gp = filter(lambda x: x.where == 'ensemble_prior', priors)
 
-    nvars = reduce(lambda s,o: s+o.basis.nvar, objs, 0)
-
+    #---------------------------------------------------------------------------
+    # Initialize our model generator, the simplex.
+    #---------------------------------------------------------------------------
     mg = env().model_gen = env().model_gen_factory(nvars)
 
-    print "nvars=",nvars
-
-    #lp = [smooth,steepness ]
-
-    offs = 0
-    #obj_offs = [offs]
+    #---------------------------------------------------------------------------
+    # Apply the object priors
+    #---------------------------------------------------------------------------
+    Log( 'Applying Priors:' )
     for o in objs:
-        o.basis.array_offset = 1+offs
-        print 'array offset', o.basis.array_offset
-        if nmodels:
-            for p in lp:
-                leq = _expand_array(nvars, offs, mg.leq)
-                eq  = _expand_array(nvars, offs, mg.eq)
-                geq = _expand_array(nvars, offs, mg.geq)
-                p.f(o, leq, eq, geq)
-        offs += o.basis.nvar 
-        #obj_offs.append(offs)
+        offs = o.basis.array_offset - 1
+        Log( 'array offset %i' % offs )
+        for p in lp:
+            leq = _expand_array(nvars, offs, mg.leq)
+            eq  = _expand_array(nvars, offs, mg.eq)
+            geq = _expand_array(nvars, offs, mg.geq)
+            p.f(o, leq, eq, geq)
 
-    if nmodels:
-        for p in gp:
-            p.f(objs, nvars, mg.leq, mg.eq, mg.geq)
+    #---------------------------------------------------------------------------
+    # Apply the ensemble priors
+    #---------------------------------------------------------------------------
+    for p in gp:
+        p.f(objs, nvars, mg.leq, mg.eq, mg.geq)
+
+
+    #---------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
 
     global acc_objpriors
     global acc_enspriors
@@ -85,8 +107,20 @@ def init_model_generator(nmodels, regenerate=False):
     acc_objpriors += lp
     acc_enspriors += gp
 
-def packaged_solution(obj, sol):
-    return obj.basis.packaged_solution(sol)
+def solution_to_dict(obj, sol):
+    return obj.basis.solution_to_dict(sol)
+
+def model_dict(objs, sols):
+    if isinstance(objs, Object):
+        objs = [objs]
+        sols = [sols]
+
+    assert hasatter(objs, '__iter__') and hasatter(objs, '__iter__')
+
+    return {'sol':      sol,
+            'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+            'tagged':   False}
+
 
 def generate_models(objs, n):
 
@@ -103,7 +137,7 @@ def generate_models(objs, n):
             if p.check: p.check(objs, sol)
 
         yield {'sol':  sol,
-               'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
+               'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
                'tagged':  False}
 
 def regenerate_models(objs):
@@ -112,6 +146,29 @@ def regenerate_models(objs):
 
     for sol in env().solutions:
         yield {'sol':  sol,
-               'obj,data': zip(objs, map(lambda x: packaged_solution(x, sol), objs)),
+               'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
                'tagged':  False}
 
+def make_ensemble_average():
+#   Log( "s*********" )
+#   for m in env().models:
+#       Log( m['sol'] )
+#   Log( "s*********" )
+
+
+    sol = mean([m['sol'] for m in env().models], axis=0)
+    objs = env().objects
+    env().ensemble_average = \
+        {'sol'      : sol,
+         'obj,data' : zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+         'tagged'   : False}
+
+def projected_model(obj, X,Y,M, H0inv):
+
+    grid_mass = obj.basis.grid_mass(X,Y,M, 13.7)
+    ps = obj.basis.solution_from_grid(grid_mass, src=[], H0inv=13.7)
+    model = {'sol':      ps,
+             'obj,data': [[obj,ps]],
+             'tagged'  : False}
+
+    return model

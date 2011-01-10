@@ -1,6 +1,7 @@
 from __future__ import division
 import sys
 import numpy
+import gc
 from numpy import isfortran, asfortranarray, sign, logical_and
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt
@@ -11,7 +12,11 @@ from numpy.random import random, normal, seed as ran_set_seed
 
 from pylab import figimage, show, imshow, hist, matshow, figure
 
+from log import log as Log
+
 import csamplex
+
+from copy import deepcopy
 
 set_printoptions(linewidth=10000000, precision=20, threshold=2000)
 
@@ -33,40 +38,13 @@ class SamplexSolution:
         self.vertex = None
 
 class Samplex:
-    data = None
-    n_equations = 0
-    lhv = []
-    rhv = []
+    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
     SML = 1e-6
     EPS = 1e-14
-    nVars = None            # Number of variables + 1(constant column) [N]
-    nLeft = 0               # Number of left hand variables            [L]
-    nSlack = 0               # Number of slack variables               [S]
-    nTemp = 0               # Number of temporary variables            [Z]
-    nRight = 0               # Number of right hand variables          [R]
-    eq_count = 0
-    leq_count = 0
-    geq_count = 0
-
-
-    eq_list = []
-
-    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED \
-        = range(5)
-
-    iteration = 0
-
-    moca = None
-
-    sum_ln_k = 0
-
-    curr_sol = None
-
-    n_solutions = 0
 
     def __init__(self, ncols=None, nthreads=1):
-        print "Samplex created"
-        print "    ncols = %i" % ncols
+        Log( "Samplex created" )
+        Log( "    ncols = %i" % ncols )
         if ncols is not None:
             self.nVars = ncols
             self.nRight = self.nVars
@@ -75,6 +53,29 @@ class Samplex:
 
         self.nthreads = nthreads
         Samplex.pivot = lambda s: csamplex.pivot(s)
+
+        self.data = None
+        self.dcopy = []
+
+        self.n_equations = 0
+        self.lhv = []
+        self.rhv = []
+        self.nVars = None            # Number of variables + 1(constant column) [N]
+        self.nLeft = 0               # Number of left hand variables            [L]
+        self.nSlack = 0               # Number of slack variables               [S]
+        self.nTemp = 0               # Number of temporary variables            [Z]
+        self.nRight = 0               # Number of right hand variables          [R]
+        self.eq_count = 0
+        self.leq_count = 0
+        self.geq_count = 0
+
+        self.eq_list = []
+
+        self.iteration = 0
+        self.moca = None
+        self.sum_ln_k = 0
+        self.curr_sol = None
+        self.n_solutions = 0
 
     def check_data_shape(self, len=None):
 
@@ -87,16 +88,16 @@ class Samplex:
         #print "%6s %6s %6s\n%6i %6i %6i" \
         #    % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
-        print '=' * 80
-        print 'SAMPLEX'
-        print '=' * 80
+        Log( '=' * 80 )
+        Log( 'SAMPLEX' )
+        Log( '=' * 80 )
 
-        print "random seed =", self.random_seed
+        Log( "random seed = %s" % self.random_seed )
 
-        print "N = %i" % self.nVars
-        print "L = %i" % self.nLeft
-        print "R = %i" % self.nRight
-        print "S = %i" % self.nSlack
+        Log( "N = %i" % self.nVars )
+        Log( "L = %i" % self.nLeft )
+        Log( "R = %i" % self.nRight )
+        Log( "S = %i" % self.nSlack )
         self.data = zeros((self.nLeft+1, self.nRight+1), order='Fortran', dtype=numpy.float64)
 
         self.nLeft = 0
@@ -132,7 +133,7 @@ class Samplex:
                     else:
                         out.write("%.4e " % i)
                 out.write("\n")
-            print 'Writing out equations...'
+            Log( 'Writing out equations...' )
             out = open('eqs-new', 'w')
             for f,a in self.eq_list:
                 if f == self._eq:  fs = 'eq'
@@ -140,25 +141,29 @@ class Samplex:
                 if f == self._leq: fs = 'leq'
                 print_array(out, fs, a)
             out.close()
-            print 'done.'
+            Log( 'done.' )
 
-        print "Building matrix"
+        Log( "Building matrix" )
         for i,[f,a] in enumerate(self.eq_list):
             f(a)
             if i%500 == 0:
-                print "%i/%i" % (i,len(self.eq_list))
+                Log( "%i/%i" % (i,len(self.eq_list)) )
 
         #print self.data
 
-        print "    num eqs = %i" % len(self.eq_list)
-        print "    N = %i" % self.nVars
-        print "    L = %i" % self.nLeft
-        print "    R = %i" % self.nRight
-        print "    S = %i" % self.nSlack
+        Log( "    %i equations" % len(self.eq_list) )
+        Log( "    N = %i" % self.nVars )
+        Log( "    L = %i" % self.nLeft )
+        Log( "    R = %i" % self.nRight )
+        Log( "    S = %i" % self.nSlack )
+
+        # We delete this now so that pickeling doesn't fail later when the
+        # state is saved.
+        del self.eq_list
 
 
-        print "%6s %6s %6s\n%6i %6i %6i" \
-            % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
+        Log( "%6s %6s %6s\n%6i %6i %6i" 
+            % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
 
         #print self.lhv
         self.lhv = array(self.lhv, dtype=numpy.int32)
@@ -195,15 +200,25 @@ class Samplex:
 
     def status(self):
         if self.iteration & 15 == 0:
-            print >>sys.stdout, "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0])
+            Log( "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0]) )
 
     def next(self, nsolutions=None):
-        print "Getting solutions"
+        Log( "Getting solutions" )
         if not self.find_feasible(): return
 
-        print "------------------------------------"
-        print "Found feasible"
-        print "------------------------------------"
+        Log( "------------------------------------" )
+        Log( "Found feasible" )
+        Log( "------------------------------------" )
+
+        self.dcopy = [self.data.copy('F'),
+                      self.lhv[:],
+                      self.rhv[:],
+                      self.nVars,
+                      self.nLeft,
+                      self.nSlack,
+                      self.nTemp,
+                      self.nRight]
+
 
         self.curr_sol = self.package_solution()                
         self.moca     = self.curr_sol.vertex.copy()
@@ -232,6 +247,16 @@ class Samplex:
             yield self.interior_point()
 
     def next_solution(self):
+
+#       [self.data,
+#       self.lhv,
+#       self.rhv,
+#       self.nVars,
+#       self.nLeft,
+#       self.nSlack,
+#       self.nTemp,
+#       self.nRight] = [self.dcopy[0].copy('F')] + deepcopy(self.dcopy[1:])
+
         self.start_new_objective()
         while True:
             result = self.pivot()
@@ -239,7 +264,7 @@ class Samplex:
             elif result == self.FEASIBLE:  pass
             elif result == self.UNBOUNDED: raise SamplexUnboundedError()
             else:
-                print result
+                Log( result )
                 raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
             self.status()
@@ -269,7 +294,7 @@ class Samplex:
         return s
 
     def start_new_objective(self):
-        kind=0
+        kind=1
 
         if kind==0:
             xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
@@ -323,13 +348,13 @@ class Samplex:
 
         if self.nTemp == 0: return True
 
-        print "find_feasible"
+        Log( "find_feasible" )
         self.set_auxil_objective()
 
         #print self.data
         #print self.lhv
         #print self.rhv
-        print "------------------------"
+        Log( "------------------------" )
         self.iteration = 1
         while True:
             result = self.pivot()
@@ -364,7 +389,7 @@ class Samplex:
                     col[0] -= col[k]
 
         #self.data[0,:] = [0,0,2,-4,0]
-        print "Auxiliary objective function"
+        Log( "Auxiliary objective function" )
         #print self.data[0,:]
         #print self.nLeft, self.nRight
         #print self.lhv[1:]
@@ -585,6 +610,6 @@ class Samplex:
 
 #           self.add_noise(self.data[self.nLeft])
 
-            print '**\n',self.nRight
+            #Log( '**\n %s' % self.nRight )
             self.data[self.nLeft, self.nRight] = 1.0
 
