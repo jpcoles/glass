@@ -10,7 +10,8 @@ from numpy import histogram, logspace, flatnonzero, isinf
 from numpy.random import random, normal, seed as ran_set_seed
 #from glrandom import random, ran_set_seed
 
-from pylab import figimage, show, imshow, hist, matshow, figure
+if 0:
+    from pylab import figimage, show, imshow, hist, matshow, figure
 
 from log import log as Log
 

@@ -17,9 +17,10 @@ from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, n
                   trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
                   sin, cos, pi, matrix, diag, average, log, sqrt, mean
 
-import pylab
-from pylab import plot, show, matshow, figure, contour, over, scatter, subplot, draw, ion, ioff
-from matplotlib.patches import Circle, Rectangle
+if 0:
+    import pylab
+    from pylab import plot, show, matshow, figure, contour, over, scatter, subplot, draw, ion, ioff
+    from matplotlib.patches import Circle, Rectangle
 
 from scipy.ndimage.filters import correlate
 from scipy.misc import central_diff_weights

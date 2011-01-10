@@ -129,6 +129,8 @@ class Environment:
         #self.ncpus = 3
         self.argv = []
 
+        self.withgfx = True
+
     def current_object(self):
         return self._current_object
 

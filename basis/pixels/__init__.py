@@ -5,9 +5,11 @@ from glcmds import *
 from priors import *
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
-from plots  import *
-
 from log import log as Log
+
+if env().withgfx:
+    from plots  import *
+
 
 def _expand_array(nvars, offs, f):
     """Returns a function that will properly prepare a constraint equation

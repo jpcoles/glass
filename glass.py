@@ -1,17 +1,11 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
-import numpy, pylab
+import numpy
 from environment import env, set_env, new_env
 import cosmo
 from handythread import parallel_map
-
-from glcmds import *
-#from funcs import *
-from plots import *
-from scales import *
-from potential import *
 from log import log as Log, setup_log
-from pytipsy import load_tipsy
+
 
 #import filters
 
@@ -170,7 +164,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2: help()
 
-    optlist, list = getopt.getopt(sys.argv[1:], 't:h')
+    optlist, list = getopt.getopt(sys.argv[1:], 't:h', ['nw'])
     for opt in optlist:
         if   opt[0] == '-h':
             help()
@@ -178,7 +172,17 @@ if __name__ == "__main__":
             ncpus = int(opt[1])
             assert ncpus > 0
             env().ncpus = ncpus
+        elif opt[0] == '--nw':
+            env().withgfx = False
 
+    if env().withgfx:
+        from plots import *
+
+    from glcmds import *
+    #from funcs import *
+    from scales import *
+    from potential import *
+    from pytipsy import load_tipsy
 
     with open(list[0], 'r') as f:
         env().input_file = f.read()
