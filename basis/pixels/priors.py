@@ -131,8 +131,8 @@ def check_image_pos(o, sol):
                 r1 += sol[shear_start+1] * -o.shear.poten_d2y(img.pos)
 
             srcpos = srcpos_start + 2*i
-            r0 += sol[srcpos+0]
-            r1 += sol[srcpos+1]
+            r0 += -sol[srcpos+0]
+            r1 += -sol[srcpos+1]
 
             r0 = log10(abs(r0)) if r0 else 0
             r1 = log10(abs(r1)) if r1 else 0

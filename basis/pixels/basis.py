@@ -253,7 +253,7 @@ class PixelBasis:
 
         self.inner_image_ring, self.outer_image_ring = None,None
 
-        self.map_shift = 10        # [arcsec]
+        #self.map_shift = 10        # [arcsec]
 
         self.lnr = None
         self.subdivision = 5
@@ -296,6 +296,8 @@ class PixelBasis:
             self.maprad = rmax * 1.5
             #self.maprad = rmax+rmin
             #self.maprad = min([rmax+rmin, 2*rmax-rmin])
+
+        self.map_shift = self.maprad        # [arcsec]
 
         self.top_level_cell_size = self.maprad / L
 
