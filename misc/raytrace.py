@@ -17,10 +17,14 @@ from itertools import izip
 
 fig = None
 
-def raytrace(model, obj_index, src_index, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose=False):
+def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose=False):
     global fig
 
-    obj,ps = model['obj,data'][obj_index]
+    if len(model) == 2:
+        [obj,ps], src_index = model
+    else:
+        obj_index, src_index = model[1:]
+        model = model[0]['obj,data'][obj_index]
 
     srcdiff = obj.basis.srcdiff(ps, src_index).copy()
     ploc    = obj.basis.ploc
@@ -181,26 +185,39 @@ def raytrace(model, obj_index, src_index, nimgs=None, eps=None, eps2=None, initi
 
     return imgs
 
-def check_model_magnifications(model,obj_index,src_index, **kw):
+def check_model_magnifications(model, **kw):
     kw = kw.copy()
 
-    obj,ps = model['obj,data'][obj_index]
+    assert len(model) == 2
+    if type(model[1]) == type(0):
+        obj,ps = model[0]['obj,data'][model[1]]
+    else:
+        obj,ps = model
 
-    rt_imgs  = raytrace(model,obj_index,src_index,**kw)
+    #obj,ps = model['obj,data'][obj_index]
 
-    Mrt = 0
-    for _,_,M,_ in rt_imgs:
-        Mrt += abs(M[0])
+    for src_index,_ in enumerate(obj.sources):
+        rt_imgs  = raytrace([[obj,ps],src_index],**kw)
 
-    kw['initial_guess'] = [x.pos for x in obj.sources[0].images]
-    obj_imgs = raytrace(model,obj_index,src_index,**kw)
+        Mrt = 0
+        for _,_,M,_ in rt_imgs:
+            Mrt += abs(M[0])
 
-    Mobj = 0
-    for _,_,M,parity in obj_imgs:
-        Mobj += abs(M[0])
+        kw['initial_guess'] = [x.pos for x in obj.sources[0].images]
+        obj_imgs = raytrace([[obj,ps],src_index],**kw)
 
-    return abs(Mrt-Mobj) / Mobj < 0.05, Mrt, Mobj
+        Mobj = 0
+        for _,_,M,parity in obj_imgs:
+            Mobj += abs(M[0])
 
+        if abs(Mrt-Mobj) / Mobj > 0.05: 
+            return False
+
+    return True
+    #return abs(Mrt-Mobj) / Mobj < 0.05, Mrt, Mobj
+
+def magnification_filter(model):
+    return check_model_magnifications(model)
 
 def raytraceX(obj, ps, sys_index, nimgs=None, eps=None):
 

@@ -168,7 +168,7 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
     R = obj.basis.mapextent
 
     grid = obj.basis.kappa_grid(data)
-    #grid = grid.copy()
+    grid = grid.copy() + 1e-10
     #grid[grid >= 1] = 0
 
     kw = {'extent': [-R,R,-R,R],

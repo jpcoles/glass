@@ -442,11 +442,26 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     for (n=0;; n++)
     {
+        if (Z == 0 && report.obj_val)
+        {
+            if (fabs(tabl.data[0] - report.obj_val) < 1e-7)
+            {
+                ret = NOPIVOT;
+                break;
+            }
+        }
+
         report.step     = n;
         report.obj_val  = tabl.data[0];
         report.nthreads = 0;
 
         ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+
+//      if (report.step > 10000) 
+//      {
+//          ret = NOPIVOT;
+//          break;
+//      }
 
         if (ret != FOUND_PIVOT) break;
 

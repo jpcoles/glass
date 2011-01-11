@@ -1,0 +1,29 @@
+\documentclass{article}
+
+\begin{document}
+
+\noindent[10-JAN-2011]\bigskip
+
+\begin{itemize}
+
+\item {\tt central\_pixel\_as\_maximum} with {\tt dgcone(20)} pushes on upper bound of {\tt t0(11,15)} prior.
+\item Relaxing {\tt dgcone(20)} mildly improves sampling of $H_0^{-1}$
+\item Removing {\tt central\_pixel\_as\_maximum} improves sampling of $H_0^{-1}$, but still pushes on upper bound.
+\item Nearly all models produce more than four images, even though the input is a known quad.
+\item Can we use lensed x-rays(?) from the observed images to build a filter for the galaxy and pick out the central image?
+\item Model ensemble only has four images.
+\item Using new smoothness contraint which is a function of radius. More distant pixels are less free to vary.
+      \[\alpha = (s-1)(1-|r|/R) + 1\] where $0 \le |r| \le R$ is the distance of a pixel and $\alpha$ is the constraint
+      coefficient that varies between $1$ and $s$.
+
+\item
+\item Use magnification of raytraced images to detect models with too many images.
+\item Implement stellar mass contraint:
+      \[\Phi_m = K_m \mathrm{const.}\]
+\item Compare velocity dispersions
+\item Create new Pgradiens which considers pixels within an arcsecond radius. Set radius from input file.
+
+\end{itemize}
+
+
+\end{document}

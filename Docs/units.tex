@@ -1,0 +1,54 @@
+\documentclass{article}
+
+\begin{document}
+
+\noindent[10-JAN-2011]\bigskip
+
+Let $N \equiv 206265$ arcsec/rad and $4\pi G \equiv 1/N^2$. The speed of 
+light $c$ is set to unity and our time unit is years. Length is in light-years.
+Our mass unit then becomes $2.384\times 10^{31}$ kg or $11.988$ solar masses.
+Positions on the sky are in arcseconds.  The Hubble time $H_0^{-1}$ is in
+years.
+
+\begin{verbatim}
+Gsi := 6.673e-11 * kg^(-1) * m^3 / s^2;
+ly  := 9.4605284e15 * m;
+yr  := 31556926 * s;
+solve(4*3.14*Gsi=206265^(-2) / marb * ly^3 / yr^2, marb);
+\end{verbatim}
+
+If we define $\nu \equiv N^2 H_0$ and the projected density $\Sigma \equiv M/L^2$ 
+then $\kappa_\infty$ can be written 
+\[\kappa_\infty = \frac{4\pi G}{c^2}\frac{c}{H_0}d_L\frac{M}{L^2} 
+                = \frac{M}{L^2}\frac{d_L}{\nu}
+                = \Sigma\frac{d_L}{\nu} \]
+with the critical density $\Sigma_\mathrm{crit} = \nu/d_L$.
+
+Light-years and radians are related as follows
+\[\theta_\mathrm{rad} = \frac{L}{d_L}\frac{H_0}{c} = L\frac{\nu}{d_L N^2}\]
+and in arcseconds 
+\[\theta_\mathrm{arcsec} = \frac{L N}{d_L}\frac{H_0}{c} = L\frac{\nu}{d_L N}\]
+
+The arrival time
+\[\tau = \frac12(\theta-\beta)^2 c_\mathrm{LS} - \nabla^{-2}\kappa\]
+is in arcsec$^2$. With the input time delays $D$ in years,
+the time-delay constraint is written
+\[\tau_1 - \tau_0 = \nu D / (1+z_L)\]
+
+A density constraint from stellar mass takes the form $\kappa_\infty \geq \kappa_\mathrm{stel}$.
+Population synthesis models can estimate the stellar mass, but depend on the distance to the lens
+and thus also on $\nu$. The observed density from the luminosity is
+\[\Sigma_\mathrm{lum} = \frac{M}{\theta^2_\mathrm{arcsec}}\left(\frac{\nu_\mathrm{true}}{d_L N}\right)^2\]
+If $\Sigma_\mathrm{lum}$ is derived from a simulated galaxy, then $\nu_\mathrm{true}$ is that from the
+simulation.
+
+If $\nu$ is known then $\Sigma_\mathrm{lum} = \Sigma_\mathrm{stel}$ and the
+constraint is simple: each pixel must be at least $\Sigma_\mathrm{stel} d_L /
+\nu$. If $\nu$ is not known precisely then the constraint must be made weaker
+to account for the scatter in $\nu_\mathrm{model}$. The constraint cannot be
+tied to $\nu$ because $\nu$ does not appear linearly in $\kappa_\infty$.
+Therefore, if we allow models in the range $[\nu_-, \nu_+]$ then the constraint
+must be \[\kappa_\infty \geq \Sigma_\mathrm{lum}\frac{d_L}{\nu_+}\]
+
+
+\end{document}

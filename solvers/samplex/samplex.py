@@ -2,12 +2,12 @@ from __future__ import division
 import sys
 import numpy
 import gc
-from numpy import isfortran, asfortranarray, sign, logical_and
+from numpy import isfortran, asfortranarray, sign, logical_and, any
 from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt
+from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt, arange
 from numpy import argwhere, argmin, inf, isinf
 from numpy import histogram, logspace, flatnonzero, isinf
-from numpy.random import random, normal, seed as ran_set_seed
+from numpy.random import random, normal, random_integers, seed as ran_set_seed
 #from glrandom import random, ran_set_seed
 
 if 0:
@@ -212,6 +212,7 @@ class Samplex:
             Log( "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0]) )
 
     def next(self, nsolutions=None):
+
         Log( "Getting solutions" )
         if not self.find_feasible(): return
 
@@ -219,18 +220,18 @@ class Samplex:
         Log( "Found feasible" )
         Log( "------------------------------------" )
 
+
+        self.curr_sol = self.package_solution()                
+        self.moca     = self.curr_sol.vertex.copy()
+
         self.dcopy = [self.data.copy('F'),
-                      self.lhv[:],
-                      self.rhv[:],
+                      self.lhv.copy(),
+                      self.rhv.copy(),
                       self.nVars,
                       self.nLeft,
                       self.nSlack,
                       self.nTemp,
                       self.nRight]
-
-
-        self.curr_sol = self.package_solution()                
-        self.moca     = self.curr_sol.vertex.copy()
 
         #yield self.curr_sol.vertex[0:self.nVars+1]
 
@@ -251,20 +252,14 @@ class Samplex:
         while self.n_solutions != nsolutions:
             self.iteration=0
             self.n_solutions += 1
-            self.next_solution()
-            self.curr_sol = self.package_solution()                
-            yield self.interior_point()
+            while True:
+                self.next_solution()
+                self.curr_sol = self.package_solution()                
+                p = self.interior_point()
+                if p is not None: break
+            yield p
 
     def next_solution(self):
-
-#       [self.data,
-#       self.lhv,
-#       self.rhv,
-#       self.nVars,
-#       self.nLeft,
-#       self.nSlack,
-#       self.nTemp,
-#       self.nRight] = [self.dcopy[0].copy('F')] + deepcopy(self.dcopy[1:])
 
         self.start_new_objective()
         while True:
@@ -283,27 +278,19 @@ class Samplex:
         s = SamplexSolution()
         #print "***", self.nVars+self.nSlack+1
         s.vertex = zeros(self.nVars+self.nSlack+1)
-        s.lhv    = zeros(self.nLeft+1, numpy.int32)
 
-        s.lhv[0] = self.lhv[0]
-        for l in range(1,self.nLeft+1):
-            lq = self.lhv[l]
-            s.lhv[l] = lq
-            s.vertex[lq] = self.data[l,0]
-
-        #s.lhv    = self.lhv[1:self.nLeft+1]
-
-        #s.vertex[0]     = self.data[0,0]
-        #s.vertex[s.lhv] = self.data[1:self.nLeft+1, 0]
-        #s.vertex[abs(s.vertex) < self.SML] = 0
-        #print s.vertex
-        assert all(s.vertex >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        #assert all(s.vertex >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        assert self.lhv.size == self.nLeft+1, '%i %i' % (self.lhv.size, self.nLeft+1)
+        s.lhv = self.lhv.copy()
+        s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
         s.vertex[0] = self.data[0,0]
+
+        assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        #s.vertex[0] = self.data[0,0]
+
         return s
 
     def start_new_objective(self):
-        kind=1
+        kind=2
 
         if kind==0:
             xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
@@ -315,6 +302,46 @@ class Samplex:
             t = abs(self.obj) * (1-2*self.SML)
             t += self.SML
             self.obj = t * sign(self.obj)
+
+        elif kind==2:
+
+
+#           data        = self.dcopy[0].copy()
+#           self.lhv    = self.dcopy[1].copy()
+#           self.rhv    = self.dcopy[2].copy()
+#           self.nVars  = self.dcopy[3]
+#           self.nLeft  = self.dcopy[4]
+#           self.nSlack = self.dcopy[5]
+#           self.nTemp  = self.dcopy[6]
+#           self.nRight = self.dcopy[7]
+
+            sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]))
+            sv.sort()
+
+            #print sv
+            #sv = arange(0,1+self.nVars+self.nSlack)
+            #sv[self.lhv[1:]] = 0
+
+            #print sv
+
+            # Choose random slack variable
+            #while True:
+            #    r = sv[random_integers(sv.size)]
+            #    if r != 0: break;
+
+            #print self.lhv[1:]
+            #assert self.lhv[1:].size == self.nVars, '%i %i' % (self.lhv[1:].size, self.nVars)
+            assert len(sv) == self.nSlack, '%i %i' % (len(sv), self.nSlack)
+            r = sv[random_integers(len(sv)-1)]
+            r2 = sv[random_integers(len(sv)-1)]
+            #print r
+            
+            self.obj = zeros(1+self.nVars+self.nSlack)
+            self.obj[r] = 1
+            self.obj[r2] = 0
+
+            #print self.obj
+
         else:
 
             self.obj = random(1+self.nVars+self.nSlack) - 0.5
@@ -338,6 +365,8 @@ class Samplex:
                 n   = self.rhv[r]
                 col[0] = sum(col[ks] * obj_vs)
                 col[0] += obj[n] if 0 <= n <= self.nVars else 0
+
+            #print self.data[0,:]
         else:
             #print "obj", obj
             for r in xrange(self.nRight+1):
@@ -444,8 +473,10 @@ class Samplex:
         iv    = sol.vertex[sol.lhv[1:]]
         dist  = iv - self.moca[sol.lhv[1:]]
         a = dist > self.SML
+        if not any(a):
+            return None #self.moca.copy(), 'g'
+
         scale = iv[a] / dist[a]
-        if not len(dist[a]): return self.moca.copy(), 'g'
 
         #print iv
         #print self.moca[sol.lhv]
@@ -470,7 +501,9 @@ class Samplex:
         #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
         assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
-        return self.moca.copy()[:self.nVars+1]
+        s = self.moca.copy()[:self.nVars+1]
+        #print s
+        return s
 
 
     #=========================================================================
