@@ -535,9 +535,10 @@ class PixelBasis:
         ps['R']     = self.rs + self.radial_cell_size / 2
         ps['R_kpc'] = ps['R'] * rscale
 
-        ps['enckappa'] = cumsum([    sum(ps['kappa'][r])                              for r in self.rings])
-        ps['encmass']  = cumsum([    sum(ps['kappa'][r]*self.cell_size[r]**2)*dscale1 for r in self.rings])
-        ps['sigma']    =  array([average(ps['kappa'][r]                     )*dscale2 for r in self.rings])
+        ps['enckappa']   = cumsum([    sum(ps['kappa'][r])                              for r in self.rings])
+        ps['encmass']    = cumsum([    sum(ps['kappa'][r]*self.cell_size[r]**2)*dscale1 for r in self.rings])
+        ps['sigma']      =  array([average(ps['kappa'][r]                     )*dscale2 for r in self.rings])
+        ps['kappa prof'] =  array([average(ps['kappa'][r]                     )         for r in self.rings])
 
         ps['Re'] = estimated_Re(obj, ps,0)
 
@@ -786,12 +787,17 @@ class PixelBasis:
 #           dist    = empty_like(ploc)
 #           cell_size = self.top_level_cell_size / self.subdivision
 
+            x = False
             _or = None 
             for i,theta in enumerate(ploc):
                 subtract(theta, ploc, dist)
                 #print dist.shape, cell_size.shape, ploc.shape
-                deflect[i] = complex(sum(kappa * poten_dx(dist,cell_size)),
-                                     sum(kappa * poten_dy(dist,cell_size)))
+#               deflect[i] = complex(sum(kappa * poten_dx(dist,cell_size)),
+#                                    sum(kappa * poten_dy(dist,cell_size)))
+
+                deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)),
+                                     dot(kappa, poten_dy(dist,cell_size)))
+
                 if obj.shear:
                     s1,s2 = data['shear']
                     s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
@@ -799,8 +805,11 @@ class PixelBasis:
                     deflect[i] += s
 
                 if i%100 == 0: 
-                    print '\rCalculating srcdiff: %i/%i' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
-            print
+                    print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush() 
+                    x = True
+                    #print 'Calculating srcdiff: % 6i/%6i\r' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
+
+            if x: print
 
             data['srcdiff'] = map(lambda s: abs(s[0] - ploc + deflect / s[1].zcap),
                                   izip(data['src'], obj.sources))

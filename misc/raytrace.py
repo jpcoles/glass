@@ -210,7 +210,7 @@ def check_model_magnifications(model, **kw):
         for _,_,M,parity in obj_imgs:
             Mobj += abs(M[0])
 
-        if abs(Mrt-Mobj) / Mobj > 0.05: 
+        if abs(Mrt-Mobj) / Mobj > 0.15: 
             return False
 
     return True

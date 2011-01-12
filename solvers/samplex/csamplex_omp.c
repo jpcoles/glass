@@ -444,7 +444,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     {
         if (Z == 0 && report.obj_val)
         {
-            if (fabs(tabl.data[0] - report.obj_val) < 1e-7)
+            if (fabs(tabl.data[0] - report.obj_val) < 1e-9)
             {
                 ret = NOPIVOT;
                 break;

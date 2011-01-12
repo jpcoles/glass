@@ -48,7 +48,8 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        
+        self.objf_choice = kw.get('objf choice', 'random')
+        self.sol_type  = kw.get('solution type', 'interior')
 
         Log( "Samplex created" )
         Log( "    ncols = %i" % ncols )
@@ -84,6 +85,8 @@ class Samplex:
         self.sum_ln_k = 0
         self.curr_sol = None
         self.n_solutions = 0
+
+        self.forbidden_variables = []
 
     def check_data_shape(self, len=None):
 
@@ -255,24 +258,55 @@ class Samplex:
             while True:
                 self.next_solution()
                 self.curr_sol = self.package_solution()                
-                p = self.interior_point()
+
+                print self.sol_type
+                if self.sol_type == 'vertex':
+                    print 'SADFDSAF'
+                    p = self.curr_sol.vertex.copy()
+                elif self.sol_type == 'interior':
+                    print '!@#!@#'
+                    p = self.interior_point()
+
                 if p is not None: break
             yield p
 
+#   def next_solution(self):
+
+#       self.start_new_objective()
+#       while True:
+#           result = self.pivot()
+#           if   result == self.NOPIVOT:   return
+#           elif result == self.FEASIBLE:  pass
+#           elif result == self.UNBOUNDED: raise SamplexUnboundedError()
+#           else:
+#               Log( result )
+#               raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+
+#           self.status()
+#           self.iteration += 1
+
     def next_solution(self):
 
-        self.start_new_objective()
         while True:
-            result = self.pivot()
-            if   result == self.NOPIVOT:   return
-            elif result == self.FEASIBLE:  pass
-            elif result == self.UNBOUNDED: raise SamplexUnboundedError()
-            else:
-                Log( result )
-                raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
-            self.status()
-            self.iteration += 1
+            r = self.start_new_objective(kind=self.objf_choice)
+            while True:
+                result = self.pivot()
+                if   result == self.NOPIVOT:   break
+                elif result == self.FEASIBLE:  pass
+                elif result == self.UNBOUNDED: raise SamplexUnboundedError()
+                else:
+                    Log( result )
+                    raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+
+                self.status()
+                self.iteration += 1
+
+            if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
+                self.forbidden_variables.append(r)
+            else:
+                break
+
 
     def package_solution(self):
         s = SamplexSolution()
@@ -289,22 +323,20 @@ class Samplex:
 
         return s
 
-    def start_new_objective(self):
-        kind=2
+    def start_new_objective(self, kind=2):
 
         if kind==0:
             xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
             r = sqrt(dot(xs,xs)) # or should we take half the radius?
             self.obj = xs/r
 
-        elif kind==1:
+        elif kind=='random':
             self.obj = random(1+self.nVars+self.nSlack) - 0.5
             t = abs(self.obj) * (1-2*self.SML)
             t += self.SML
             self.obj = t * sign(self.obj)
 
-        elif kind==2:
-
+        elif kind=='facet':
 
 #           data        = self.dcopy[0].copy()
 #           self.lhv    = self.dcopy[1].copy()
@@ -315,7 +347,7 @@ class Samplex:
 #           self.nTemp  = self.dcopy[6]
 #           self.nRight = self.dcopy[7]
 
-            sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]))
+            sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]) - set(self.forbidden_variables))
             sv.sort()
 
             #print sv
@@ -331,14 +363,14 @@ class Samplex:
 
             #print self.lhv[1:]
             #assert self.lhv[1:].size == self.nVars, '%i %i' % (self.lhv[1:].size, self.nVars)
-            assert len(sv) == self.nSlack, '%i %i' % (len(sv), self.nSlack)
+            assert len(sv) <= self.nSlack, '%i %i' % (len(sv), self.nSlack)
             r = sv[random_integers(len(sv)-1)]
-            r2 = sv[random_integers(len(sv)-1)]
-            #print r
             
             self.obj = zeros(1+self.nVars+self.nSlack)
             self.obj[r] = 1
-            self.obj[r2] = 0
+            self.set_objective(self.obj)
+
+            return r
 
             #print self.obj
 

@@ -356,13 +356,18 @@ def _data_plot(models, X,Y, x_label, y_label, **kwargs):
     plotf = kwargs.get('plotf', loglog)
     mark_images = kwargs.get('mark_images', True)
     hilite_model = kwargs.get('hilite_model', None)
-    hilite_color = kwargs.get('hilite_color', 'g')
+    hilite_color = kwargs.get('hilite_color', 'y')
+
+    normal_kw   = {'zorder':0, 'drawstyle':'steps-post', 'alpha':0.5}
+    hilite_kw   = {'zorder':1000, 'drawstyle':'steps-post', 'alpha':1.0, 'lw':4}
+    accepted_kw = {'zorder':500,  'drawstyle':'steps-post', 'alpha':0.5}
 
     convert = (lambda x: x) if mark_images == 'arcsec' \
               else (lambda x: Arcsec_to_Kpc([obj,data], x))
 
     normal = []
     hilite = []
+    accepted = []
     imgs = {}
     xmin, xmax = inf, -inf
     ymin, ymax = inf, -inf
@@ -386,6 +391,8 @@ def _data_plot(models, X,Y, x_label, y_label, **kwargs):
 
             if hilite_model == mi:
                 hilite += [data[X], data[Y], hilite_color + s['ls']]
+            elif si == 1:
+                accepted += [data[X], data[Y], s['c'] + s['ls']]
             else:
                 normal += [data[X], data[Y], s['c'] + s['ls']]
 
@@ -394,8 +401,9 @@ def _data_plot(models, X,Y, x_label, y_label, **kwargs):
                     for img in src.images:
                         imgs[convert(abs(img.pos))] = 0
 
-    if normal: plotf(*normal, zorder=0,    drawstyle='steps-post', alpha=0.5)
-    if hilite: plotf(*hilite, zorder=1000, drawstyle='steps-post', lw=2, alpha=0.5)
+    if normal:   plotf(*normal, **normal_kw)
+    if hilite:   plotf(*hilite, **hilite_kw)
+    if accepted: plotf(*accepted, **accepted_kw)
 
     for x in imgs.iterkeys():
         axvline(x, c=system_color(0), ls='-', zorder=-2, alpha=0.5)
@@ -417,6 +425,13 @@ def enckappa_plot(models=None, **kwargs):
     #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
     kwargs.setdefault('mark_images', 'arsec')
     _data_plot(models, 'R', 'enckappa', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
+
+_kappa_prof_xlabel = r'$R$ $(\mathrm{arcsec})$'
+_kappa_prof_ylabel = r'$\langle\kappa(R)\rangle$'
+def kappa_prof_plot(models=None, **kwargs):
+    #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
+    kwargs.setdefault('mark_images', 'arsec')
+    _data_plot(models, 'R', 'kappa prof', _kappa_prof_xlabel, _kappa_prof_ylabel, plotf=plot,**kwargs)
 
 _sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'

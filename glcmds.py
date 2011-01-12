@@ -7,6 +7,9 @@ from shear import Shear
 import cosmo
 #from handythread import parallel_map
 from scales import convert
+from itertools import izip, count, repeat
+
+from log import log as Log, setup_log
 
 def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
 def redshifts(*args):           assert False, "redshifts not implemented"
@@ -131,8 +134,10 @@ def post_process(f, *args, **kwargs):
 def post_filter(f, *args, **kwargs):
     env().current_object().post_filter_funcs.append([f, args, kwargs])
 
-def _filter(model):
+def _filter(arg):
+    model,i,nmodels = arg
     for obj,data in model['obj,data']:
+        Log( 'Post filtering ... Model %i/%i Object %s' % (i+1, nmodels, obj.name) )
         for f,args,kwargs in obj.post_filter_funcs:
             if not f([obj,data], *args, **kwargs): return False
     return True
@@ -140,9 +145,9 @@ def _filter(model):
 def apply_filters():
     models = env().models
     for m in models: m['accepted'] = False           # Reject all
-    models = filter(_filter, models)                 # Run each filter, keeping those that survive
+    models = filter(_filter, izip(models, count(), repeat(len(models))))      # Run each filter, keeping those that survive
     #models = filter(parallel_map(_filter, models, threads=10))                 # Run each filter, keeping those that survive
-    for m in models: m['accepted'] = True            # Those that make it to the end are accepted
+    for m,_,_ in models: m['accepted'] = True            # Those that make it to the end are accepted
 
     env().accepted_models = models
 
