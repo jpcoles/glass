@@ -42,7 +42,7 @@ setup(name = 'Glass',
       version = '1.0',
       description = 'Gravitational Lensing and Something Something',
       package_dir = {'glass': ''},
-      packages = ['', 'solvers', 'solvers.samplex',
+      packages = ['', 'solvers', 'solvers.samplex', 'solvers.lpsolve',
                   'basis', 'basis.pixels', 'basis.bessel',
                   'massmodel', 'misc'],
       ext_modules = [csamplex])

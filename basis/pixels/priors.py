@@ -1,7 +1,7 @@
 from __future__ import division
 from environment import env
 import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians
+from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere
 from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
 from itertools import izip
 from log import log as Log
@@ -972,3 +972,38 @@ def smoothness2(o, leq, eq, geq):
             c += 1
 
     Log( "\t# eqs = %i" % c )
+
+@default_prior
+@object_prior
+def symmetry(o, leq, eq, geq):
+
+    if o.symm:
+        Log( "Symmetry" )
+    else:
+        Log( "Symmetry DISABLED" )
+        return
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    c = 0
+    done = zeros(o.basis.int_ploc.size)
+    for i,ri in enumerate(o.basis.int_ploc):
+        if i == o.basis.central_pixel: continue
+        if done[i]: continue
+
+        j = argwhere(o.basis.int_ploc == -ri).flatten()
+        assert j.size == 1
+        j = j[0]
+
+        done[i] = 1
+        done[j] = 1
+
+        row = new_row(o)
+        row[pix_start + i] = 1
+        row[pix_start + j] = -1
+
+        eq(row)
+        c+=1
+
+    Log( "\t# eqs = %i" % c )
+

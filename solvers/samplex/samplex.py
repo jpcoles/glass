@@ -48,7 +48,7 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        self.objf_choice = kw.get('objf choice', 'random')
+        self.objf_choice = kw.get('objf choice', 'facet')
         self.sol_type  = kw.get('solution type', 'interior')
 
         Log( "Samplex created" )
@@ -267,7 +267,11 @@ class Samplex:
                     print '!@#!@#'
                     p = self.interior_point()
 
-                if p is not None: break
+                if p is not None: 
+                    break
+                
+                print 'SAME VERTEX!'
+
             yield p
 
 #   def next_solution(self):
@@ -287,9 +291,10 @@ class Samplex:
 
     def next_solution(self):
 
+        r = -1
         while True:
 
-            r = self.start_new_objective(kind=self.objf_choice)
+            r = self.start_new_objective(kind=self.objf_choice, last_r=r)
             while True:
                 result = self.pivot()
                 if   result == self.NOPIVOT:   break
@@ -303,6 +308,7 @@ class Samplex:
                 self.iteration += 1
 
             if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
+                print 'BAD VARIABLE', abs(self.data[0,0])
                 self.forbidden_variables.append(r)
             else:
                 break
@@ -323,7 +329,7 @@ class Samplex:
 
         return s
 
-    def start_new_objective(self, kind=2):
+    def start_new_objective(self, kind=2, last_r=-1):
 
         if kind==0:
             xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
@@ -347,7 +353,18 @@ class Samplex:
 #           self.nTemp  = self.dcopy[6]
 #           self.nRight = self.dcopy[7]
 
-            sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]) - set(self.forbidden_variables))
+            #sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]) - set(self.forbidden_variables))
+
+            sv = list(set(range(1+self.nVars, 1+self.nVars+self.nSlack)) 
+                    - set([last_r])
+                    - set(self.rhv[1:1+self.nRight])
+                    #- set(self.lhv[logical_and(self.nVars < self.lhv, self.lhv <= self.nVars+self.nSlack)])
+                    - set(self.forbidden_variables))
+#           sv = list(
+#           #set(self.rhv[1:1+self.nRight]) 
+#                   #- set(range(1, 1+self.nVars)) 
+#                   set(range(1+self.nVars, 1+self.nVars+self.nSlack)) 
+#                   - set(self.forbidden_variables))
             sv.sort()
 
             #print sv
@@ -363,12 +380,26 @@ class Samplex:
 
             #print self.lhv[1:]
             #assert self.lhv[1:].size == self.nVars, '%i %i' % (self.lhv[1:].size, self.nVars)
-            assert len(sv) <= self.nSlack, '%i %i' % (len(sv), self.nSlack)
-            r = sv[random_integers(len(sv)-1)]
-            
+            #print self.rhv
+            #print self.nVars, self.nSlack, self.nRight
+            #print self.rhv[logical_and(self.nVars < self.rhv, self.rhv <= self.nVars+self.nSlack)]
+            #print range(1+self.nVars, 1+self.nVars+self.nSlack)
+            print sv
+            #assert len(sv) <= self.nSlack, '%i %i' % (len(sv), self.nSlack)
+            r = sv[random_integers(len(sv))-1]
+            print r
+            #r = argwhere(self.rhv == r).flatten()[0]
+            #print r
+
+            print 'SSS', r
+
             self.obj = zeros(1+self.nVars+self.nSlack)
-            self.obj[r] = 1
+            #self.obj[0] = self.data[self.lhv==r,0]
+            self.obj[r] = -1
             self.set_objective(self.obj)
+
+            #print self.data.shape
+            #self.data[0,r] = 1
 
             return r
 
@@ -388,19 +419,61 @@ class Samplex:
         self.set_objective(self.obj)
 
     def set_objective(self, obj):
-        if 1:
-            lhv    = self.lhv[0:self.nLeft+1]
-            ks     = logical_and(0 <= lhv, lhv <= self.nVars)
-            obj_vs = obj[lhv[ks]]
+        if 0:
+            sum(self.data[1:,:self.nRight+1], axis=0, out=self.data[0,:self.nRight+1])
+            self.data[0,0]
+            self.data[0,:self.nRight+1] *= -1
+            return
+        elif 1:
+            #print "obj", obj
+            for r in xrange(self.nRight+1):
+                col = self.data[:,r]
+                n   = self.rhv[r]
+                #print '@', obj[n], n
+                col[0] = obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
+                #col[0] = obj[n] if 0 <= n <= self.nVars else 0
+                for k in xrange(1, self.nLeft+1):
+                    n = self.lhv[k]
+                    #print obj[n]
+                    if 0 <= n <= self.nVars+self.nSlack:
+                        col[0] += col[k] * obj[n]
+
+            print '!' * 80
+            print self.data[0,:self.nRight+1]
+
+        elif 0:
+            assert self.lhv.size == self.nLeft+1
+            ks = logical_and(0 < self.lhv, self.lhv <= self.nVars+self.nSlack)
+            ns = self.rhv[:self.nRight+1]
+            obj_vs = obj[ns]
+            #obj_vs = obj[self.lhv[ks]]
+            #assert not any(obj_vs)
+            for r in xrange(self.nRight+1):
+                col = self.data[:,r]
+                n   = self.rhv[r]
+                col[0] = dot(col[ks], obj_vs)
+                col[0] += obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
+                #col[0] += obj[n] if 0 <= n <= self.nVars else 0
+
+            print '!' * 80
+            print self.data[0,0]
+
+        elif 0:
+            assert self.lhv.size == self.nLeft+1
+            ks     = logical_and(0 < self.lhv, self.lhv <= self.nVars)
+            obj_vs = obj[self.lhv[ks]]
+            print '*', obj_vs
             for r in xrange(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
                 col[0] = sum(col[ks] * obj_vs)
                 col[0] += obj[n] if 0 <= n <= self.nVars else 0
 
-            #print self.data[0,:]
+            print '!' * 80
+            print self.data[0,:]
         else:
             #print "obj", obj
+            print '*'*20, self.nRight+1
             for r in xrange(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
@@ -410,7 +483,11 @@ class Samplex:
                     if 0 <= n <= self.nVars:
                         col[0] += col[k] * obj[n]
 
-        self.data[0,0] = 0
+            print '!' * 80
+            print self.data[0,0]
+        # XXX
+        #self.data[0,0] = 1
+        # XXX
 
         #print self.data[:,0]
 
@@ -635,9 +712,10 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            for n in xrange(self.nVars+1):
-                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+            if 0:
+                for n in xrange(self.nVars+1):
+                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
 
 #           self.add_noise(self.data[self.nLeft])
 
@@ -673,9 +751,11 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            for n in xrange(self.nVars+1):
-                if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                    if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+            if 0:
+                for n in xrange(self.nVars+1):
+                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
+                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
+                        #if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
 
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0] += self.SML * random()

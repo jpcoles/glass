@@ -113,9 +113,10 @@ def _post_process():
     nmodels = len(env().models)
     for i,m in enumerate(env().models):
         for o,data in m['obj,data']:
-            Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )
-            for f,args,kwargs in o.post_process_funcs:
-                f((o,data), *args, **kwargs)
+            if o.post_process_funcs:
+                Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )
+                for f,args,kwargs in o.post_process_funcs:
+                    f((o,data), *args, **kwargs)
 
 # Although this is technically a command, we need it here so that it
 # can see 'init_model_generator' which will be defined by the executed

@@ -1,6 +1,6 @@
 from __future__ import division
-from solvers.samplex.samplex import Samplex
-from solvers.samplex.glcmds import *
+from solvers.lpsolve.samplex import Samplex
+from solvers.lpsolve.glcmds import *
 from glcmds import *
 from priors import *
 from priors import include_prior, exclude_prior, \

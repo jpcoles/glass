@@ -77,9 +77,9 @@ def delay(A,B, delay):
     b = src.images[src.images.index(B)]
     src.add_time_delay(a,b,delay)
 
-def symm(v=False):
+def symm(v=True):
     """Turn lens symmetry on or off. Default is off."""
-    assert False, "Symmetry not yet supported."
+    #assert False, "Symmetry not yet supported."
     env().current_object().symm = v
 
 def g(*args):
@@ -137,9 +137,10 @@ def post_filter(f, *args, **kwargs):
 def _filter(arg):
     model,i,nmodels = arg
     for obj,data in model['obj,data']:
-        Log( 'Post filtering ... Model %i/%i Object %s' % (i+1, nmodels, obj.name) )
-        for f,args,kwargs in obj.post_filter_funcs:
-            if not f([obj,data], *args, **kwargs): return False
+        if obj.post_filter_funcs:
+            Log( 'Post filtering ... Model %i/%i Object %s' % (i+1, nmodels, obj.name) )
+            for f,args,kwargs in obj.post_filter_funcs:
+                if not f([obj,data], *args, **kwargs): return False
     return True
 
 def apply_filters():
