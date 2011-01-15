@@ -10,8 +10,9 @@ from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, log
 import matplotlib.cm as cm  
 import mpl_toolkits.mplot3d as p3
 
-from environment import env
+from environment import env, command
 
+@command
 def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
 
     obj, data = model['obj,data'][obj_index]
@@ -36,6 +37,7 @@ def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, c
     ax.plot_surface(X,Y,Z, rstride=1, cstride=1, cmap=cm.terrain)
     #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.terrain, levels=clevels)
 
+@command
 def kappa_ensemble_plot(models=None, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
     if models is None: models = env().models
 
@@ -76,6 +78,7 @@ def kappa_ensemble_plot(models=None, obj_index=0, with_contours=False, only_cont
     xlabel('arcsec')
     ylabel('arcsec')
 
+@command
 def kappa_ensemble_plot3d(models=None, obj_index=0, 
                           with_contours=False, 
                           only_contours=False, 
@@ -107,6 +110,7 @@ def kappa_ensemble_plot3d(models=None, obj_index=0,
     ax.plot_surface(X,Y,Z, rstride=1, cstride=1, cmap=cm.terrain)
     #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.terrain, levels=clevels)
 
+@command
 def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False, label=True, mark=None):
     obj0,data0 = base_model['obj,data'][obj_index]
     N  = len(models)
@@ -208,6 +212,7 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
     ylabel(r'$\kappa$')
 
 
+@command
 def kappa_compare_grid_plot(models, base_model, obj_index):
     obj0,data0 = base_model['obj,data'][obj_index]
     N  = len(models)

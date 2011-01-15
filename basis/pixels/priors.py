@@ -1,5 +1,5 @@
 from __future__ import division
-from environment import env
+from environment import env, command
 import numpy
 from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere
 from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
@@ -21,7 +21,7 @@ def _make_prior(f, where):
         def __init__(self, f, where): 
             self.f, self.check, self.where = f, None, where
         def __eq__(self, f):
-            return self.f == f
+            return f in [self.f, self.f.__name__]
     #print f
     all_priors.append(P(f, where))
     return all_priors[-1]
@@ -37,12 +37,14 @@ def object_prior_check(check):
         all_priors[all_priors.index(check)].check = f
     return x
 
+@command
 def include_prior(*f):
     #assert not exc_priors, 'Cannot both include and exclude priors.'
     for p in f:
         i = all_priors.index(p)
         inc_priors.append(all_priors[i])
 
+@command
 def exclude_prior(*f):
     #assert not inc_priors, 'Cannot both include and exclude priors.'
     for p in f:

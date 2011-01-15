@@ -1,10 +1,28 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from environment import env, set_env, new_env
+from environment import env, set_env, new_env, command_list
 import cosmo
 from handythread import parallel_map
 from log import log as Log, setup_log
+from scales import convert
+
+
+def Ximport_functions(pkg):
+    f = __import__(pkg, globals(), locals())
+    #print f.__dict__
+    print f
+    g = globals()
+    for name,func in f.__dict__.iteritems():
+        if name.startswith('glcmd__'):
+            print '*' * 80
+            print name
+            g[name.split('glcmd__')[1]] = func
+
+def glass_basis(name):
+    f = __import__(name, globals(), locals())
+    for name,func in command_list.iteritems():
+        __builtins__.__dict__[name] = func
 
 
 #import filters
@@ -46,7 +64,7 @@ def report():
         Log( pp('%i. %s at z=%.4g  Distance(Obs->Lens) = %.4f' % (i+1, o.name, o.z, cosmo.angdist(0,o.z)), '') )
         if o.maprad:
             Log( pp('    Map radius            = %.4g' % o.maprad, '[arcsec]') )
-            Log( pp('    Map radius g=14       = %.4g' % Arcsec_to_Kpc(o,o.maprad,14), '[kpc]') )
+            Log( pp('    Map radius g=14       = %.4g' % convert('arcsec to kpc', 14, o.maprad, o.dL), '[kpc]') )
         else:
             Log( pp('    Map radius            = Not specified', '') )
             Log( pp('    Map radius g=14       = Not specified', '') )
@@ -54,7 +72,7 @@ def report():
         Log( pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]') )
         Log( pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]') )
         Log( pp('    Critical density g=14 = %.4e' \
-            % Kappa_to_MsunKpc2(o,1,14), '[Msun/kpc^2]') )
+            % convert('kappa to Msun/kpc^2', 1, o.dL, 14), '[Msun/kpc^2]') )
         if o.shear:
             pass
             #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )
@@ -86,77 +104,6 @@ def report():
     Log( )
 
 
-# Although this is technically a command, we need it here so that it
-# can see 'init_model_generator' which will be defined by the executed
-# input file.
-def model(nmodels):
-
-    for o in env().objects:
-        o.init()
-
-    report()
-
-    init_model_generator(nmodels)
-
-    env().models = []
-    env().solutions = []
-    for i,m in enumerate(generate_models(env().objects, nmodels)):
-        Log( 'Model %i/%i complete.' % (i+1, nmodels) )
-        env().models.append(m)
-        env().solutions.append(m['sol'])
-
-    _post_process()
-
-    env().accepted_models = env().models
-
-def _post_process():
-    nmodels = len(env().models)
-    for i,m in enumerate(env().models):
-        for o,data in m['obj,data']:
-            if o.post_process_funcs:
-                Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )
-                for f,args,kwargs in o.post_process_funcs:
-                    f((o,data), *args, **kwargs)
-
-# Although this is technically a command, we need it here so that it
-# can see 'init_model_generator' which will be defined by the executed
-# input file.
-def reprocess(state_file):
-    for o in env().objects:
-        Log( o.name )
-        o.init()
-
-    e = loadstate(state_file, setenv=False)
-    env().solutions = e.solutions
-
-    init_model_generator(len(env().solutions))
-
-    env().models = [ m for m in regenerate_models(env().objects) ]
-    _post_process()
-
-    #env().models = parallel_map(_f, regenerate_models(env().objects), threads=10)
-    env().accepted_models = env().models
-
-def XXXreprocess(state_file):
-    for o in env().objects:
-        Log( o.name )
-        o.init()
-
-    env().solutions = loadstate(state_file, setenv=False).solutions
-
-    init_model_generator(len(env().solutions))
-
-    env().models = []
-    for i,m in enumerate(regenerate_models(env().objects)):
-        for o,data in m['obj,data']:
-            for f,args,kwargs in o.post_process_funcs:
-                f((o,data), *args, **kwargs)
-
-        env().models.append(m)
-
-    env().accepted_models = env().models
-
-
 def help():
     print >>sys.stderr, "Usage: glass.py <input>"
     sys.exit(2)
@@ -177,19 +124,18 @@ if __name__ == "__main__":
             env().withgfx = False
 
     if env().withgfx:
-        from plots import *
+        import plots 
 
-    from glcmds import *
-    #from funcs import *
-    from scales import *
-    from potential import *
-    from pytipsy import load_tipsy
+    import glcmds
+    import scales
+    import pytipsy 
 
     with open(list[0], 'r') as f:
         env().input_file = f.read()
 
     env().argv = list[1:]
 
+    execfile(list[0])
     try:
 #    if 1:
         #-----------------------------------------------------------------------
@@ -197,7 +143,8 @@ if __name__ == "__main__":
         # because if there is an exception the stack trace will print the
         # correct filename instead of <string>.
         #-----------------------------------------------------------------------
-        execfile(list[0])
+        #execfile(list[0])
+        pass
     except (SyntaxError, TypeError, KeyError, NameError, ValueError, KeyboardInterrupt):
         traceback.print_exc(file=sys.stderr)
         #traceback.print_exc(file=sys.stderr, limit=0)

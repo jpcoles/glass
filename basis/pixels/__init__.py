@@ -1,15 +1,20 @@
 from __future__ import division
-from solvers.lpsolve.samplex import Samplex
-from solvers.lpsolve.glcmds import *
-from glcmds import *
-from priors import *
+from numpy import mean, zeros
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from log import log as Log
+from environment import env, Object, command
+
+import glcmds
+import funcs
+import priors
+from funcs import default_post_process
+
+from solvers.lpsolve.samplex import Samplex
+import solvers.lpsolve.glcmds 
 
 if env().withgfx:
-    from plots  import *
-
+    import plots
 
 def _expand_array(nvars, offs, f):
     """Returns a function that will properly prepare a constraint equation
@@ -119,45 +124,64 @@ def init_model_generator(nmodels, regenerate=False):
 def solution_to_dict(obj, sol):
     return obj.basis.solution_to_dict(sol)
 
-def model_dict(objs, sols):
+def _model_dict(objs, sol):
     if isinstance(objs, Object):
         objs = [objs]
-        sols = [sols]
 
-    assert hasatter(objs, '__iter__') and hasatter(objs, '__iter__')
-
+    print objs
+    print sol
     return {'sol':      sol,
             'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
             'tagged':   False}
 
 
-def generate_models(objs, n):
+@command
+def generate_models(objs, n, *args, **kwargs):
 
     if n <= 0: return
 
-    mg = env().model_gen
-    
-    mg.start()
-    for sol in mg.next(n):
-        for o in objs:
-            for p in acc_objpriors:
-                if p.check: p.check(o, sol)
-        for p in acc_enspriors:
-            if p.check: p.check(objs, sol)
+    mode = kwargs.get('mode', 'default')
 
-        yield {'sol':  sol,
-               'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-               'tagged':  False}
+    if mode == 'particles':
+        assert n == 1, 'Can only generate a single model from particles.'
+        assert len(objs) == 1, 'Can only model a single object from particles.'
+        objs[0].basis.array_offset = 1
+        yield _projected_model(objs[0], *args)
+    elif mode != 'default':
+        assert False, 'Unsupported model mode "%s"' % mode
+    else:
+
+        init_model_generator(n)
+
+        mg = env().model_gen
+        
+        mg.start()
+        for sol in mg.next(n):
+            for o in objs:
+                for p in acc_objpriors:
+                    if p.check: p.check(o, sol)
+            for p in acc_enspriors:
+                if p.check: p.check(objs, sol)
+
+            yield {'sol':  sol,
+                   'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+                   'tagged':  False}
+
+    for o in objs:
+        o.post_process_funcs.append([default_post_process, [], {}])
 
 def regenerate_models(objs):
 
     assert env().solutions is not None
+
+    init_model_generator(len(env().solutions))
 
     for sol in env().solutions:
         yield {'sol':  sol,
                'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
                'tagged':  False}
 
+@command
 def make_ensemble_average():
 #   Log( "s*********" )
 #   for m in env().models:
@@ -172,12 +196,11 @@ def make_ensemble_average():
          'obj,data' : zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
          'tagged'   : False}
 
-def projected_model(obj, X,Y,M, H0inv):
+def _projected_model(obj, X,Y,M, H0inv):
 
     grid_mass = obj.basis.grid_mass(X,Y,M, 13.7)
     ps = obj.basis.solution_from_grid(grid_mass, src=[], H0inv=13.7)
-    model = {'sol':      ps,
-             'obj,data': [[obj,ps]],
-             'tagged'  : False}
+    return {'sol':      ps,
+            'obj,data': [[obj,ps]],
+            'tagged':   False}
 
-    return model

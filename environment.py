@@ -1,8 +1,16 @@
 from __future__ import division
 import numpy, os, subprocess
-from numpy import arctan2, pi, linspace, atleast_2d, abs
+from numpy import arctan2, pi, linspace, atleast_2d, abs, ndarray, asarray
 from potential import poten2d
 from collections import defaultdict 
+import traceback
+
+if not globals().has_key('command_list'):
+    command_list = {}
+
+def command(f):
+    command_list[f.__name__] = f
+    return f
 
 def _detect_cpus():
     """
@@ -142,7 +150,30 @@ class Environment:
     def clear(self):
         self.__init__()
         
-        
+class DArray(ndarray):
+    def __new__(cls, input_array, ul=None):
+        obj = asarray(input_array).view(cls)
+        obj.units, obj.label = ul
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.units = getattr(obj, 'units', 'no units')
+        self.label = getattr(obj, 'label', 'no label')
+
+    def __array_wrap__(self, out_arr, context=None):
+        return ndarray.__array_wrap__(self, out_arr, context)
+
+    def __reduce_ex__(self, protocol):
+        p = ndarray.__reduce_ex__(self, protocol)
+        return (p[0], p[1], (p[2], self.units, self.label))
+
+    def __setstate__(self, p):
+        ndarray.__setstate__(self, p[0])
+        self.units = p[1]
+        self.label = p[2]
+
+
 
 _env = Environment()
 def env():

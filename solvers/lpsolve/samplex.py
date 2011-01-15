@@ -1,23 +1,13 @@
 from __future__ import division
-import sys
-import numpy
-import gc
 from numpy import isfortran, asfortranarray, sign, logical_and, any
 from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt, arange
-from numpy import argwhere, argmin, inf, isinf
-from numpy import histogram, logspace, flatnonzero, isinf
-from numpy.random import random, normal, random_integers, seed as ran_set_seed
-#from glrandom import random, ran_set_seed
+from numpy import zeros, array, all, log, empty
+from numpy import inf, isinf
+from numpy.random import random, random_integers, seed as ran_set_seed
 
-from lpsolve55 import *
-
-if 0:
-    from pylab import figimage, show, imshow, hist, matshow, figure
+from lpsolve55 import lpsolve, EQ,GE,LE, NORMAL, OPTIMAL, INFEASIBLE, UNBOUNDED
 
 from log import log as Log
-
-from copy import deepcopy
 
 set_printoptions(linewidth=10000000, precision=20, threshold=2000)
 
@@ -39,91 +29,65 @@ class SamplexSolution:
         self.vertex = None
 
 class Samplex:
-    #INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
+
     SML = 1e-6
-    EPS = 1e-14
 
     def __init__(self, **kw):
 
-        ncols    = kw.get('ncols', None)
-        nthreads = kw.get('nthreads', 1)
-        rngseed  = kw.get('rngseed',  0)
-        self.objf_choice = kw.get('objf choice', 'facet')
-        self.sol_type  = kw.get('solution type', 'interior')
+        self.ncols       = kw.get('ncols', None)
+        self.nthreads    = kw.get('nthreads', 1)
+        self.random_seed = kw.get('rngseed',  0)
+        self.objf_choice = kw.get('objf choice', 'random')
+        self.sol_type    = kw.get('solution type', 'interior')
 
-        self.lp = lpsolve('make_lp', 0, ncols)
-        lpsolve('set_verbose', self.lp, IMPORTANT)
+        ran_set_seed(self.random_seed)
 
-
-        Log( "Samplex created" )
-        Log( "    ncols = %i" % ncols )
-        if ncols is not None:
-            self.nVars = ncols
-            self.nRight = self.nVars
-
-        ran_set_seed(rngseed)
-        self.random_seed = rngseed
-
-        self.nthreads = nthreads
-
-        self.data = None
-        self.dcopy = []
+        self.lp = lpsolve('make_lp', 0, self.ncols)
 
         self.ineqs = []
 
-        self.n_equations = 0
-        self.lhv = []
-        self.rhv = []
-        self.nVars = None            # Number of variables + 1(constant column) [N]
-        self.nLeft = 0               # Number of left hand variables            [L]
-        self.nSlack = 0              # Number of slack variables                [S]
-        self.nTemp = 0               # Number of temporary variables            [Z]
-        self.nRight = 0              # Number of right hand variables           [R]
-        self.eq_count = 0
+        self.eq_count  = 0
         self.leq_count = 0
         self.geq_count = 0
 
-        self.eq_list = []
-
-        self.iteration = 0
-        self.prev_sol = None
-        self.sum_ln_k = 0
-        self.curr_sol = None
+        self.iteration   = 0
+        self.prev_sol    = None
+        self.sum_ln_k    = 0
+        self.curr_sol    = None
         self.n_solutions = 0
 
         self.forbidden_variables = []
 
-        print self.sol_type
-        self.prepare_return_sol = {'vertex':   self.current_sol_copy,
-                                   'interior': self.interior_point}[self.sol_type]
+    def prepare_return_sol(self):
+        if self.sol_type == 'vertex':
+            return self.curr_sol.vertex.copy()
+        elif self.sol_type == 'interior':
+            return self.interior_point()
 
-    def current_sol_copy(self):
-        return self.curr_sol.sol.copy()
+#   def current_sol_copy(self):
+#       return self.curr_sol.sol.copy()
 
     def __del__(self):
-        lpsolve('delete_lp', self.lp)
-
-
-    def check_data_shape(self, len=None):
-
-        if len is None: len = self.nLeft
-
-        if self.data.shape[0] == len: 
-            self.data = insert(self.data, self.data.shape[0], 0, axis=0)
+        if self.lp:
+            lpsolve('delete_lp', self.lp)
 
     def start(self):
-        #print "%6s %6s %6s\n%6i %6i %6i" \
-        #    % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
         Log( '=' * 80 )
         Log( 'SAMPLEX' )
         Log( '=' * 80 )
 
+        Log( 'Using lpsolve %s' % lpsolve('lp_solve_version') )
+
+        Log( "ncols       = %i" % self.ncols )
         Log( "random seed = %s" % self.random_seed )
-        Log( "threads = %s" % self.nthreads )
+        Log( "threads     = %s" % self.nthreads )
 
         Log( "%6s %6s %6s\n%6i %6i %6i" 
             % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
+
+        lpsolve('set_verbose', self.lp, NORMAL)
+        #lpsolve('set_verbose', self.lp, IMPORTANT)
 
     def status(self):
         if self.iteration & 15 == 0:
@@ -134,7 +98,11 @@ class Samplex:
         Log( "Getting solutions" )
 
         self.start_new_objective('random')
+        #lpsolve('set_simplextype', self.lp, SIMPLEX_PRIMAL_PRIMAL)
+        #lpsolve('set_pivoting', self.lp, PRICER_DANTZIG)
+        #lpsolve('set_presolve', self.lp, PRESOLVE_LINDEP)
         res = lpsolve('solve', self.lp)
+        #lpsolve('set_presolve', self.lp, PRESOLVE_NONE)
         print 'solve result', res
 
         if res != OPTIMAL: return
@@ -191,17 +159,12 @@ class Samplex:
     def package_solution(self):
         objv  = array(lpsolve('get_objective', self.lp))
         vars  = array(lpsolve('get_variables', self.lp)[0])
-        slack = array(lpsolve('get_constraints', self.lp)[0])
+        slack = array(lpsolve('get_constraints', self.lp)[0]) - array(lpsolve('get_rh', self.lp)[1:])
 
-        slack -= array(lpsolve('get_rh', self.lp)[1:])
         slack[abs(slack) < 1e-10] = 0
 
         nvars = len(vars)
         nslack = len(slack)
-
-        #print nvars, nslack
-        #print 'vars', vars
-        #print slack
 
         s = SamplexSolution()
         s.sol = empty(nvars + 1)
@@ -227,7 +190,7 @@ class Samplex:
         iv    = sol.vertex[1:]
         dist  = iv - self.prev_sol[1:]
         a = dist > self.SML
-        if not any(a): return None #self.prev_sol.copy(), 'g'
+        if not any(a): return None
 
         #print '*', iv
         #print '*', dist[a]
@@ -244,15 +207,13 @@ class Samplex:
         self.sum_ln_k += log(k)
         #assert self.sum_ln_k < 1
 
-        #old_prev_sol = self.prev_sol.copy()
-
         self.prev_sol[1:] = sol.vertex[1:] + k * (self.prev_sol[1:]-sol.vertex[1:])
         assert all(self.prev_sol[1:] >= -self.SML), (self.prev_sol[self.prev_sol < 0], self.prev_sol)
 
         s = self.prev_sol.copy()[:sol.sol.size]
         return s
 
-    #=========================================================================
+    #===========================================================================
 
     def start_new_objective(self, kind=2, last_r=-1):
 
@@ -266,7 +227,7 @@ class Samplex:
             lpsolve('set_obj_fn', self.lp, r[0])
             return r
 
-    #=========================================================================
+    #===========================================================================
 
     def eq(self, a):
         lpsolve('add_constraint', self.lp, a[1:], EQ, -a[0])
@@ -278,12 +239,13 @@ class Samplex:
         self.ineqs.append([a[1:], GE, -a[0]])
 
     def leq(self, a):
-        #
-        # We convert <= constraints to >= so that in package_solution we can simply subtract the
-        # current contraint value in the tableau from the original right hand side values given
-        # here to derive the amount of slack on each constraint. This is important to have in 
-        # interior_point()
-        #
+        #-----------------------------------------------------------------------
+        # We convert <= constraints to >= so that in package_solution we can
+        # simply subtract the current contraint value in the tableau from the
+        # original right hand side values given here to derive the amount of
+        # slack on each constraint. This is important to have in
+        # interior_point().
+        #-----------------------------------------------------------------------
         lpsolve('add_constraint', self.lp, -a[1:], GE, a[0])
         self.leq_count += 1
         self.ineqs.append([-a[1:], GE, a[0]])

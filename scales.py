@@ -1,4 +1,5 @@
 from __future__ import division
+from environment import command
 from cosmo import scales
 
 N = 206265
@@ -10,7 +11,11 @@ def get_args(args):
     assert obj.scales, "Scaling requires that zlens() be set first."
     return obj,v,H0inv
 
+@command
 def convert(type, *args):
+
+    s,d = type.split('to')
+    if s.strip() == d.strip(): return args[0]
     
     if 'ly to rad' == type:
         v, dL, nu = args; return nu * v / dL / N**2

@@ -14,6 +14,9 @@ import numpy as np
 import gzip
 import mmap
 
+from environment import command
+
+@command
 def load_tipsy(filename, fmt='auto', memmap=True, which='gds', merge=None):
     """Read a tipsy file and return a structure containing NumPy arrays
        for each of the three types of particles. 

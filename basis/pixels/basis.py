@@ -189,47 +189,6 @@ def Xestimated_Re(obj, ps, src_index):
 
     return mean([Vl,Vs]), Vl, Vs, arctan2(D1[1], D1[0]) * 180/pi
 
-def estimated_Re(obj, ps, src_index):
-
-    #---------------------------------------------------------------------
-    # Estimate an Einstein radius. 
-    # Take the inertia tensor of the pixels above kappa_crit and use the
-    # eigenvalues to scale the most distance pixel position to the major
-    # and minor axes. Re is then defined here as the mean of the two.
-    #
-    # TODO: On convergence. Since the centers of each pixel are used, as
-    # the resolution increases, Re will tend to move outward. A better
-    # solution would be to use the maximum extent of each pixel.
-    #---------------------------------------------------------------------
-
-    kappa = ps['enckappa'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
-
-    #print map(len,obj.basis.rings)
-
-    #print '^' * 10
-    #print kappa
-    #print '^' * 10
-    w = kappa >= 1.0
-
-    #print w
-
-    if not w.any(): return None
-
-    w = where(w)[0][-1]
-
-    #print w
-
-    r = obj.basis.ploc[obj.basis.rings[w][0]]
-
-    #print r
-
-    Vl = abs(r)
-    Vs = abs(r)
-    if Vl < Vs: 
-        Vl,Vs = Vs,Vl
-        D1,D2 = D1,D2
-
-    return mean([Vl,Vs]), Vl, Vs, 0
 
 class PixelBasis: 
 
@@ -524,23 +483,6 @@ class PixelBasis:
         #if ps['1/H0'] == float('inf'): ps['1/H0'] = 1
 
         #rscale = Arcsec_to_Kpc(obj, 1, ps['1/H0'])
-        rscale = convert('arcsec to kpc', 1, obj.dL, ps['nu'])
-
-        #dscale1 = Kappa_to_MsunArcsec2(obj, 1, ps['1/H0'])
-        #dscale2 = Kappa_to_MsunKpc2   (obj, 1, ps['1/H0'])
-
-        dscale1 = convert('kappa to Msun/arcsec^2', 1, obj.dL, ps['nu'])
-        dscale2 = convert('kappa to Msun/kpc^2',    1, obj.dL, ps['nu'])
-
-        ps['R']     = self.rs + self.radial_cell_size / 2
-        ps['R_kpc'] = ps['R'] * rscale
-
-        ps['enckappa']   = cumsum([    sum(ps['kappa'][r])                              for r in self.rings])
-        ps['encmass']    = cumsum([    sum(ps['kappa'][r]*self.cell_size[r]**2)*dscale1 for r in self.rings])
-        ps['sigma']      =  array([average(ps['kappa'][r]                     )*dscale2 for r in self.rings])
-        ps['kappa prof'] =  array([average(ps['kappa'][r]                     )         for r in self.rings])
-
-        ps['Re'] = estimated_Re(obj, ps,0)
 
         return ps
 
@@ -805,11 +747,12 @@ class PixelBasis:
                     deflect[i] += s
 
                 if i%100 == 0: 
-                    print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush() 
+                    print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
                     x = True
                     #print 'Calculating srcdiff: % 6i/%6i\r' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
 
-            if x: print
+            if x: 
+                print ' '*40, '\r',
 
             data['srcdiff'] = map(lambda s: abs(s[0] - ploc + deflect / s[1].zcap),
                                   izip(data['src'], obj.sources))
