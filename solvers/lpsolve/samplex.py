@@ -36,7 +36,7 @@ class Samplex:
 
         self.ncols       = kw.get('ncols', None)
         self.nthreads    = kw.get('nthreads', 1)
-        self.random_seed = kw.get('rngseed',  0)
+        self.random_seed = kw.get('rngseed',  None)
         self.objf_choice = kw.get('objf choice', 'random')
         self.sol_type    = kw.get('solution type', 'interior')
 
@@ -55,8 +55,6 @@ class Samplex:
         self.sum_ln_k    = 0
         self.curr_sol    = None
         self.n_solutions = 0
-
-        self.forbidden_variables = []
 
     def prepare_return_sol(self):
         if self.sol_type == 'vertex':
@@ -150,7 +148,6 @@ class Samplex:
 
             if self.objf_choice == 'facet' and abs(objv) > 1e-6:
                 print 'BAD VARIABLE', objv
-                #self.forbidden_variables.append(r)
                 del self.ineqs[r]
             else:
                 break
