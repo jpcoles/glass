@@ -262,7 +262,7 @@ class Samplex:
                 print self.sol_type
                 if self.sol_type == 'vertex':
                     print 'SADFDSAF'
-                    p = self.curr_sol.vertex.copy()
+                    p = self.curr_sol.vertex[:self.nVars+1].copy()
                 elif self.sol_type == 'interior':
                     print '!@#!@#'
                     p = self.interior_point()

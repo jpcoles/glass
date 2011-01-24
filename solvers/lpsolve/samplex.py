@@ -81,9 +81,12 @@ class Samplex:
 
         Log( 'Using lpsolve %s' % lpsolve('lp_solve_version') )
 
-        Log( "ncols       = %i" % self.ncols )
-        Log( "random seed = %s" % self.random_seed )
-        Log( "threads     = %s" % self.nthreads )
+        Log( "ncols         = %i" % self.ncols )
+        Log( "random seed   = %s" % self.random_seed )
+        Log( "threads       = %s" % self.nthreads )
+        Log( "objf choice   = %s" % self.objf_choice )
+        Log( "solution type = %s" % self.sol_typ )
+        Log( "add noise     = %s" % self.add_noise )
 
         Log( "%6s %6s %6s %6s\n%6i %6i %6i %6i" 
             % (">=", "<=", "=", "bnd", self.geq_count, self.leq_count, self.eq_count, self.bnd_count) )

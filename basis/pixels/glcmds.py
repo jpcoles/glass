@@ -122,7 +122,7 @@ cosm %(om).2f %(ol).2f''' % { \
             'maprad':obj0.basis.maprad,
             'zlens': obj0.z,
             'models': len(env().models),
-            'g': convert('nu to H0^-1 in Gyr', env().nu),
+            'g': convert('nu to H0^-1 in Gyr', env().nu[0]),
             'om':env().omega_matter, 
             'ol':env().omega_lambda,
              }
