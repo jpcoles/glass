@@ -85,7 +85,7 @@ class Samplex:
         Log( "random seed   = %s" % self.random_seed )
         Log( "threads       = %s" % self.nthreads )
         Log( "objf choice   = %s" % self.objf_choice )
-        Log( "solution type = %s" % self.sol_typ )
+        Log( "solution type = %s" % self.sol_type )
         Log( "add noise     = %s" % self.add_noise )
 
         Log( "%6s %6s %6s %6s\n%6i %6i %6i %6i" 
