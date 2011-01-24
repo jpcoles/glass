@@ -615,6 +615,9 @@ def H0_plot(models=None, objects=None, key='accepted'):
     for m in models:
         obj, data = m['obj,data'][0] # For H0 we only have to look at one model because the others are the same
         l[m.get(key,2)].append(data['1/H0'])
+        #l[2].append(data['kappa'][1])
+
+    #print amin(l[2]), amax(l[2])
 
     not_accepted, accepted, notag = l
 
@@ -623,6 +626,7 @@ def H0_plot(models=None, objects=None, key='accepted'):
     for d,s in zip(l, _styles):
         if d:
             print len(d), d
+            #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
             hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
 
     if not_accepted or accepted:

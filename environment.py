@@ -120,12 +120,9 @@ class Environment:
         self.models = None
         self.accepted_models = None
 
-        # For use in cosmo.py
-        self.omega_matter = 0.26
-        self.omega_lambda = 0.74
-
-        self.omega_matter = 0.3
-        self.omega_lambda = 0.7
+        # For use in cosmo.py. Based on WMAP7+BAO
+        self.omega_matter = 0.28
+        self.omega_lambda = 0.72
 
         self.h_spec       = [None, None]
         self.g            = None

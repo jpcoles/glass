@@ -4,6 +4,14 @@ from numpy import abs
 from scipy.integrate import quadrature, quad
 from environment import env
 
+def age_factor():
+    M = env().omega_matter
+    L = env().omega_lambda
+    K = 1 - (M+L)
+    f = lambda a: a / sqrt(a*M + a**4 * L + a**2 * K)
+    q =  quad(f, 0, 1)[0]
+    return q
+
 def angdist(zi, zf):
     M = env().omega_matter
     L = env().omega_lambda

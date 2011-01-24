@@ -1,7 +1,7 @@
 from __future__ import division
 from environment import env, command
 import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere
+from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all
 from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
 from itertools import izip
 from log import log as Log
@@ -272,26 +272,34 @@ def JPC1time_delay(o, leq, eq, geq):
 @object_prior
 def hubble_constant(o, leq, eq, geq):
     """This requires a particular hubble constant for the object."""
-    Log( "Hubble Constant" + str(env().h_spec))
+
+    if env().nu is None:
+        Log( "Hubble Constant DISABLED")
+        return
+
+    Log( "Hubble Constant" + str(env().nu))
 
     nu = 1+o.basis.H0
 
-    if len(env().nu) == 1:
-        h, = env().nu
+    lb, ub = env().nu[0], env().nu[-1]
+
+    if lb is not None and ub is not None:
+        assert ub >= lb, 'Hubble constant contraints must be given as (lower_bound, upper_bound)'
+
+    if lb == ub:
         row = new_row(o)
-        row[ [0,nu] ] = h, -1
+        row[ [0,nu] ] = lb, -1
         eq(row)
     else:
-        lb, ub = env().nu
         if ub is not None:
             row = new_row(o)
             row[ [0,nu] ] = ub, -1
-            leq(row)
+            geq(row)
 
         if lb is not None:
             row = new_row(o)
             row[ [0,nu] ] = lb, -1
-            geq(row)
+            leq(row)
 
 #@object_prior
 def parity(o, leq, eq, geq):
@@ -472,7 +480,12 @@ def magnification(o, leq, eq, geq):
 @object_prior
 def annular_density(o, leq, eq, geq):
     theta = o.prior_options.get('annular_density', None)
+    if theta is None:
+        Log( "Annular density DISABLED" )
+        return
+
     Log( "Annular density %s" % theta )
+
     if theta is not None and theta != 0:
         row = new_row(o)
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
@@ -491,6 +504,9 @@ def external_shear(o, leq, eq, geq):
         geq(row)
         on = [0.1, -1]
 
+    if on is None:
+        on = 'DISABLED'
+
     Log( "External Shear %s" % on)
 
 ##############################################################################
@@ -500,9 +516,11 @@ def external_shear(o, leq, eq, geq):
 def profile_steepness(o, leq, eq, geq):
     steep = o.prior_options.get('steepness', None)
 
-    Log( "Profile Steepness %s" % steep )
+    if steep is None: 
+        Log( "Profile Steepness DISABLED" )
+        return
 
-    if steep is None: return
+    Log( "Profile Steepness %s" % steep )
 
     minsteep, maxsteep = steep
     assert maxsteep is None or maxsteep >= minsteep
@@ -785,14 +803,14 @@ def JCsmoothness(o, leq, eq, geq):
 
     smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
     if not smth:
-        Log( "Smoothness [None]" )
+        Log( "JCSmoothness DISABLED" )
         return
 
     pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+    Log( "JCSmoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,r,nbrs in o.basis.nbrs:
@@ -842,7 +860,6 @@ def smoothness(o, leq, eq, geq):
 @ensemble_prior
 def shared_h(objs, nvars, leq, eq, geq):
     """This requires that all objects have the same hubble constant."""
-    Log( "Shared h" )
     on = False
     for o1,o2 in izip(objs[:-1], objs[1:]):
         offs1 = o1.basis.array_offset
@@ -852,7 +869,11 @@ def shared_h(objs, nvars, leq, eq, geq):
         row[offs2 + o2.basis.H0] = -1
         eq(row) 
         on = True
-    Log( "\t%s" % on )
+
+    if not on: 
+        Log( "Shared h DISABLED" )
+    else:
+        Log( "Shared h" )
 
 
 @object_prior
@@ -880,7 +901,7 @@ def min_kappa_grid(o, leq, eq, geq):
     g = o.prior_options.get('minkappa')
 
     if not g: 
-        Log( "Minimum Kappa Grid [None]" )
+        Log( "Minimum Kappa Grid DISABLED" )
         return
 
     Log( "Minimum Kappa Grid" )
@@ -912,7 +933,7 @@ def Xmin_kappa_grid(o, leq, eq, geq):
     g = o.prior_options.get('minkappa')
 
     if not g: 
-        Log( "Minimum Kappa Grid [None]" )
+        Log( "Minimum Kappa Grid DISABLED" )
         return
 
     Log( "Minimum Kappa Grid" )
@@ -979,11 +1000,11 @@ def smoothness2(o, leq, eq, geq):
 @object_prior
 def symmetry(o, leq, eq, geq):
 
-    if o.symm:
-        Log( "Symmetry" )
-    else:
+    if not o.symm:
         Log( "Symmetry DISABLED" )
         return
+
+    Log( "Symmetry" )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -1009,3 +1030,16 @@ def symmetry(o, leq, eq, geq):
 
     Log( "\t# eqs = %i" % c )
 
+
+#@default_prior
+@object_prior
+def max_kappa(o, leq, eq, geq):
+
+    Log( "Maximum Kappa" )
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    for i,j in enumerate(xrange(pix_start, pix_end)):
+        row = new_row(o)
+        row[ [0,j] ] = 100, -1
+        leq(row)

@@ -1,11 +1,12 @@
 from __future__ import division
-from numpy import isfortran, asfortranarray, sign, logical_and, any
+from numpy import isfortran, asfortranarray, sign, logical_and, any, amin
 from numpy import set_printoptions
 from numpy import zeros, array, all, log, empty
 from numpy import inf, isinf
 from numpy.random import random, random_integers, seed as ran_set_seed
 
-from lpsolve55 import lpsolve, EQ,GE,LE, NORMAL, OPTIMAL, INFEASIBLE, UNBOUNDED
+from lpsolve55 import lpsolve, EQ,GE,LE, OPTIMAL, INFEASIBLE, UNBOUNDED, TIMEOUT, SUBOPTIMAL
+from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
 
 from log import log as Log
 
@@ -39,16 +40,19 @@ class Samplex:
         self.random_seed = kw.get('rngseed',  None)
         self.objf_choice = kw.get('objf choice', 'random')
         self.sol_type    = kw.get('solution type', 'interior')
+        self.add_noise   = kw.get('add noise', False)
 
         ran_set_seed(self.random_seed)
 
         self.lp = lpsolve('make_lp', 0, self.ncols)
+        #lpsolve('set_bounds_tighter', self.lp, True) # important so that we don't loosen tight bounds
 
         self.ineqs = []
 
         self.eq_count  = 0
         self.leq_count = 0
         self.geq_count = 0
+        self.bnd_count  = 0
 
         self.iteration   = 0
         self.prev_sol    = None
@@ -58,7 +62,7 @@ class Samplex:
 
     def prepare_return_sol(self):
         if self.sol_type == 'vertex':
-            return self.curr_sol.vertex.copy()
+            return self.curr_sol.sol.copy()
         elif self.sol_type == 'interior':
             return self.interior_point()
 
@@ -81,11 +85,12 @@ class Samplex:
         Log( "random seed = %s" % self.random_seed )
         Log( "threads     = %s" % self.nthreads )
 
-        Log( "%6s %6s %6s\n%6i %6i %6i" 
-            % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
+        Log( "%6s %6s %6s %6s\n%6i %6i %6i %6i" 
+            % (">=", "<=", "=", "bnd", self.geq_count, self.leq_count, self.eq_count, self.bnd_count) )
 
-        lpsolve('set_verbose', self.lp, NORMAL)
-        #lpsolve('set_verbose', self.lp, IMPORTANT)
+        #lpsolve('set_verbose', self.lp, DETAILED)
+        #lpsolve('set_verbose', self.lp, DETAILED)
+        lpsolve('set_verbose', self.lp, IMPORTANT)
 
     def status(self):
         if self.iteration & 15 == 0:
@@ -99,11 +104,14 @@ class Samplex:
         #lpsolve('set_simplextype', self.lp, SIMPLEX_PRIMAL_PRIMAL)
         #lpsolve('set_pivoting', self.lp, PRICER_DANTZIG)
         #lpsolve('set_presolve', self.lp, PRESOLVE_LINDEP)
+        #lpsolve('set_timeout', self.lp, 0)
         res = lpsolve('solve', self.lp)
         #lpsolve('set_presolve', self.lp, PRESOLVE_NONE)
         print 'solve result', res
 
         if res != OPTIMAL: return
+
+        #lpsolve('set_timeout', self.lp, 1)
 
         Log( "------------------------------------" )
         Log( "Found feasible" )
@@ -112,23 +120,52 @@ class Samplex:
         self.curr_sol = self.package_solution()                
         self.prev_sol = self.curr_sol.vertex.copy()
 
-        self.sum_ln_k = 0
-        self.n_solutions = 0
-        while self.n_solutions != nsolutions:
-            self.iteration=0
-            self.n_solutions += 1
-            while True:
-                self.next_solution()
-                self.curr_sol = self.package_solution()                
+        if self.sol_type != 'CLT':
+            self.sum_ln_k = 0
+            self.n_solutions = 0
+            while self.n_solutions != nsolutions:
+                self.iteration=0
+                self.n_solutions += 1
+                while True:
+                    self.next_solution()
+                    self.curr_sol = self.package_solution()                
 
-                p = self.prepare_return_sol()
+                    p = self.prepare_return_sol()
 
-                if p is not None: 
+                    if p is not None: 
+                        break
+                    
+                    print 'SAME VERTEX!'
+
+                yield p
+        else:
+            self.sum_ln_k = 0
+            self.n_solutions = 0
+            all = []
+            while self.n_solutions != nsolutions*100:
+                self.iteration=0
+                self.n_solutions += 1
+                while True:
+                    self.next_solution()
+                    self.curr_sol = self.package_solution()                
+
+                    all.append(self.curr_sol)
                     break
-                
-                print 'SAME VERTEX!'
 
-            yield p
+            while nsolutions > 0:
+                yield self.CLT(all)
+                nsolutions -= 1
+
+    def CLT(self, all):
+        N  = min(len(all), 15)
+        rs = random_integers(len(all), size=N) - 1
+
+        avg = all[rs[0]].sol.copy()
+        for r in rs[1:]:
+            avg += all[r].sol
+        avg /= N
+
+        return avg
 
     def next_solution(self):
 
@@ -137,7 +174,8 @@ class Samplex:
             r = self.start_new_objective(kind=self.objf_choice)
 
             result = lpsolve('solve', self.lp)
-            if   result == OPTIMAL:   break
+            if   result in [OPTIMAL, TIMEOUT]:   break
+            elif result == SUBOPTIMAL: continue
             elif result == INFEASIBLE: raise SamplexNoSolutionError()
             elif result == UNBOUNDED: raise SamplexUnboundedError()
             else:
@@ -177,6 +215,22 @@ class Samplex:
 
 
     def interior_point(self, r=None):
+
+        #-----------------------------------------------------------------------
+        # Set smallest_scale to maximum allowed step. 
+        #
+        # The current point on the edge of the simplex is in vertex. prev_sol
+        # is another point within the simplex.  We wish to start at vertex and
+        # find how far we can go in the direction of prev_sol before we violate
+        # one of the constraints.  Obviously, we can go at least as far as
+        # prev_sol (a step size of 1).  As one moves along this direction the
+        # values of the left-hand variables (LHVs) will change.  We are
+        # interested in those LHVs that are decreasing but remain greater than
+        # zero (as a value less than zero is invalid). The following loop finds
+        # the the largest step allowed that doesn't violate one of the
+        # constraints.
+        #-----------------------------------------------------------------------
+
         if r is None: r = random()
 
         sol = self.curr_sol
@@ -194,18 +248,28 @@ class Samplex:
 
         scale = iv[a] / dist[a]
 
-        smallest_scale = min(scale)
+        smallest_scale = amin(scale)
 
         assert not isinf(smallest_scale)
         assert smallest_scale > 0.99, smallest_scale
 
         k = smallest_scale * (1.0-r)
+        #k = smallest_scale * pow((1.0-r), 1./3)
+        #k = smallest_scale * pow((1.0-r), 1./self.ncols)
 
-        self.sum_ln_k += log(k)
-        #assert self.sum_ln_k < 1
+        T = sol.vertex[1:] + k * (self.prev_sol[1:]-sol.vertex[1:])
+        #t = (T - sol.vertex[1:]) - k * (self.prev_sol[1:]-sol.vertex[1:])
 
-        self.prev_sol[1:] = sol.vertex[1:] + k * (self.prev_sol[1:]-sol.vertex[1:])
-        assert all(self.prev_sol[1:] >= -self.SML), (self.prev_sol[self.prev_sol < 0], self.prev_sol)
+        #T += t
+        #assert all(t == 0), t
+
+        self.prev_sol[1:] = T
+
+        #self.sum_ln_k += log(k)
+        #assert self.sum_ln_k < 1, self.prev_sol
+
+        assert all(self.prev_sol[1:] >= 0), (self.prev_sol[self.prev_sol < 0], self.prev_sol)
+        #assert all(self.prev_sol[1:] >= -self.SML), (self.prev_sol[self.prev_sol < 0], self.prev_sol)
 
         s = self.prev_sol.copy()[:sol.sol.size]
         return s
@@ -226,14 +290,45 @@ class Samplex:
 
     #===========================================================================
 
+    def noise(self, a):
+        if a[0] == 0:
+            w = abs(a) > 1e-10
+            w[0] = True
+            b = a.copy()
+            b[w] += 1e-8*(2*random()-1)
+            return b
+
+        return a
+
     def eq(self, a):
+        #if self.add_noise: a = noise(a)
         lpsolve('add_constraint', self.lp, a[1:], EQ, -a[0])
         self.eq_count += 1
 
+    def set_bound(self, a, type):
+        return False
+
+        func = {'low': 'set_lowbo',
+                'up':  'set_upbo'}.get(type, None)
+
+        if func is None:
+            assert 0, 'Bad type to set_bound'
+
+        w = a.nonzero()[0]
+        if w.size == 2 and w[0] == 0:
+            bnd = -a[0] / a[w[1]]
+            lpsolve(func, self.lp, w[1], bnd)
+            self.bnd_count += 1
+            return True
+
+        return False
+
     def geq(self, a):
-        lpsolve('add_constraint', self.lp, a[1:], GE, -a[0])
-        self.geq_count += 1
-        self.ineqs.append([a[1:], GE, -a[0]])
+        if not self.set_bound(a, 'low'):
+            if self.add_noise: a = self.noise(a)
+            lpsolve('add_constraint', self.lp, a[1:], GE, -a[0])
+            self.geq_count += 1
+            self.ineqs.append([a[1:], GE, -a[0]])
 
     def leq(self, a):
         #-----------------------------------------------------------------------
@@ -243,9 +338,13 @@ class Samplex:
         # slack on each constraint. This is important to have in
         # interior_point().
         #-----------------------------------------------------------------------
-        lpsolve('add_constraint', self.lp, -a[1:], GE, a[0])
-        self.leq_count += 1
-        self.ineqs.append([-a[1:], GE, a[0]])
-        #self.ineqs.append([a[1:], LE, -a[0]])
+        if not self.set_bound(a, 'up'):
+
+            if self.add_noise: a = self.noise(a)
+            lpsolve('add_constraint', self.lp, -a[1:], GE, a[0])
+            self.leq_count += 1
+
+            self.ineqs.append([-a[1:], GE, a[0]])
+            #self.ineqs.append([a[1:], LE, -a[0]])
 
 

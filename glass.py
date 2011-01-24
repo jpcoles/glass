@@ -143,7 +143,6 @@ if __name__ == "__main__":
         # because if there is an exception the stack trace will print the
         # correct filename instead of <string>.
         #-----------------------------------------------------------------------
-        #execfile(list[0])
         pass
     except (SyntaxError, TypeError, KeyError, NameError, ValueError, KeyboardInterrupt):
         traceback.print_exc(file=sys.stderr)

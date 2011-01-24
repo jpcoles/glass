@@ -48,7 +48,7 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        self.objf_choice = kw.get('objf choice', 'facet')
+        self.objf_choice = kw.get('objf choice', 'random')
         self.sol_type  = kw.get('solution type', 'interior')
 
         Log( "Samplex created" )

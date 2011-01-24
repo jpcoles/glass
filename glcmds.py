@@ -19,6 +19,20 @@ def double(*args):              assert False, "double() not supported. Use sourc
 def quad(*args):                assert False, "quad() not supported. Use source()."
 @command
 def multi(*args):               assert False, "multi() not supported. Use source()."
+@command
+def g(*args):
+    assert False, 'g() no longer supported, use hubble_time'
+    env().g      = array(args)
+    env().h_spec = 1 / array(args)
+    #h = args if len(args) > 1 else [args[0], args[0]]
+    #env().h_spec = (1/h[0], 1/h[1])
+@command
+def t0(*args):
+    assert False, 't0() no longer supported, use hubble_time'
+    env().g      = array(args)
+    env().h_spec = 1 / array(args)
+    #h = args if len(args) > 1 else [args[0], args[0]]
+    #env().h_spec = (1/h[0], 1/h[1])
 
 @command
 def globject(name):
@@ -92,19 +106,24 @@ def symm(v=True):
     env().current_object().symm = v
 
 @command
-def g(*args):
-    env().g      = array(args)
-    env().h_spec = 1 / array(args)
-    #h = args if len(args) > 1 else [args[0], args[0]]
-    #env().h_spec = (1/h[0], 1/h[1])
+def universe_age(*args):
+    """Set age of the Universe in Gyr"""
+    assert len(env().objects) == 0, 'universe_age() must be used before any objects are created.'
+    nu       = convert('age in Gyr to nu', array(args), cosmo.age_factor())
+    env().nu = array([nu[-1], nu[0]])
 
 @command
-def t0(*args):
+def hubble_time(*args):
     """Set H0^-1 (or a range) in Gyr"""
+    assert len(env().objects) == 0, 'hubble_time() must be used before any objects are created.'
+    nu       = convert('H0^-1 in Gyr to nu', array(args))
+    env().nu = array([nu[-1], nu[0]])
 
-    #env().H0inv   = args
-    env().nu      = convert('H0^-1 in Gyr to nu', array(args))
-    #env().h_spec = 1 / array(args)
+@command
+def hubble_constant(*args):
+    """Set H0 (or a range) in km/s/Mpc"""
+    assert len(env().objects) == 0, 'hubble_constant() must be used before any objects are created.'
+    env().nu      = convert('H0 in km/s/Mpc to nu', array(args))
 
 @command
 def maprad(r):

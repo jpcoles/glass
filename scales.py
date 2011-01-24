@@ -46,6 +46,13 @@ def convert(type, *args):
     elif 'years to days' == type:
         return args[0] * 365.25
 
+    elif 'age in Gyr to nu' == type:
+        v, age_factor = args
+        return (N**2 / 1e9) / args[0] * age_factor
+
+    elif 'H0 in km/s/Mpc to nu' == type:
+        return N**2 * args[0]
+
     elif 'H0^-1 in Gyr to nu' == type:
         return (N**2 / 1e9) / args[0]
 
@@ -61,11 +68,9 @@ def convert(type, *args):
         return v * Munit / dL * nu
 
     elif 'Msun/kpc^2 to kappa' == type:
-        v, dL, nu = args
         return convert('Msun/ly^2 to kappa', *args) / convert('kpc to ly', 1)**2 
 
     elif 'kappa to Msun/kpc^2' == type:
-        v, dL, nu = args
         return convert('kappa to Msun/ly^2', *args) / convert('ly to kpc', 1)**2
 
     elif 'kappa to Msun/arcsec^2' == type:

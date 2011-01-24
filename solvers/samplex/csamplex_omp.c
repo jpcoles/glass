@@ -442,6 +442,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     for (n=0;; n++)
     {
+#if 0
         if (Z == 0) // && report.obj_val)
         {
             if (fabs(tabl.data[0]) < 1e-8)
@@ -453,6 +454,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
                 break;
             }
         }
+#endif
 
         report.step     = n;
         report.obj_val  = tabl.data[0];
