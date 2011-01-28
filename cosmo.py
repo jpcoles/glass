@@ -42,7 +42,7 @@ def angdist(zi, zf):
             delksi = factor
             dist = delksi / (zf+1)
         else:
-            delksi = sqrt(abs(M+L-1) * factor)
+            delksi = sqrt(abs(M+L-1)) * factor
             if k == 1:
                 dist = sin (delksi)/(zf+1)/sqrt(abs(M+L-1))
             else:
