@@ -19,7 +19,7 @@ def Ximport_functions(pkg):
             print name
             g[name.split('glcmd__')[1]] = func
 
-def glass_basis(name):
+def glass_basis(name, **kwargs):
     f = __import__(name, globals(), locals())
     for name,func in command_list.iteritems():
         __builtins__.__dict__[name] = func

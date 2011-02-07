@@ -10,12 +10,15 @@ import funcs
 import priors
 from funcs import default_post_process
 
-if 1:
+if 0:
     from solvers.lpsolve.samplex import Samplex
     import solvers.lpsolve.glcmds 
-else:
+elif 0:
     from solvers.samplex.samplex import Samplex
     import solvers.samplex.glcmds 
+else:
+    from solvers.samplexsimple.samplex import Samplex
+    import solvers.samplexsimple.glcmds 
 
 if env().withgfx:
     import plots

@@ -36,14 +36,22 @@ csamplex = Extension('solvers.samplex.csamplex',
              extra_compile_args=extra_compile_args,
              extra_link_args=extra_link_args)
 
+csamplexsimple = Extension('solvers.samplexsimple.csamplex',
+                     sources = ['solvers/samplexsimple/csamplex_omp.c'],
+		     include_dirs=[incdir],
+             undef_macros=['DEBUG'],
+             libraries=libraries,
+             extra_compile_args=extra_compile_args,
+             extra_link_args=extra_link_args)
+
 setup(name = 'Glass',
       author = 'Jonathan Coles',
       author_email = 'jonathan@physik.uzh.ch',
       version = '1.0',
       description = 'Gravitational Lensing and Something Something',
       package_dir = {'glass': ''},
-      packages = ['', 'solvers', 'solvers.samplex', 'solvers.lpsolve',
+      packages = ['', 'solvers', 'solvers.samplex', 'solvers.lpsolve', 'solvers.samplexsimple',
                   'basis', 'basis.pixels', 'basis.bessel',
                   'massmodel', 'misc'],
-      ext_modules = [csamplex])
+      ext_modules = [csamplex, csamplexsimple])
 

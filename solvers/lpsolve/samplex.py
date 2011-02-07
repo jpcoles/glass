@@ -123,7 +123,7 @@ class Samplex:
         self.curr_sol = self.package_solution()                
         self.prev_sol = self.curr_sol.vertex.copy()
 
-        if self.sol_type != 'CLT':
+        if self.sol_type in ['vertex', 'interior']:
             self.sum_ln_k = 0
             self.n_solutions = 0
             while self.n_solutions != nsolutions:
@@ -160,7 +160,7 @@ class Samplex:
                 nsolutions -= 1
 
     def CLT(self, all):
-        N  = min(len(all), 15)
+        N  = min(len(all), 2)
         rs = random_integers(len(all), size=N) - 1
 
         avg = all[rs[0]].sol.copy()
