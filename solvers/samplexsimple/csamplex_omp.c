@@ -601,7 +601,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     Py_BEGIN_ALLOW_THREADS
 
-//    omp_set_num_threads(nthreads);
+    //omp_set_num_threads(nthreads);
 
     for (n=0;; n++)
     {
@@ -821,29 +821,29 @@ void doPivot0(
         {
             fprintf(stderr, "%f %f %f %f %f %f || \n", col[i], pcol[i], xx, col_lpiv, piv, col[i] - pcol[i]*xx);
             col[i] -= pcol[i] * xx;  
-            col[i] *= fabs(col[i]) > 1e-12;
+            col[i] *= fabs(col[i]) > 1e-10;
         }
         }
         else
         for (i=0; i <= L; i++) 
         {
             col[i] -= pcol[i] * xx;  
-            col[i] *= fabs(col[i]) > 1e-12;
+            col[i] *= fabs(col[i]) > 1e-10;
         }
 
         //col[lpiv] = fabs(xx);
         col[lpiv] = -xx;   
-        col[lpiv] *= fabs(col[lpiv]) > 1e-12;
+        col[lpiv] *= fabs(col[lpiv]) > 1e-10;
     }
 
     //#pragma omp parallel for shared(pcol, piv, L)
     for (i=0; i <= L; i++)
     {
         pcol[i] /= piv;
-        pcol[i] *= fabs(pcol[i]) > 1e-12;
+        pcol[i] *= fabs(pcol[i]) > 1e-10;
     }
     pcol[lpiv] = 1.0 / piv;
-    pcol[lpiv] *= fabs(pcol[lpiv]) > 1e-12;
+    pcol[lpiv] *= fabs(pcol[lpiv]) > 1e-10;
 
     DBG(1)
     {
