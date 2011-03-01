@@ -511,6 +511,8 @@ PyObject *set_rnd_cseed(PyObject *self, PyObject *args)
     {
         srand48(PyInt_AsLong(args));
     }
+
+    return Py_None;
 }
 
 /*==========================================================================*/
