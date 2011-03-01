@@ -48,8 +48,7 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        self.objf_choice = kw.get('objf choice', 'random')
-        self.sol_type  = kw.get('solution type', 'interior')
+        self.sol_type  = kw.get('solution type', 'vertex')
 
         Log( "Samplex created" )
         Log( "    ncols = %i" % ncols )
@@ -273,45 +272,19 @@ class Samplex:
             #print 'sol', p
             yield p
 
-#   def next_solution(self):
-
-#       self.start_new_objective()
-#       while True:
-#           result = self.pivot()
-#           if   result == self.NOPIVOT:   return
-#           elif result == self.FEASIBLE:  pass
-#           elif result == self.UNBOUNDED: raise SamplexUnboundedError()
-#           else:
-#               Log( result )
-#               raise SamplexUnexpectedError("unknown pivot result = %i" % result)
-
-#           self.status()
-#           self.iteration += 1
-
     def next_solution(self):
 
-        r = -1
         while True:
-
-            r = self.start_new_objective(kind=self.objf_choice, last_r=r)
-            while True:
-                result = self.pivot()
-                if   result == self.NOPIVOT:   break
-                elif result == self.FEASIBLE:  pass
-                elif result == self.UNBOUNDED: raise SamplexUnboundedError()
-                else:
-                    Log( result )
-                    raise SamplexUnexpectedError("unknown pivot result = %i" % result)
-
-                self.status()
-                self.iteration += 1
-
-            if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
-                print 'BAD VARIABLE', abs(self.data[0,0])
-                self.forbidden_variables.append(r)
+            result = self.pivot()
+            if   result == self.NOPIVOT:   break
+            elif result == self.FEASIBLE:  pass
+            elif result == self.UNBOUNDED: raise SamplexUnboundedError()
             else:
-                break
+                Log( result )
+                raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
+            self.status()
+            self.iteration += 1
 
     def package_solution(self):
         s = SamplexSolution()
@@ -327,170 +300,6 @@ class Samplex:
         #s.vertex[0] = self.data[0,0]
 
         return s
-
-    def start_new_objective(self, kind=2, last_r=-1):
-
-        if kind==0:
-            xs = normal(loc=0.0, scale=1.0, size=1+self.nVars+self.nSlack)
-            r = sqrt(dot(xs,xs)) # or should we take half the radius?
-            self.obj = xs/r
-
-        elif kind=='random':
-            self.obj = random(1+self.nVars+self.nSlack) - 0.5
-            t = abs(self.obj) * (1-2*self.SML)
-            t += self.SML
-            self.obj = t * sign(self.obj)
-
-            self.obj = ones(1+self.nVars+self.nSlack)
-
-        elif kind=='facet':
-
-#           data        = self.dcopy[0].copy()
-#           self.lhv    = self.dcopy[1].copy()
-#           self.rhv    = self.dcopy[2].copy()
-#           self.nVars  = self.dcopy[3]
-#           self.nLeft  = self.dcopy[4]
-#           self.nSlack = self.dcopy[5]
-#           self.nTemp  = self.dcopy[6]
-#           self.nRight = self.dcopy[7]
-
-            #sv = list(set(range(1,1+self.nVars+self.nSlack)) - set(self.lhv[1:1+self.nVars]) - set(self.forbidden_variables))
-
-            sv = list(set(range(1+self.nVars, 1+self.nVars+self.nSlack)) 
-                    - set([last_r])
-                    - set(self.rhv[1:1+self.nRight])
-                    #- set(self.lhv[logical_and(self.nVars < self.lhv, self.lhv <= self.nVars+self.nSlack)])
-                    - set(self.forbidden_variables))
-#           sv = list(
-#           #set(self.rhv[1:1+self.nRight]) 
-#                   #- set(range(1, 1+self.nVars)) 
-#                   set(range(1+self.nVars, 1+self.nVars+self.nSlack)) 
-#                   - set(self.forbidden_variables))
-            sv.sort()
-
-            #print sv
-            #sv = arange(0,1+self.nVars+self.nSlack)
-            #sv[self.lhv[1:]] = 0
-
-            #print sv
-
-            # Choose random slack variable
-            #while True:
-            #    r = sv[random_integers(sv.size)]
-            #    if r != 0: break;
-
-            #print self.lhv[1:]
-            #assert self.lhv[1:].size == self.nVars, '%i %i' % (self.lhv[1:].size, self.nVars)
-            #print self.rhv
-            #print self.nVars, self.nSlack, self.nRight
-            #print self.rhv[logical_and(self.nVars < self.rhv, self.rhv <= self.nVars+self.nSlack)]
-            #print range(1+self.nVars, 1+self.nVars+self.nSlack)
-            print sv
-            #assert len(sv) <= self.nSlack, '%i %i' % (len(sv), self.nSlack)
-            r = sv[random_integers(len(sv))-1]
-            print r
-            #r = argwhere(self.rhv == r).flatten()[0]
-            #print r
-
-            print 'SSS', r
-
-            self.obj = zeros(1+self.nVars+self.nSlack)
-            #self.obj[0] = self.data[self.lhv==r,0]
-            self.obj[r] = -1
-            self.set_objective(self.obj)
-
-            #print self.data.shape
-            #self.data[0,r] = 1
-
-            return r
-
-            #print self.obj
-
-        else:
-
-            self.obj = random(1+self.nVars+self.nSlack) - 0.5
-            # TODO:
-            w = abs(self.obj) < self.SML
-            while w.any():
-                n = flatnonzero(w)
-                self.obj[n] = random(len(n)) - 0.5
-                w = abs(self.obj) < self.SML
-
-        #self.obj[abs(self.obj) < self.EPS] = 0
-        self.set_objective(self.obj)
-
-    def set_objective(self, obj):
-        if 0:
-            sum(self.data[1:,:self.nRight+1], axis=0, out=self.data[0,:self.nRight+1])
-            self.data[0,0]
-            self.data[0,:self.nRight+1] *= -1
-            return
-        elif 1:
-            #print "obj", obj
-            for r in xrange(self.nRight+1):
-                col = self.data[:,r]
-                n   = self.rhv[r]
-                #print '@', obj[n], n
-                col[0] = obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
-                #col[0] = obj[n] if 0 <= n <= self.nVars else 0
-                for k in xrange(1, self.nLeft+1):
-                    n = self.lhv[k]
-                    #print obj[n]
-                    if 0 <= n <= self.nVars+self.nSlack:
-                        col[0] += col[k] * obj[n]
-
-            #print '!' * 80
-            #print self.data[0,:self.nRight+1]
-
-        elif 0:
-            assert self.lhv.size == self.nLeft+1
-            ks = logical_and(0 < self.lhv, self.lhv <= self.nVars+self.nSlack)
-            ns = self.rhv[:self.nRight+1]
-            obj_vs = obj[ns]
-            #obj_vs = obj[self.lhv[ks]]
-            #assert not any(obj_vs)
-            for r in xrange(self.nRight+1):
-                col = self.data[:,r]
-                n   = self.rhv[r]
-                col[0] = dot(col[ks], obj_vs)
-                col[0] += obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
-                #col[0] += obj[n] if 0 <= n <= self.nVars else 0
-
-            print '!' * 80
-            print self.data[0,0]
-
-        elif 0:
-            assert self.lhv.size == self.nLeft+1
-            ks     = logical_and(0 < self.lhv, self.lhv <= self.nVars)
-            obj_vs = obj[self.lhv[ks]]
-            print '*', obj_vs
-            for r in xrange(self.nRight+1):
-                col = self.data[:,r]
-                n   = self.rhv[r]
-                col[0] = sum(col[ks] * obj_vs)
-                col[0] += obj[n] if 0 <= n <= self.nVars else 0
-
-            print '!' * 80
-            print self.data[0,:]
-        else:
-            #print "obj", obj
-            print '*'*20, self.nRight+1
-            for r in xrange(self.nRight+1):
-                col = self.data[:,r]
-                n   = self.rhv[r]
-                col[0] = obj[n] if 0 <= n <= self.nVars else 0
-                for k in xrange(1, self.nLeft+1):
-                    n = self.lhv[k]
-                    if 0 <= n <= self.nVars:
-                        col[0] += col[k] * obj[n]
-
-            print '!' * 80
-            print self.data[0,0]
-        # XXX
-        #self.data[0,0] = 1
-        # XXX
-
-        #print self.data[:,0]
 
     def find_feasible(self):
 

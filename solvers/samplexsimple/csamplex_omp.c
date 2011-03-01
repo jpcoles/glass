@@ -356,21 +356,11 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 { 
-    typedef struct
-    {
-        int32_t l;
-        dble_t cpiv, cinc, col0;
-    } thread_t;
-
+    int i;
     int32_t k, r;
     dble_t * restrict bcol = &tabl->data[0];
 
-    thread_t t;
-    memset(&t, 0, sizeof(t));
-
-    int32_t accept;
-    int32_t l, cleft;
-    dble_t cpiv, cinc, tinc;
+    dble_t tinc;
     dble_t * restrict col;
 
     DBG(3) fprintf(stderr, "> choosePivot()\n");
@@ -379,140 +369,123 @@ int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 //          private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
 //          shared(bcol, t, L, tabl)
 
+    int32_t *Lvalid = malloc(L * sizeof(*Lvalid));
+
+#if 1
     r = (int)(drand48() * R) + 1;
     assert(r >= 1);
     assert(r <= R);
+    col = &tabl->data[r * tabl->rows + 0];
+
+#else
+
+    for (r=1; r <= R; r++)
     {
         col = &tabl->data[r * tabl->rows + 0];
-
-        DBG(2) fprintf(stderr, "r=%i %i\n", r, R+1);
-
-        //----------------------------------------------------------------------
-        // We now look for the column entry that causes the objective function
-        // to increase the most.  Set |l,cleft,cpiv,cinc| for candidate pivot
-        //----------------------------------------------------------------------
-
-        l = 0;
-        cleft = 0;
-        cpiv = 0;
-        cinc = 0;
-
-        //DBG(1) fprintf(stderr, "col[%i]=%f\n", 0, col[0]);
-
-        for (k=1; k <= L; k++) 
-        { 
-            if (col[k] >= 0) continue; /* only interested in negative values */
-            //if (col[k] >= -SML) continue; /* only interested in negative values */
-
-            //DBG(1) fprintf(stderr, "col[%i]=%f\n", k, col[k]);
-
-            //if (signbit(col[0]) == signbit(col[k])) continue;
-            //if (col[k] == 0) continue;
-
-            tinc = fabs(bcol[k]/col[k]);
-            DBG(1) assert(!isinf(tinc));
-
-            //------------------------------------------------------------------
-            // Accept this pivot element if we haven't found anything yet.
-            //------------------------------------------------------------------
-            accept = 0;
-            if (l==0) 
-            {
-                accept = 1;
-            }
-#if 1
-            else if (ABS(tinc-cinc) < EPS) 
-            { 
-                if (left[k] > 0 && cleft > 0)  
-                    accept = (left[k] > cleft) + 2;
-                else 
-                    accept = (left[k] < cleft) + 4;
-            }
-#endif
-            else 
-            {
-                accept = (tinc < cinc) + 8;
-            }
-
-            if ((accept&1)==0) continue; // && tinc > 0)
-
-            DBG(2) fprintf(stderr, "ACCEPTING tinc=%.15e %i\n", tinc, accept);
-
-            //------------------------------------------------------------------
-            // Remember this pivot element for later.
-            //------------------------------------------------------------------
-            l     = k; 
-            cleft = left[k]; 
-            cpiv  = col[k]; 
-            cinc  = tinc;
-
-            t.l    = k;
-            t.cinc = col[0] * tinc;
-            t.cpiv = cpiv;
-            t.col0 = col[0];
-        }
+        if (col[0] <= 0) break;
     }
+    assert(r <= R);
+#endif
 
-    dble_t piv  = 0,
-           coef = 0,
-           inc  = 0;
 
-    int32_t rpivq = 0,
-            lpiv  = 0,
-            rpiv  = 0;
+    DBG(2) fprintf(stderr, "r=%i %i\n", r, R+1);
 
-    int32_t res = NOPIVOT; 
+    int nvalid=0;
+    dble_t min_tinc=1e10; 
+    int32_t min_k = -1;
+    int32_t l=0;
+    dble_t cleft = 0;
+    dble_t cinc = 0;
+    int32_t accept = 0;
 
-    //for (r = 1; r <= R; r++)
-    {
-        //if (t.col0 > coef) 
+    for (k=1; k <= L; k++) 
+    { 
+        if (col[k] >= 0) continue;
+
+        tinc = fabs(bcol[k]/col[k]);
+
+        if (l == 0)
         {
-
-            //----------------------------------------------------------------------
-            // Maybe update |lpiv,rpiv,rpivq,piv,inc,coef|
-            //----------------------------------------------------------------------
-            if (t.l == 0) 
-            {
-                lpiv = -1;
-                rpiv = -1;
-                piv  = -1;
-                res = UNBOUNDED;
-            }
-            else
-            {
-                accept = 1;
-#if 0
-                if (lpiv==0)
-                    accept = 1;
-                else if (ABS(t.cinc-inc) < EPS)
-                    accept = (right[r] < rpivq);
-                else  
-                    accept = (t.cinc > inc);
-#endif
-
-                if (accept)
-                {
-                    res = FOUND_PIVOT;
-
-                    lpiv  = t.l;
-                    rpiv  = r; 
-
-                    rpivq = right[r];
-
-                    piv = t.cpiv; 
-                    inc = t.cinc; 
-                    
-                    coef = t.col0;
-                }
-            }
+            accept = 1;
+            l = 1;
         }
+        else if (ABS(tinc-cinc) >= EPS) 
+        {
+            accept = (tinc < cinc) + 8;
+        }
+        else 
+        { 
+            if (left[k] > 0 && cleft > 0)  
+                accept = (left[k] > cleft) + 2;
+            else 
+                accept = (left[k] < cleft) + 4;
+        }
+
+        if ((accept&1)==0) continue; // && tinc > 0)
+
+        if (accept)
+        {
+            min_tinc = tinc;
+            min_k = k;
+        }
+
+        cleft = left[k]; 
+        cinc  = tinc;
+
+//      if (col[k] < 0)
+//      {
+//          fprintf(stderr, "valid col %i %e\n", k, col[k]);
+//          Lvalid[nvalid] = k;
+//          nvalid++;
+//      }
     }
 
-    DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
 
-    *lpiv0 = lpiv;
-    *rpiv0 = rpiv;
-    *piv0  =  piv;
+    k = min_k;
+    //fprintf(stderr, "k = %i\n", k);
+
+    int32_t res; 
+
+    if (k == -1)
+    {
+        res = UNBOUNDED;
+        *lpiv0 = -1;
+        *rpiv0 = -1;
+        *piv0  = -1;
+    }
+    else
+    {
+//      fprintf(stderr, "nvalid = %i, L=%i\n", nvalid, L);
+//      for (i=0; i < nvalid; i++)
+//          fprintf(stderr, "Lvalid[%i] = %i\n", i, Lvalid[i]);
+//      res = FOUND_PIVOT;
+
+//      k = (int)(drand48() * nvalid);
+//      fprintf(stderr, "k0 %i\n", k);
+//      //k = 3;
+//      assert(k >= 0);
+//      assert(k < nvalid);
+//      k = Lvalid[k];
+//      assert(k >= 1);
+//      assert(k <= L);
+//      fprintf(stderr, "k1 %i\n", k);
+
+
+        tinc = fabs(bcol[k]/col[k]);
+        DBG(1) assert(!isinf(tinc));
+
+        DBG(2) fprintf(stderr, "ACCEPTING tinc=%.15e\n", tinc);
+        DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e %e\n", k, r, bcol[k], col[k], tinc);
+
+        assert(col[k] < 0);
+
+        *lpiv0 = k;
+        *rpiv0 = r;
+        *piv0  = col[k];
+        res = FOUND_PIVOT;
+    }
+
+    free(Lvalid);
     return res;
 }
 
@@ -827,6 +800,7 @@ void doPivot0(
         else
         for (i=0; i <= L; i++) 
         {
+            DBG(3) if (r==0) fprintf(stderr, "% e - % e * % e = % e \n", col[i], pcol[i],xx, col[i] - pcol[i]*xx);
             col[i] -= pcol[i] * xx;  
             col[i] *= fabs(col[i]) > 1e-10;
         }

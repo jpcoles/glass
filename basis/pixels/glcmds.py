@@ -1,6 +1,8 @@
 from __future__ import division
 from environment import env, command
-from solvers.lpsolve.samplex import Samplex
+#from solvers.samplex.samplex import Samplex
+from solvers.samplexsimple.samplex import Samplex
+#from solvers.lpsolve.samplex import Samplex
 from basis import PixelBasis as basis_class
 from numpy import load, mean, pi, radians
 from scales import convert
@@ -157,6 +159,6 @@ cosm %(om).2f %(ol).2f''' % { \
 def savestate_misc(fname):
     with open(fname, 'w') as f:
         for m in env().models:
-            for d in m['sol'][1:4]:
+            for d in m['sol'][1:]:
                 print >>f, '%.15g' % d,
             print >>f
