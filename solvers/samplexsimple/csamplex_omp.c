@@ -175,10 +175,12 @@ void doPivot0(
 static int32_t need_assign_pivot_threads;
 
 PyObject *samplex_pivot(PyObject *self, PyObject *args);
+PyObject *set_rnd_cseed(PyObject *self, PyObject *args);
 
 static PyMethodDef csamplex_methods[] = 
 {
     {"pivot", samplex_pivot, METH_O, "pivot"},
+    {"set_rnd_cseed", set_rnd_cseed, METH_O, "set_rnd_cseed"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -499,6 +501,17 @@ void periodic_report(int sig)
     alarm(1);
 }
 
+PyObject *set_rnd_cseed(PyObject *self, PyObject *args)
+{
+    if (args == Py_None)
+    {
+        srand48(time(NULL));
+    }
+    else
+    {
+        srand48(PyInt_AsLong(args));
+    }
+}
 
 /*==========================================================================*/
 /* pivot                                                                    */

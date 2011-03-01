@@ -56,7 +56,8 @@ class Samplex:
             self.nVars = ncols
             self.nRight = self.nVars
 
-        ran_set_seed(rngseed)
+        csamplex.set_rnd_cseed(rngseed)
+
         self.random_seed = rngseed
 
         self.nthreads = nthreads
