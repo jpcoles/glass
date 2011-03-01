@@ -252,8 +252,8 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
         { 
             if (col[k] >= 0) continue; /* only interested in negative values */
 
-            tinc = -bcol[k]/col[k];
-            assert(tinc >= 0);
+            tinc = fabs(bcol[k]/col[k]);
+            //assert(tinc >= 0);
             DBG(1) assert(!isinf(tinc));
 
             //------------------------------------------------------------------
