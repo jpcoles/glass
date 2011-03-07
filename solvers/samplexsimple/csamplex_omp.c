@@ -373,7 +373,20 @@ int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
     int32_t *Lvalid = malloc(L * sizeof(*Lvalid));
 
+    int nvalid=0;
+    dble_t min_tinc=1e10; 
+    int32_t min_k = -1;
+    int32_t l=0;
+    dble_t cleft = 0;
+    dble_t cinc = 0;
+    int32_t accept = 0;
+
+    {
+redo:
 #if 1
+    //--------------------------------------------------------------------------
+    // Choose a random columns from the right hand variables
+    //--------------------------------------------------------------------------
     r = (int)(drand48() * R) + 1;
     assert(r >= 1);
     assert(r <= R);
@@ -392,19 +405,26 @@ int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
     DBG(2) fprintf(stderr, "r=%i %i\n", r, R+1);
 
-    int nvalid=0;
-    dble_t min_tinc=1e10; 
-    int32_t min_k = -1;
-    int32_t l=0;
-    dble_t cleft = 0;
-    dble_t cinc = 0;
-    int32_t accept = 0;
+    nvalid=0;
+    min_tinc=1e10; 
+    min_k = -1;
+    l=0;
+    cleft = 0;
+    cinc = 0;
+    accept = 0;
 
+    //--------------------------------------------------------------------------
+    // Now find the left hand variable which limits the move to the next vertex
+    //--------------------------------------------------------------------------
     for (k=1; k <= L; k++) 
     { 
         if (col[k] >= 0) continue;
+        //if (col[k] >= -1e-12) continue;
 
+        DBG(3) fprintf(stderr, "%e %e\n", bcol[k], col[k]);
         tinc = fabs(bcol[k]/col[k]);
+
+        if (tinc < 1e-10) goto redo;
 
         if (l == 0)
         {
@@ -440,6 +460,7 @@ int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 //          Lvalid[nvalid] = k;
 //          nvalid++;
 //      }
+    }
     }
 
 
@@ -839,7 +860,7 @@ void doPivot0(
         int f=0;
         for (i=1; i <= L; i++)
         {
-            if (tabl->data[i] <= -SML)
+            if (tabl->data[i] < 0) //-SML)
             {
                 fprintf(stderr, "%e\n", tabl->data[i]);
                 f = 1;
