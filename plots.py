@@ -40,6 +40,10 @@ def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
 
 @command
+def show_plots():
+    show()
+
+@command
 def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None):
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]

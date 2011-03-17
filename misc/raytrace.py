@@ -24,7 +24,7 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
         [obj,ps], src_index = model
     else:
         obj_index, src_index = model[1:]
-        model = model[0]['obj,data'][obj_index]
+        obj,ps = model[0]['obj,data'][obj_index]
 
     srcdiff = obj.basis.srcdiff(ps, src_index).copy()
     ploc    = obj.basis.ploc
@@ -274,7 +274,7 @@ def raytraceX(obj, ps, sys_index, nimgs=None, eps=None):
 
     return [(times[i], imgs[i]) for i in order]
 
-def write_code(model, obj_index, sys_index, seq, simple=False):
+def write_code(model, obj_index, src_index, seq, simple=False):
 
     obj,ps = model['obj,data'][obj_index]
 
@@ -295,10 +295,9 @@ def write_code(model, obj_index, sys_index, seq, simple=False):
         imglist.append(img2str(img,t0,l,parity))
         prev = t
 
-
     print "%.2f, [%.4f, %.4f]," % (obj.sources[src_index].z, ps['src'][src_index].real, ps['src'][src_index].imag)
-    print "    [['%s', (% 9.5f, % 9.5f), 'min']," % (letters[0], seq[0][0].real, seq[0][0].imag)
-    print "     " + ',\n     '.join(imglist)
+    print "    [['%s', (% 9.5f, % 9.5f), '%s']," % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])
+    print "     ,\n".join(imglist),
     print "    ]"
 
     if 0:
@@ -307,9 +306,9 @@ def write_code(model, obj_index, sys_index, seq, simple=False):
             for [img,t,_,_], l in zip(seq, letters):
                 sys.stdout.write('%s = %-.4f, %-.4f\n' % (l, img.real, img.imag))
 
-            sys.stdout.write("source :: [%.2f, [%.4f, %.4f]]\n" % (obj.sources[sys_index].z, ps['src'][sys_index].real, ps['src'][sys_index].imag))
+            sys.stdout.write("source :: [%.2f, [%.4f, %.4f]]\n" % (obj.sources[src_index].z, ps['src'][src_index].real, ps['src'][src_index].imag))
 
-            sys.stdout.write("source(%.2f,A,'min'" % obj.sources[sys_index].z)
+            sys.stdout.write("source(%.2f,A,'min'" % obj.sources[src_index].z)
             prev = seq[0][1]
             for [img,t],l in zip(seq[1:], letters[1:]):
                 print '@', t-prev, ps['1/H0'], obj.basis.top_level_cell_size**2
@@ -325,7 +324,7 @@ def write_code(model, obj_index, sys_index, seq, simple=False):
         else:
 
             sys.stdout.write("source(%.2f, (%-.4g,%-.4g),'min'" % (
-                obj.sources[sys_index].z, seq[0][0].real, seq[0][0].imag))
+                obj.sources[src_index].z, seq[0][0].real, seq[0][0].imag))
 
             p = ''
             prev = seq[0][1]

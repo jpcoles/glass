@@ -203,10 +203,10 @@ def make_ensemble_average():
          'obj,data' : zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
          'tagged'   : False}
 
-def _projected_model(obj, X,Y,M, H0inv):
+def _projected_model(obj, X,Y,M, src, H0inv):
 
     grid_mass = obj.basis.grid_mass(X,Y,M, 13.7)
-    ps = obj.basis.solution_from_grid(grid_mass, src=[], H0inv=13.7)
+    ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=13.7)
     return {'sol':      ps,
             'obj,data': [[obj,ps]],
             'tagged':   False}
