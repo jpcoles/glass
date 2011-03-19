@@ -74,28 +74,28 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
 
 #        if len(initial_guess) >= nimgs: break
 
-        if fig == None:
-            fig = figure()
+#       if fig == None:
+#           fig = figure()
 
-        print obj.sources
-        reorder = empty_like(srcdiff)
-        reorder.put(obj.basis.pmap, srcdiff)
-        sd = zeros((2*obj.basis.pixrad+1)**2)
-        sd[obj.basis.insideL] = reorder
-        #sd[:len(srcdiff)] = srcdiff #reorder
-        sd = sd.reshape((2*obj.basis.pixrad+1,2*obj.basis.pixrad+1))
-        R = obj.basis.mapextent
-        kw = {'extent': [-R,R,-R,R],
-              'interpolation': 'nearest',
-              'aspect': 'equal',
-              'origin': 'upper',
-              #'cmap': cm.terrain,
-              'fignum': False,
-              #'vmin': -1,
-              #'vmax':  1
-              }
-        matshow(sd, **kw)
-        show()
+#       print obj.sources
+#       reorder = empty_like(srcdiff)
+#       reorder.put(obj.basis.pmap, srcdiff)
+#       sd = zeros((2*obj.basis.pixrad+1)**2)
+#       sd[obj.basis.insideL] = reorder
+#       #sd[:len(srcdiff)] = srcdiff #reorder
+#       sd = sd.reshape((2*obj.basis.pixrad+1,2*obj.basis.pixrad+1))
+#       R = obj.basis.mapextent
+#       kw = {'extent': [-R,R,-R,R],
+#             'interpolation': 'nearest',
+#             'aspect': 'equal',
+#             'origin': 'upper',
+#             #'cmap': cm.terrain,
+#             'fignum': False,
+#             #'vmin': -1,
+#             #'vmax':  1
+#             }
+#       matshow(sd, **kw)
+#       show()
 
 #       raw_input()
 
@@ -286,6 +286,21 @@ def raytraceX(obj, ps, sys_index, nimgs=None, eps=None):
 
     return [(times[i], imgs[i]) for i in order]
 
+def observables(model, obj_index, src_index, seq):
+    obj,ps = model['obj,data'][obj_index]
+
+    if not seq: return
+
+    imglist = [[seq[0][0], seq[0][3]]]
+
+    prev = seq[0][1]
+    for img,t,_,parity in seq[1:]:
+        t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
+        imglist.append([img, parity,t0])
+        prev = t
+
+    return imglist
+
 def write_code(model, obj_index, src_index, seq, simple=False):
 
     obj,ps = model['obj,data'][obj_index]
@@ -297,8 +312,19 @@ def write_code(model, obj_index, src_index, seq, simple=False):
     while len(seq) > len(letters):
         letters += [ x+x[0] for x in letters[-26:] ]
 
-    def img2str(img, time_delay, l, parity):
-        return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (l, img.real, img.imag, parity, time_delay)
+    obs = observables(model, obj_index, src_index, seq)
+
+    #def img2str(img, time_delay, l, parity):
+        #return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (l, img.real, img.imag, parity, time_delay)
+
+    def img2str(a):
+        if len(a[1]) == 2:
+            return "['%s', (% 9.5f,% 9.5f), '%s']" % (a[0],a[1][0].real,a[1][0].imag, a[1][1])
+        else:
+            return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
+        
+    print "[" + ",\n ".join(map(img2str, zip(letters, obs))) + "]"
+    return
         
     imglist = ["['%s', (% 9.5f,% 9.5f), '%s']" % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])]
     prev = seq[0][1]
@@ -310,6 +336,9 @@ def write_code(model, obj_index, src_index, seq, simple=False):
     print "%.2f, [%.4f, %.4f]," % (obj.sources[src_index].z, ps['src'][src_index].real, ps['src'][src_index].imag)
     print "[" + ",\n ".join(imglist) + "]"
 
+    #---------------------------------------------------------------------------
+    # Old stuff.
+    #---------------------------------------------------------------------------
     if 0:
         if not simple:
             letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
