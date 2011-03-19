@@ -848,6 +848,7 @@ class PixelBasis:
                             top_level_func_name='solution_from_array()'):
 
         assert src   is not None, '%s: src keyword must be set.' % top_level_func_name
+        assert len(src) != 0, '%s: src keyword must be set.' % top_level_func_name
         assert H0inv is not None, '%s: H0inv keyword must be set.' % top_level_func_name
 
         obj  = self.myobject
@@ -867,8 +868,11 @@ class PixelBasis:
             assert isinstance(s, (list, tuple)) and len(s) == 2, \
                    "solution_from_grid(): Each element of src must be a 2 item list"
             offs = o+self.srcpos_start + 2*i
+            print '!'*80
+            print s
             sol[offs : offs+2] = s
             sol[offs : offs+2] += self.map_shift
+            sol[offs : offs+2] *= obj.sources[i].zcap
 
         nu = convert('H0^-1 in Gyr to nu', H0inv)
         sol[o+self.H0] = nu

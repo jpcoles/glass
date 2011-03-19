@@ -150,10 +150,12 @@ def generate_models(objs, n, *args, **kwargs):
     mode = kwargs.get('mode', 'default')
 
     if mode == 'particles':
-        assert n == 1, 'Can only generate a single model from particles.'
+        assert n==1, 'Can only generate a single model in particles mode.'
         assert len(objs) == 1, 'Can only model a single object from particles.'
+        data = kwargs.get('data', None)
+        assert data is not None, 'data keyword must be given with model parameters.'
         objs[0].basis.array_offset = 1
-        yield _projected_model(objs[0], *args)
+        yield _projected_model(objs[0], *data)
     elif mode != 'default':
         assert False, 'Unsupported model mode "%s"' % mode
     else:
@@ -205,8 +207,8 @@ def make_ensemble_average():
 
 def _projected_model(obj, X,Y,M, src, H0inv):
 
-    grid_mass = obj.basis.grid_mass(X,Y,M, 13.7)
-    ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=13.7)
+    grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
+    ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)
     return {'sol':      ps,
             'obj,data': [[obj,ps]],
             'tagged':   False}

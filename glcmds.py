@@ -62,7 +62,7 @@ def omega(om, ol):
 #    source(zsrc, img0, img0parity, imgs)
 
 @command
-def source(zsrc, img0=None, img0parity=None, *imgs):
+def source(zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     o = env().current_object()
 
@@ -70,6 +70,9 @@ def source(zsrc, img0=None, img0parity=None, *imgs):
     assert zsrc >= o.z, "Source is not behind lens."
 
     src = Source(zsrc, o.z)
+
+    if kwargs.has_key('loc'):
+        src.pos = complex(kwargs['loc'][0], kwargs['loc'][1])
 
     if img0 is not None and img0parity is not None:
         image0 = Image(img0, img0parity)
