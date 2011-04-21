@@ -39,6 +39,9 @@ def convert(type, *args):
     elif 'arcsec to kpc' == type:
         return convert('ly to kpc', convert('arcsec to ly', *args))
         
+    elif 'kpc to arcsec' == type:
+        v, dL, nu = args; 
+        return convert('ly to arcsec', convert('kpc to ly', v), dL, nu)
 
     elif 'days to years' == type:
         return args[0] / 365.25

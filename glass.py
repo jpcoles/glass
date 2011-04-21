@@ -60,19 +60,20 @@ def report():
     Log( '=' * 80 )
     Log( 'OBJECTS' )
     Log( '=' * 80 )
+    g14_as_nu = convert('H0^-1 in Gyr to nu', 14)
     for i,o in enumerate(_env.objects):
         Log( pp('%i. %s at z=%.4g  Distance(Obs->Lens) = %.4f' % (i+1, o.name, o.z, cosmo.angdist(0,o.z)), '') )
         if o.maprad:
             Log( pp('    Map radius            = %.4g' % o.maprad, '[arcsec]') )
-            Log( pp('    Map radius g=14       = %.4g' % convert('arcsec to kpc', 14, o.maprad, o.dL), '[kpc]') )
+            Log( pp('    Map radius g=14       = %.4g' % convert('arcsec to kpc', o.maprad, o.dL, g14_as_nu), '[kpc]') )
         else:
             Log( pp('    Map radius            = Not specified', '') )
             Log( pp('    Map radius g=14       = Not specified', '') )
-        Log( pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]') )
-        Log( pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]') )
-        Log( pp('    Critical density      = %.4e' % o.scales['critden'], '[g Msun/arcsec^2]') )
+        #Log( pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]') )
+        #Log( pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]') )
+        #Log( pp('    Critical density      = %.4e' % convert('kappa to Msun/arcsec^2', 1, o.dL, '[Msun/arcsec^2]') )
         Log( pp('    Critical density g=14 = %.4e' \
-            % convert('kappa to Msun/kpc^2', 1, o.dL, 14), '[Msun/kpc^2]') )
+            % convert('kappa to Msun/kpc^2', 1, o.dL, g14_as_nu), '[Msun/kpc^2]') )
         if o.shear:
             pass
             #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )

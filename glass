@@ -1,6 +1,7 @@
 #!/bin/bash
 
-ROOT="$HOME/GAGL/glass"
+ROOT="$HOME/GLASS/glass-DEV"
+#ROOT="$HOME/GAGL/glass"
 
 PYTHON=python
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`

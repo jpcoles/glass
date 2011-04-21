@@ -224,6 +224,16 @@ class PixelBasis:
         self.grad_rmax = 1
         #self.grad_rmax = sqrt(10.5)
 
+    def __getattr__(self, name):
+        if name == 'nbrs':
+            Log( 'Finding neighbors...' )
+            self.nbrs = all_neighbors(self.int_ploc, 1.5*self.int_cell_size)
+            return self.nbrs
+        elif name == 'nbrs2':
+            Log( 'Finding neighbors 2...' )
+            self.nbrs2 = all_neighbors(self.int_ploc,     self.int_cell_size*self.grad_rmax)
+            return self.nbrs2
+
     def init(self, obj):
         self.myobject = obj
 
@@ -297,13 +307,13 @@ class PixelBasis:
         #---------------------------------------------------------------------
         # Make neighbor lists
         #---------------------------------------------------------------------
-        Log( 'Finding neighbors...' )
-        self.nbrs  = []
-        self.nbrs2 = []
+        #Log( 'Finding neighbors...' )
+        #self.nbrs  = []
+        #self.nbrs2 = []
 
-        if 1:
-            self.nbrs  = all_neighbors(self.int_ploc, 1.5*self.int_cell_size)
-            self.nbrs2 = all_neighbors(self.int_ploc,     self.int_cell_size*self.grad_rmax)
+#       if 0:
+#           self.nbrs  = all_neighbors(self.int_ploc, 1.5*self.int_cell_size)
+#           self.nbrs2 = all_neighbors(self.int_ploc,     self.int_cell_size*self.grad_rmax)
 
 #           self.nbrs = [ [i, r, argwhere(logical_and(abs(self.int_ploc-r) <  s*1.5, abs(self.int_ploc-r) > 0)).ravel()] 
 #                          for i,[r,s] in enumerate(izip(self.int_ploc, self.int_cell_size)) ]
@@ -322,8 +332,8 @@ class PixelBasis:
 #           self.nbrs2 = [ [i, r, argwhere(logical_and(abs(self.int_ploc-r) <= s, abs(self.int_ploc-r) > 0)).ravel()] 
 #                         for i,[r,s] in enumerate(izip(self.int_ploc, self.int_cell_size * self.grad_rmax)) ]
 
-        else:
-            Log( "SKIPPING NEIGHBOR FINDING!" )
+#       else:
+#           Log( "SKIPPING NEIGHBOR FINDING!" )
 
         #print self.nbrs
 

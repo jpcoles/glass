@@ -523,7 +523,7 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            if 0:
+            if with_noise:
                 for n in xrange(self.nVars+1):
                     if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
                         if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
@@ -562,7 +562,7 @@ class Samplex:
 #           if self.data[self.nLeft,0] == 0: 
 #               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            if 0:
+            if with_noise:
                 for n in xrange(self.nVars+1):
                     if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
                         if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()

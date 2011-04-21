@@ -186,10 +186,11 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
           'origin': 'upper',
           'cmap': cm.terrain,
           'fignum': False,
-          'vmin': -1,
-          'vmax':  1}
+          'vmin': -2,
+          'vmax': 0}
 
     if not only_contours:
+        #matshow(log10(grid), **kw)
         matshow(log10(grid), **kw)
         #imshow(grid, fignum=False, **kw)
         #matshow(grid, fignum=False, **kw)
@@ -534,7 +535,7 @@ _enckappa_ylabel = r'$\kappa(<R)$'
 def enckappa_plot(models=None, **kwargs):
     #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
     kwargs.setdefault('mark_images', 'arsec')
-    _data_plot(models, 'R', 'enckappa', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
+    _data_plot(models, 'R', 'kappa(<R)', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
 
 _kappa_prof_xlabel = r'$R$ $(\mathrm{arcsec})$'
 _kappa_prof_ylabel = r'$\langle\kappa(R)\rangle$'
@@ -542,7 +543,7 @@ _kappa_prof_ylabel = r'$\langle\kappa(R)\rangle$'
 def kappa_prof_plot(models=None, **kwargs):
     #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
     kwargs.setdefault('mark_images', 'arsec')
-    _data_plot(models, 'R', 'kappa prof', _kappa_prof_xlabel, _kappa_prof_ylabel, plotf=plot,**kwargs)
+    _data_plot(models, 'R', 'kappa(R)', _kappa_prof_xlabel, _kappa_prof_ylabel, plotf=plot,**kwargs)
 
 _sigma_xlabel = r'$R$ $(\mathrm{kpc})$'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'

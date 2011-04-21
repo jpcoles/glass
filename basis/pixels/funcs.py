@@ -1,6 +1,5 @@
 from scales import convert
 from numpy import cumsum, mean, average, array, where
-from scipy.special import gamma as Gamma
 from environment import DArray
 
 def estimated_Re(obj, ps, src_index):
@@ -16,14 +15,14 @@ def estimated_Re(obj, ps, src_index):
     # solution would be to use the maximum extent of each pixel.
     #---------------------------------------------------------------------
 
-    kappa = ps['enckappa'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
+    avgkappa = ps['kappa(<R)'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
 
     #print map(len,obj.basis.rings)
 
     #print '^' * 10
     #print kappa
     #print '^' * 10
-    w = kappa >= 1.0
+    w = avgkappa >= 1.0
 
     #print w
 
@@ -45,12 +44,12 @@ def estimated_Re(obj, ps, src_index):
 
     return mean([Vl,Vs]), Vl, Vs, 0
 
-def estimated_profile_slope(m, vdisp_true, beta):
-
-    a = r_half * (2**(1./(3-beta)) - 1)
-
-    def f(gamma):
-        return (a/2)**(2-gamma) * Gamma(gamma)**2 * Gamma(5 - gamma - beta) / Gamma(3 - beta)
+#def estimated_profile_slope(m, vdisp_true, beta):
+#
+#    a = r_half * (2**(1./(3-beta)) - 1)
+#
+#    def f(gamma):
+#        return (a/2)**(2-gamma) * Gamma(gamma)**2 * Gamma(5 - gamma - beta) / Gamma(3 - beta)
 
 def default_post_process(m):
     obj,ps = m
@@ -68,29 +67,34 @@ def default_post_process(m):
     ps['R']['arcsec'] = b.rs + b.radial_cell_size / 2
     ps['R']['kpc']    = ps['R']['arcsec'] * rscale
 
-    ps['enckappa']   = cumsum([    sum(ps['kappa'][r]                  )         for r in b.rings])
-    ps['encmass']    = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
-    ps['sigma']      =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])
-    ps['kappa prof'] =  array([average(ps['kappa'][r]                  )         for r in b.rings])
+    ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
+    ps['Sigma(R)']  =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])
+    ps['kappa(<R)'] = cumsum([    sum(ps['kappa'][r]                  )         for r in b.rings])
+    ps['kappa(R)']  =  array([average(ps['kappa'][r]                  )         for r in b.rings])
 
     ps['Re'] = {}
     ps['Re']['arcsec'] = [ estimated_Re(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
     ps['Re']['kpc']    = [ r * rscale              for r in ps['Re']['arcsec'] ]
 
-    #Mtot = sum(ps['kappa'])
-    #ps['R half mass'] = ps['R'] 
-    #kappa = ps['enckappa'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
+    ps['Ktot'] = sum(ps['kappa'])
+    ps['R(1/2 K)'] = {}
+    ps['R(1/2 K)']['arcsec'] = ps['R']['arcsec'][(ps['kappa(<R)'] - 0.5*ps['Ktot']) >= 0.0][0]
+    ps['R(1/2 K)']['kpc']    = ps['R(1/2 K)']['arcsec'] * rscale
+
 
     # convert to DArray
 
     ps['R']['arcsec'] = DArray(ps['R']['arcsec'], ul=['arcsec', r'$R$ $(\mathrm{arcsec})$'])
     ps['R']['kpc']    = DArray(ps['R']['kpc'],    ul=['kpc',    r'$R$ $(\mathrm{kpc})$'])
 
-    ps['enckappa']   = DArray(ps['enckappa'],   ul=['kappa',      r'$\kappa(<R)$'])
-    ps['encmass']    = DArray(ps['encmass'],    ul=['Msun',       r'$M(<R)$ $(M_\odot)$'])
-    ps['sigma']      = DArray(ps['sigma'],      ul=['Msun/kpc^2', r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'])
-    ps['kappa prof'] = DArray(ps['kappa prof'], ul=['kappa',      r'$\langle\kappa(R)\rangle$'])
+    ps['kappa(<R)'] = DArray(ps['kappa(<R)'], ul=['kappa',      r'$\kappa(<R)$'])
+    ps['M(<R)']     = DArray(ps['M(<R)'],     ul=['Msun',       r'$M(<R)$ $(M_\odot)$'])
+    ps['Sigma(R)']  = DArray(ps['Sigma(R)'],  ul=['Msun/kpc^2', r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'])
+    ps['kappa(R)']  = DArray(ps['kappa(R)'],  ul=['kappa',      r'$\langle\kappa(R)\rangle$'])
 
-    ps['Re']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R$ $(\mathrm{arcsec})$']) for v in ps['Re']['arcsec'] ]
-    ps['Re']['kpc']    = [ DArray(v, ul=['kpc',    r'$R$ $(\mathrm{kpc})$'   ]) for v in ps['Re']['kpc']    ]
+    ps['Re']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Re']['arcsec'] ]
+    ps['Re']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Re']['kpc']    ]
+
+    ps['R(1/2 K)']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Re']['arcsec'] ]
+    ps['R(1/2 K)']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Re']['kpc']    ]
 

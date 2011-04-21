@@ -152,10 +152,18 @@ def generate_models(objs, n, *args, **kwargs):
     if mode == 'particles':
         assert n==1, 'Can only generate a single model in particles mode.'
         assert len(objs) == 1, 'Can only model a single object from particles.'
+#<<<<<<< .mine
+        #assert kwargs.has_key('data'), 'Missing "data" keyword for modeling model "particles" .'
+#=======
         data = kwargs.get('data', None)
         assert data is not None, 'data keyword must be given with model parameters.'
+#>>>>>>> .r118
         objs[0].basis.array_offset = 1
+#<<<<<<< .mine
+        #yield _projected_model(objs[0], *kwargs['data'])
+#=======
         yield _projected_model(objs[0], *data)
+#>>>>>>> .r118
     elif mode != 'default':
         assert False, 'Unsupported model mode "%s"' % mode
     else:

@@ -136,12 +136,13 @@ def check_image_pos(o, sol):
             r0 += -sol[srcpos+0]
             r1 += -sol[srcpos+1]
 
-            r0 = log10(abs(r0)) if r0 else 0
-            r1 = log10(abs(r1)) if r1 else 0
+            l0 = log10(abs(r0)) if r0 else -13
+            l1 = log10(abs(r1)) if r1 else -13
+
             res += '['
-            res += ' ' if r0 <= -12 else '.' if r0 <= -11 else '-' if r0 <= -10 else '*' if r0 <= -9 else '%-4i' % r0
+            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-4i' % l0
             res += ' '
-            res += ' ' if r1 <= -12 else '.' if r1 <= -11 else '-' if r1 <= -10 else '*' if r1 <= -9 else '%-4i' % r1
+            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '%-4i' % l1
             res += ']'
             #res += '[%-4i %-4i]' % (r0, r1)
 
