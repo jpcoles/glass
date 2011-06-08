@@ -232,9 +232,16 @@ def _projected_model(obj, X,Y,M, src, H0inv):
 
 
 @command 
-def change_source(models, src):
+def change_source(models, src, invalidate=True):
     for m in models:
         assert len(src) == len(m['obj,data'])
         for [obj,data],s in izip(m['obj,data'], src):
             data['src'] = s
+
+    if invalidate:
+        for m in models:
+            for n in ['srcdiff', 'srcdiff_grid', 'arrival_grid', 'arrival_contour_levels', 'time_delays']:
+                if m['obj,data'][0][1].has_key(n):
+                    del m['obj,data'][0][1][n]
+
 
