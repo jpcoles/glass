@@ -35,6 +35,8 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
         eps = 2 * obj.basis.top_level_cell_size
         #eps = sqrt(2.1) * obj.basis.top_level_cell_size
 
+#-------------------------------------------------------------------------------
+
     #if eps2 is None:
         #eps2 = sqrt(2.1) * obj.basis.top_level_cell_size
 
@@ -57,16 +59,18 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
 
             if srcdiff[j] > m: break
 
-            n = abs(ploc[j] - ploc) <= e
+            #n = abs(ploc[j] - ploc) <= e
             #n = abs(ploc[j] - ploc) < sqrt(2.1)*obj.basis.top_level_cell_size
 
-            has_bad_neighbors = any(srcdiff[n] == -1)
+            #has_bad_neighbors = any(srcdiff[n] == -1)
 
             #srcdiff[n] = -2
 
-            if has_bad_neighbors: continue
+            #if has_bad_neighbors: continue
 
             initial_guess.append(ploc[j])
+
+#-------------------------------------------------------------------------------
 
 #           for ii in initial_guess:
 #               if abs(ploc[j] - ii) <= eps: break
@@ -106,39 +110,50 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
 #           srcdiff[j] = 10
 #           initial_guess.append(ploc[j])
 
+
+#-------------------------------------------------------------------------------
+
     def lenseq(theta0):
         theta = complex(*theta0)
         r = src - theta + obj.basis.deflect(theta, ps) / zcap
         #print src, theta, obj.basis.deflect(theta, ps) / zcap, abs(r)
-        return [r.real, r.imag]
+        return abs(r) #[r.real, r.imag]
 
     initial_guess.append(0j)
     if verbose: print 'Initial guesses', initial_guess
 
-    imgs = []
+
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
-        x, infodict, ier, mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, warning=True) #, xtol=1e-10)
+        x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False) #, warning=True) #, xtol=1e-10)
+        #x, infodict, ier, mesg = fsolve(lenseq, [img.real,img.imag], full_output=False, warning=True) #, xtol=1e-10)
+        #q = fsolve(lenseq, [img.real,img.imag], full_output=False, warning=True) #, xtol=1e-10)
+        #print q
+        #x = q[0]
         #print '#', infodict['nfev']
-        if not ier:
-            print 'Near image found at', x, 'but not saving it.'
-            print 'From fsolve:', mesg
-            continue
+#       if not ier:
+#           print 'Near image found at', x, 'but not saving it.'
+#           print 'From fsolve:', mesg
+#           continue
 
+#        print x
         i = complex(*x)
-        if eps2 and abs(img-i) > eps2: continue
-        xs.append([img, i])
+        #if eps2 and abs(img-i) > eps2: continue
+        xs.append([img, i, lenseq(x)])
 
     #xs.sort(lambda x,y: -1 if abs(x[1]) < abs(y[1]) else 1 if abs(x[1]) > abs(y[1]) else 0)
+    xs.sort(lambda x,y: -1 if x[2] < y[2] else 1 if x[2] > y[2] else 0)
+
+#-------------------------------------------------------------------------------
 
     #print '*'*10, len(xs)
-    for img,i in xs:
+    imgs = []
+    for img,i,r in xs:
 
         #-----------------------------------------------------------------------
         # Only accept if the solution is distinct from previous solutions.
         #-----------------------------------------------------------------------
-        #i = complex(*x)
         for j,t in imgs:
             if abs(i-j) < eps: break
         else:

@@ -40,7 +40,7 @@ class SamplexSolution:
 
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
-    SML = 1e-6
+    SML = 1e-12
     EPS = 1e-14
 
     def __init__(self, **kw):

@@ -230,7 +230,7 @@ def load_tipsy(filename, fmt='auto', memmap=True, which='gds', merge=None):
         if nStar: lst.append(t.s[merge])
         t.p = np.hstack(lst).view(np.recarray)
 
-    return t
+    return t, f
 
 
 def com(t):

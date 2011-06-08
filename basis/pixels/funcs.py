@@ -2,7 +2,7 @@ from scales import convert
 from numpy import cumsum, mean, average, array, where
 from environment import DArray
 
-def estimated_Re(obj, ps, src_index):
+def estimated_Rlens(obj, ps, src_index):
 
     #---------------------------------------------------------------------
     # Estimate an Einstein radius. 
@@ -15,7 +15,8 @@ def estimated_Re(obj, ps, src_index):
     # solution would be to use the maximum extent of each pixel.
     #---------------------------------------------------------------------
 
-    avgkappa = ps['kappa(<R)'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
+    avgkappa = ps['kappa(<R)'] / cumsum(map(len,obj.basis.rings))
+    #avgkappa = ps['kappa(<R)'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
 
     #print map(len,obj.basis.rings)
 
@@ -28,11 +29,16 @@ def estimated_Re(obj, ps, src_index):
 
     if not w.any(): return 0,0,0,0
 
+    print '@'*80
+    print ps['R']['arcsec'][w]
+    print '@'*80
+
     w = where(w)[0][-1]
 
     #print w
 
-    r = obj.basis.ploc[obj.basis.rings[w][0]]
+    #r = ps['R']['arcsec'][w]
+    r = mean(abs(obj.basis.ploc[obj.basis.rings[w]]))
 
     #print r
 
@@ -72,9 +78,9 @@ def default_post_process(m):
     ps['kappa(<R)'] = cumsum([    sum(ps['kappa'][r]                  )         for r in b.rings])
     ps['kappa(R)']  =  array([average(ps['kappa'][r]                  )         for r in b.rings])
 
-    ps['Re'] = {}
-    ps['Re']['arcsec'] = [ estimated_Re(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
-    ps['Re']['kpc']    = [ r * rscale              for r in ps['Re']['arcsec'] ]
+    ps['Rlens'] = {}
+    ps['Rlens']['arcsec'] = [ estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
+    ps['Rlens']['kpc']    = [ r * rscale              for r in ps['Rlens']['arcsec'] ]
 
     ps['Ktot'] = sum(ps['kappa'])
     ps['R(1/2 K)'] = {}
@@ -92,9 +98,9 @@ def default_post_process(m):
     ps['Sigma(R)']  = DArray(ps['Sigma(R)'],  ul=['Msun/kpc^2', r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'])
     ps['kappa(R)']  = DArray(ps['kappa(R)'],  ul=['kappa',      r'$\langle\kappa(R)\rangle$'])
 
-    ps['Re']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Re']['arcsec'] ]
-    ps['Re']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Re']['kpc']    ]
+    ps['Rlens']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
+    ps['Rlens']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
 
-    ps['R(1/2 K)']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Re']['arcsec'] ]
-    ps['R(1/2 K)']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Re']['kpc']    ]
+    ps['R(1/2 K)']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
+    ps['R(1/2 K)']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
 

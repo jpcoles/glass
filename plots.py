@@ -276,14 +276,28 @@ def srcdiff_plot(model, obj_index, src_index, with_colorbar=False):
     S = obj.basis.subdivision
     R = obj.basis.mapextent
 
-    g   = obj.basis.srcdiff_grid(data)[src_index]
+    g = obj.basis.srcdiff_grid(data)[src_index]
+    vmin = log10(amin(g[g>0]))
+    g = g.copy() + 1e-10
+    kw = {'extent': [-R,R,-R,R],
+          'interpolation': 'nearest',
+          'aspect': 'equal',
+          'origin': 'upper',
+          'cmap': cm.gray,
+          'fignum': False,
+          'vmin': vmin,
+          'vmax': vmin+2}
 
-    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
+    #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
+    matshow(log10(g), **kw)
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
     if with_colorbar: colorbar()
 #   over(contour, g, 50,  colors='w',               linewidths=1, 
 #        extent=[-R,R,-R,R], origin='upper', extend='both')
     #grid()
+
+    xlabel('arcsec')
+    ylabel('arcsec')
 
 @command
 def deflect_plot(model, obj_index, which, src_index):

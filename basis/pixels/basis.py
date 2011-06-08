@@ -424,14 +424,15 @@ class PixelBasis:
 
         self.nvar = self.H0+1
 
+        g14_as_nu = convert('H0^-1 in Gyr to nu', 14)
         Log( 'Pixel basis' )
         Log( '    Pixel radius         = %i'  % self.pixrad )
         Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
         Log( '    Map Extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
         Log( '    top_level_cell_size  = %.4f [arcsec]'  % self.top_level_cell_size )
-        Log( '    Map radius g=14      = %.4f [kpc]'     % convert('arcsec to kpc', self.maprad, obj.dL, 14))
-        Log( '    Map Extent g=14      = %.4f [kpc]'     % convert('arcsec to kpc', self.mapextent, obj.dL, 14) )
-        Log( '    top_level_cell g=14  = %.4f [kpc]'     % convert('arcsec to kpc', self.top_level_cell_size, obj.dL, 14) )
+        Log( '    Map radius g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.maprad, obj.dL, g14_as_nu))
+        Log( '    Map Extent g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.mapextent, obj.dL, g14_as_nu) )
+        Log( '    top_level_cell g=14  = %3.4f [kpc]'     % convert('arcsec to kpc', self.top_level_cell_size, obj.dL, g14_as_nu) )
         Log( '    Number of pixels     = %i'    % npix )
         Log( '    Number of variables  = %i'    % self.nvar )
         Log( '    Central pixel offset = %i'    % self.central_pixel )
@@ -700,8 +701,8 @@ class PixelBasis:
         obj = self.myobject
         kappa = data['kappa']
         dist  = theta - self.ploc
-        s = complex(sum(kappa * nan_to_num(poten_dx(dist,self.cell_size))),
-                    sum(kappa * nan_to_num(poten_dy(dist,self.cell_size))))
+        s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
+                    dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
         if obj.shear:
             s1,s2 = data['shear']
             s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
@@ -739,35 +740,41 @@ class PixelBasis:
 #           dist    = empty_like(ploc)
 #           cell_size = self.top_level_cell_size / self.subdivision
 
-            x = False
-            _or = None 
-            for i,theta in enumerate(ploc):
-                subtract(theta, ploc, dist)
-                #print dist.shape, cell_size.shape, ploc.shape
+            if not data.has_key('deflect'):
+                x = False
+                _or = None 
+                for i,theta in enumerate(ploc):
+                    subtract(theta, ploc, dist)
+                    #print dist.shape, cell_size.shape, ploc.shape
 #               deflect[i] = complex(sum(kappa * poten_dx(dist,cell_size)),
 #                                    sum(kappa * poten_dy(dist,cell_size)))
 
-                deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)),
-                                     dot(kappa, poten_dy(dist,cell_size)))
+                    deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)),
+                                         dot(kappa, poten_dy(dist,cell_size)))
 
-                if obj.shear:
-                    s1,s2 = data['shear']
-                    s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
-                                s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
-                    deflect[i] += s
+                    if obj.shear:
+                        s1,s2 = data['shear']
+                        s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
+                                    s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
+                        deflect[i] += s
 
-                if i%100 == 0: 
-                    print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
-                    x = True
-                    #print 'Calculating srcdiff: % 6i/%6i\r' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
+                    if i%100 == 0: 
+                        print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
+                        x = True
+                        #print 'Calculating srcdiff: % 6i/%6i\r' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
 
-            if x: 
-                print ' '*40, '\r',
+                if x: 
+                    print ' '*40, '\r',
+
+                data['deflect'] = deflect
+    
+            else:
+                
+                deflect = data['deflect']
+
 
             data['srcdiff'] = map(lambda s: abs(s[0] - ploc + deflect / s[1].zcap),
                                   izip(data['src'], obj.sources))
-
-            data.setdefault('deflect', deflect)
 
         return data['srcdiff'][src_index]
 

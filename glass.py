@@ -1,7 +1,7 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from environment import env, set_env, new_env, command_list
+from environment import env, set_env, new_env, command_list, DArray
 import cosmo
 from handythread import parallel_map
 from log import log as Log, setup_log

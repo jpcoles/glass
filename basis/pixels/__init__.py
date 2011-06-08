@@ -1,4 +1,5 @@
 from __future__ import division
+from itertools import izip
 from numpy import mean, zeros
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
@@ -141,6 +142,14 @@ def _model_dict(objs, sol):
             'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
             'tagged':   False}
 
+@command
+def package_solution(sol, objs, fn_package_sol = None):
+    if fn_package_sol is None:
+        fn_package_sol = lambda x: solution_to_dict(x, sol)
+    
+    return {'sol':  sol,
+            'obj,data': zip(objs, map(fn_package_sol, objs)),
+            'tagged':  False}
 
 @command
 def generate_models(objs, n, *args, **kwargs):
@@ -180,9 +189,10 @@ def generate_models(objs, n, *args, **kwargs):
             for p in acc_enspriors:
                 if p.check: p.check(objs, sol)
 
-            yield {'sol':  sol,
-                   'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-                   'tagged':  False}
+            yield package_solution(sol, objs)
+#           yield {'sol':  sol,
+#                  'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+#                  'tagged':  False}
 
     for o in objs:
         o.post_process_funcs.append([default_post_process, [], {}])
@@ -194,9 +204,10 @@ def regenerate_models(objs):
     init_model_generator(len(env().solutions))
 
     for sol in env().solutions:
-        yield {'sol':  sol,
-               'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-               'tagged':  False}
+        yield package_solution(sol, objs)
+#       yield {'sol':  sol,
+#              'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+#              'tagged':  False}
 
 @command
 def make_ensemble_average():
@@ -208,16 +219,22 @@ def make_ensemble_average():
 
     sol = mean([m['sol'] for m in env().models], axis=0)
     objs = env().objects
-    env().ensemble_average = \
-        {'sol'      : sol,
-         'obj,data' : zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-         'tagged'   : False}
+    env().ensemble_average = package_solution(sol, objs)
 
 def _projected_model(obj, X,Y,M, src, H0inv):
 
     grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
     ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)
-    return {'sol':      ps,
-            'obj,data': [[obj,ps]],
-            'tagged':   False}
+    return package_solution(ps, [obj], fn_package_sol = lambda x:ps)
+#   return {'sol':      ps,
+#           'obj,data': [[obj,ps]],
+#           'tagged':   False}
+
+
+@command 
+def change_source(models, src):
+    for m in models:
+        assert len(src) == len(m['obj,data'])
+        for [obj,data],s in izip(m['obj,data'], src):
+            data['src'] = s
 

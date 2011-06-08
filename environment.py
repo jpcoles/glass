@@ -150,7 +150,7 @@ class Environment:
 class DArray(ndarray):
     def __new__(cls, input_array, ul=None):
         obj = asarray(input_array).view(cls)
-        obj.units, obj.label = ul
+        if ul is not None: obj.units, obj.label = ul
         return obj
 
     def __array_finalize__(self, obj):

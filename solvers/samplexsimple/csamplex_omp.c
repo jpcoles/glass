@@ -692,7 +692,7 @@ redo:
 
         //fprintf(stderr, "tinc accepted  %20g\n", tinc);
 
-        DBG(2) fprintf(stderr, "ACCEPTING tinc=%.15e\n", tinc);
+        fprintf(stderr, "ACCEPTING tinc=%.15e\n", tinc);
         DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e %e\n", min_k, r, bcol[min_k], col[min_k], tinc);
 
         assert(col[min_k] < 0);
@@ -850,7 +850,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         // Actual pivot
         //------------------------------------------------------------------
         if (Z == 0)
-            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
+            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 1e-11);
         else
             doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
 
