@@ -74,11 +74,11 @@ def convert(type, v, *args):
         return convert('Msun/ly^2 to kappa', v, *args) / convert('kpc to ly', 1)**2 
 
     elif 'kappa to Msun/kpc^2' == type:
-        return convert('kappa to Msun/ly^2', v, args) / convert('ly to kpc', 1)**2
+        return convert('kappa to Msun/ly^2', v, *args) / convert('ly to kpc', 1)**2
 
     elif 'kappa to Msun/arcsec^2' == type:
         dL, nu = args
-        return convert('kappa to Msun/ly^2', v, args) / convert('ly to arcsec', 1, dL, nu)**2
+        return convert('kappa to Msun/ly^2', v, *args) / convert('ly to arcsec', 1, dL, nu)**2
 
     elif 'den_stel to den_lum' == type:
         dL, nu = args
