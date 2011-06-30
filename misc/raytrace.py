@@ -115,18 +115,24 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     def lenseq(theta0):
         theta = complex(*theta0)
         r = src - theta + obj.basis.deflect(theta, ps) / zcap
-        return abs(r)
+        return r.real, r.imag
+        #return abs(r)
 
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
-        x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
+        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-12)
+        #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
+
+        if not ier: continue
+
         i = complex(*x)
 
         # if an initial guess was poor then the minimum will not be near zero.
         # Only accept solutions that are very close to zero.
-        leq = lenseq(x)
+        leq = abs(complex(*lenseq(x)))
         if leq < 2e-10:
+            #print leq
             xs.append([img, i, leq])
 
     #---------------------------------------------------------------------------
