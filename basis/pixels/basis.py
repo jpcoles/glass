@@ -25,6 +25,7 @@ if 0:
 from scipy.ndimage.filters import correlate
 from scipy.misc import central_diff_weights
 from scipy.linalg import eig, eigh, norm
+from scipy.signal import convolve2d
 
 import scipy.ndimage._ni_support as _ni_support
 import scipy.ndimage._nd_image as _nd_image
@@ -363,10 +364,9 @@ class PixelBasis:
         #outer_image_ring = rmax // self.cell_size + 1
 
         #---------------------------------------------------------------------
-        #print self.rings
-        Log( "%i rings:" % len(self.rings) )
-        for r in self.rings:
-            Log( "  % 4i ...% 4i" % (r[0], r[-1]) )
+        #Log( "%i rings:" % len(self.rings) )
+        #for r in self.rings:
+        #    Log( "  % 4i ...% 4i" % (r[0], r[-1]) )
         #---------------------------------------------------------------------
 
         #---------------------------------------------------------------------
@@ -433,6 +433,7 @@ class PixelBasis:
         Log( '    Map radius g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.maprad, obj.dL, g14_as_nu))
         Log( '    Map Extent g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.mapextent, obj.dL, g14_as_nu) )
         Log( '    top_level_cell g=14  = %3.4f [kpc]'     % convert('arcsec to kpc', self.top_level_cell_size, obj.dL, g14_as_nu) )
+        Log( '    Number of rings      = %i'    % len(self.rings) )
         Log( '    Number of pixels     = %i'    % npix )
         Log( '    Number of variables  = %i'    % self.nvar )
         Log( '    Central pixel offset = %i'    % self.central_pixel )
@@ -818,6 +819,14 @@ class PixelBasis:
         ry = convert('arcsec to kpc', Rmap, obj.dL, nu)
 
         grid = histogram2d(-Y, X, bins=2*Rpix+1, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
+
+        kernel = array([[1,4,7,4,1], 
+                        [4,16,26,16,4],
+                        [7,26,41,26,7],
+                        [4,16,26,16,4],
+                        [1,4,7,4,1]]
+                        ) / 273.
+        grid = convolve2d(grid, kernel, mode='same')
 
         #-----------------------------------------------------------------------
         # Convert physical units to internal units.

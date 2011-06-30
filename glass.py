@@ -1,11 +1,14 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from environment import env, set_env, new_env, command_list, DArray
+from environment import env, set_env, new_env, glass_command_list, DArray, Environment
 import cosmo
 from handythread import parallel_map
 from log import log as Log, setup_log
 from scales import convert
+
+
+GlassEnvironment = Environment
 
 
 def Ximport_functions(pkg):
@@ -21,7 +24,9 @@ def Ximport_functions(pkg):
 
 def glass_basis(name, **kwargs):
     f = __import__(name, globals(), locals())
-    for name,func in command_list.iteritems():
+    for name,func in glass_command_list.iteritems():
+        if __builtins__.__dict__.has_key(name):
+            print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, func, __builtins__.__dict__[name])
         __builtins__.__dict__[name] = func
 
 
@@ -113,7 +118,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2: help()
 
-    optlist, list = getopt.getopt(sys.argv[1:], 't:h', ['nw'])
+    optlist, arglist = getopt.getopt(sys.argv[1:], 't:h', ['nw'])
     for opt in optlist:
         if   opt[0] == '-h':
             help()
@@ -131,12 +136,12 @@ if __name__ == "__main__":
     import scales
     import pytipsy 
 
-    with open(list[0], 'r') as f:
+    with open(arglist[0], 'r') as f:
         env().input_file = f.read()
 
-    env().argv = list[1:]
+    env().argv = arglist[1:]
 
-    execfile(list[0])
+    execfile(arglist[0])
     try:
 #    if 1:
         #-----------------------------------------------------------------------

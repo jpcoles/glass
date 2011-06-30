@@ -1,5 +1,6 @@
+from __future__ import division
 from scales import convert
-from numpy import cumsum, mean, average, array, where
+from numpy import cumsum, mean, average, array, where, pi
 from environment import DArray
 
 def estimated_Rlens(obj, ps, src_index):
@@ -15,30 +16,30 @@ def estimated_Rlens(obj, ps, src_index):
     # solution would be to use the maximum extent of each pixel.
     #---------------------------------------------------------------------
 
-    avgkappa = ps['kappa(<R)'] / cumsum(map(len,obj.basis.rings))
-    #avgkappa = ps['kappa(<R)'] / obj.sources[src_index].zcap / cumsum(map(len,obj.basis.rings))
+    #avgkappa = ps['kappa(<R)'] / cumsum(map(len,obj.basis.rings))
+    #avgkappa = ps['kappa(<R)'] # / cumsum(map(len,obj.basis.rings))
 
     #print map(len,obj.basis.rings)
 
     #print '^' * 10
     #print kappa
     #print '^' * 10
-    w = avgkappa >= 1.0
+    w = ps['kappa(<R)'] >= 1
 
     #print w
 
     if not w.any(): return 0,0,0,0
 
-    print '@'*80
-    print ps['R']['arcsec'][w]
-    print '@'*80
+#   print '@'*80
+#   print ps['R']['arcsec'][w]
+#   print '@'*80
 
     w = where(w)[0][-1]
 
     #print w
 
-    #r = ps['R']['arcsec'][w]
-    r = mean(abs(obj.basis.ploc[obj.basis.rings[w]]))
+    r = ps['R']['arcsec'][w]
+    #r = mean(abs(obj.basis.ploc[obj.basis.rings[w]]))
 
     #print r
 
@@ -75,8 +76,11 @@ def default_post_process(m):
 
     ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
     ps['Sigma(R)']  =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])
-    ps['kappa(<R)'] = cumsum([    sum(ps['kappa'][r]                  )         for r in b.rings])
     ps['kappa(R)']  =  array([average(ps['kappa'][r]                  )         for r in b.rings])
+    #ps['kappa(<R)'] = (lambda a: cumsum(a[:,0]) / cumsum(a[:,1]))([ [sum(ps['kappa'][r]), len(r)] for r in b.rings ])
+    ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]) for r in b.rings]) / cumsum([len(r) for r in b.rings])
+
+    #ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]) for r in b.rings]) / cumsum([len(r) for r in b.rings])
 
     ps['Rlens'] = {}
     ps['Rlens']['arcsec'] = [ estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
@@ -84,8 +88,8 @@ def default_post_process(m):
 
     ps['Ktot'] = sum(ps['kappa'])
     ps['R(1/2 K)'] = {}
-    ps['R(1/2 K)']['arcsec'] = ps['R']['arcsec'][(ps['kappa(<R)'] - 0.5*ps['Ktot']) >= 0.0][0]
-    ps['R(1/2 K)']['kpc']    = ps['R(1/2 K)']['arcsec'] * rscale
+    #ps['R(1/2 K)']['arcsec'] = ps['R']['arcsec'][(ps['kappa(<R)'] - 0.5*ps['Ktot']) >= 0.0][0]
+    #ps['R(1/2 K)']['kpc']    = ps['R(1/2 K)']['arcsec'] * rscale
 
 
     # convert to DArray

@@ -2,7 +2,7 @@ from __future__ import division
 import sys
 from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
-                  sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity
+                  sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from scales import time_to_physical
 from potential import poten
 from scipy.linalg import det
@@ -17,7 +17,13 @@ from itertools import izip
 
 fig = None
 
-def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose=False):
+def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verbose=False):
+    """Find the positions of images by raytracing back to the source.
+
+        ipeps - Radius on the image plane to consider two image as one.
+        speps - Radius on the source plane to determine if a pixel maps near to the source
+    """
+                
     global fig
 
     if len(model) == 2:
@@ -31,17 +37,15 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
     src     = ps['src'][src_index]
     zcap    = obj.sources[src_index].zcap
 
-    if eps is None:
-        eps = 2 * obj.basis.top_level_cell_size
-        #eps = sqrt(2.1) * obj.basis.top_level_cell_size
+    if ipeps is None:
+        #ipeps = 2 * obj.basis.top_level_cell_size
+        ipeps = 0.01 * obj.basis.mapextent
 
-#-------------------------------------------------------------------------------
-
-    #if eps2 is None:
-        #eps2 = sqrt(2.1) * obj.basis.top_level_cell_size
+    if speps is None:
+        speps = obj.basis.top_level_cell_size #/ sqrt(2)
 
     #---------------------------------------------------------------------------
-    # (1) Make an initial guess where the images. 
+    # (1) Make an initial guess where the images are. 
     #
     # srcdiff is a matrix giving the distance between the src and the point on
     # the source plane where each pixel maps back to. Taking the n pixels with
@@ -52,22 +56,9 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
     if not initial_guess:
         initial_guess = []
         asort = argsort(srcdiff)
-        #m = srcdiff[asort[0]] * 10
-        m = obj.basis.top_level_cell_size / sqrt(2)
-        e = ceil(obj.basis.top_level_cell_size / eps) * obj.basis.top_level_cell_size
-        for i,j in enumerate(asort):
 
-            if srcdiff[j] > m: break
-
-            #n = abs(ploc[j] - ploc) <= e
-            #n = abs(ploc[j] - ploc) < sqrt(2.1)*obj.basis.top_level_cell_size
-
-            #has_bad_neighbors = any(srcdiff[n] == -1)
-
-            #srcdiff[n] = -2
-
-            #if has_bad_neighbors: continue
-
+        for j in asort:
+            if srcdiff[j] > speps: break
             initial_guess.append(ploc[j])
 
 #-------------------------------------------------------------------------------
@@ -113,49 +104,46 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
 
 #-------------------------------------------------------------------------------
 
-    def lenseq(theta0):
-        theta = complex(*theta0)
-        r = src - theta + obj.basis.deflect(theta, ps) / zcap
-        #print src, theta, obj.basis.deflect(theta, ps) / zcap, abs(r)
-        return abs(r) #[r.real, r.imag]
+    #---------------------------------------------------------------------------
+    # (2) Minimize the lens equation beginning from each of the initial guesses.
+    # Only those images that truly satisfy the equation are accepted.
+    #---------------------------------------------------------------------------
 
     initial_guess.append(0j)
     if verbose: print 'Initial guesses', initial_guess
 
+    def lenseq(theta0):
+        theta = complex(*theta0)
+        r = src - theta + obj.basis.deflect(theta, ps) / zcap
+        return abs(r)
 
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
-        x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False) #, warning=True) #, xtol=1e-10)
-        #x, infodict, ier, mesg = fsolve(lenseq, [img.real,img.imag], full_output=False, warning=True) #, xtol=1e-10)
-        #q = fsolve(lenseq, [img.real,img.imag], full_output=False, warning=True) #, xtol=1e-10)
-        #print q
-        #x = q[0]
-        #print '#', infodict['nfev']
-#       if not ier:
-#           print 'Near image found at', x, 'but not saving it.'
-#           print 'From fsolve:', mesg
-#           continue
-
-#        print x
+        x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
         i = complex(*x)
-        #if eps2 and abs(img-i) > eps2: continue
-        xs.append([img, i, lenseq(x)])
 
-    #xs.sort(lambda x,y: -1 if abs(x[1]) < abs(y[1]) else 1 if abs(x[1]) > abs(y[1]) else 0)
+        # if an initial guess was poor then the minimum will not be near zero.
+        # Only accept solutions that are very close to zero.
+        leq = lenseq(x)
+        if leq < 2e-10:
+            xs.append([img, i, leq])
+
+    #---------------------------------------------------------------------------
+    # (3) Sort by how well we were able to minimize each function.
+    #---------------------------------------------------------------------------
+
     xs.sort(lambda x,y: -1 if x[2] < y[2] else 1 if x[2] > y[2] else 0)
 
-#-------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    # (4) Only accept a solution if it is distinct from previous solutions.
+    #---------------------------------------------------------------------------
 
-    #print '*'*10, len(xs)
-    imgs = []
+    imgs0 = []
     for img,i,r in xs:
 
-        #-----------------------------------------------------------------------
-        # Only accept if the solution is distinct from previous solutions.
-        #-----------------------------------------------------------------------
-        for j,t in imgs:
-            if abs(i-j) < eps: break
+        for j,t in imgs0:
+            if abs(i-j) < ipeps: break
         else:
             tau  = abs(i-src)**2 / 2
             tau *= zcap
@@ -163,10 +151,16 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
             tau -= xxx
             if obj.shear:
                 tau -= s1*obj.shear.poten(1,i) + s2*obj.shear.poten(2,i)
-            imgs.append([i,tau])
+            imgs0.append([i,tau])
+
+
+    #---------------------------------------------------------------------------
+    # (5) Determine magnification information
+    #---------------------------------------------------------------------------
 
     M = []
-    for img in imgs:
+    imgs = []
+    for img in imgs0:
         i, tau = img
         theta = arctan2(i.imag, i.real) * 180/pi
         K = zcap*identity(2) - obj.basis.magnification(i, theta, ps)
@@ -177,8 +171,15 @@ def raytrace(model, nimgs=None, eps=None, eps2=None, initial_guess=None, verbose
         parity = ['sad', 'sad', 'max', 'min'][(detK > 0)*2 + (trK > 0)]
 
         Kinv = K.I
-        img.extend([ [1./det(Kinv), Kinv, K, detK, trK], parity])
+        imgs.append(img + [ [1./det(K), Kinv, K, detK, trK], parity ])
 
+    #Mavg = average(map(lambda x: (x[3] != 'max') * x[2][3], imgs))
+
+    #imgs = filter(lambda x: abs(x[2][3]) > Mavg*0.8, imgs)
+
+    #---------------------------------------------------------------------------
+    # (6) Sort by arrival time
+    #---------------------------------------------------------------------------
     imgs.sort(lambda x,y: -1 if x[1] < y[1] else 1 if x[1] > y[1] else 0)
 
 #   if fig == None:
@@ -339,11 +340,13 @@ def write_code(model, obj_index, src_index, seq, simple=False):
             return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
         
     print "[" + ",\n ".join(map(img2str, zip(letters, obs))) + "]"
+
+    print '\n'.join(map(str,obs))
     return
         
     imglist = ["['%s', (% 9.5f,% 9.5f), '%s']" % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])]
     prev = seq[0][1]
-    for [img,t,_,parity],l in zip(seq[1:], letters[1:]):
+    for [img,t,m,parity],l in zip(seq[1:], letters[1:]):
         t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
         imglist.append(img2str(img,t0,l,parity))
         prev = t

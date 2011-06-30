@@ -5,11 +5,11 @@ from potential import poten2d
 from collections import defaultdict 
 import traceback
 
-if not globals().has_key('command_list'):
-    command_list = {}
+if not globals().has_key('glass_command_list'):
+    glass_command_list = {}
 
 def command(f):
-    command_list[f.__name__] = f
+    glass_command_list[f.__name__] = f
     return f
 
 def _detect_cpus():
@@ -136,6 +136,10 @@ class Environment:
 
         self.withgfx = True
 
+    def __getattr__(self, name):
+        f = glass_command_list.get(name, None)
+        assert f is not None, 'Glass command %s not found.' % name
+
     def current_object(self):
         return self._current_object
 
@@ -169,8 +173,6 @@ class DArray(ndarray):
         ndarray.__setstate__(self, p[0])
         self.units = p[1]
         self.label = p[2]
-
-
 
 _env = Environment()
 def env():

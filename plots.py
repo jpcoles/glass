@@ -44,7 +44,7 @@ def show_plots():
     show()
 
 @command
-def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None):
+def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False):
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]
 
@@ -75,9 +75,10 @@ def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None):
 
         if xs and ys:
             over(scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=0.5)
-            a = gca()
-            for x,y in zip(xs,ys):
-                a.add_artist(Circle((0,0),sqrt(x**2 + y**2), fill=False))
+            if with_guide:
+                a = gca()
+                for x,y in zip(xs,ys):
+                    a.add_artist(Circle((0,0),sqrt(x**2 + y**2), fill=False))
 
 @command
 def Re_plot(models=None, obj_index=0, color=None):
@@ -332,7 +333,7 @@ def grad_tau(model, obj_index, which, src_index):
     d = d[1:-1,1:-1]
     d[d>0] = 1
     d[d<0] = -1
-    matshow(d, fignum=False, extent=[-R,R,-R,R])
+    matshow(d, fignum=False, extent=[-R,R,-R,R], alpha=0.5)
 
 @command
 def deriv(model, obj_index, src_index, m, axis, R):

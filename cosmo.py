@@ -13,8 +13,9 @@ def age_factor():
     return q
 
 def angdist(zi, zf):
-    M = env().omega_matter
-    L = env().omega_lambda
+    return _angdist(zi,zf, env().omega_matter, env().omega_lambda, env().filled_beam)
+
+def _angdist(zi, zf, M,L, filled_beam, tol=1e-4):
 
     if zf < zi:
         zi,zf = zf,zi
@@ -29,14 +30,14 @@ def angdist(zi, zf):
     elif M+L-tol > 1:
         k = 1
 
-    if env().filled_beam:
+    if filled_beam:
         f = lambda z: 1. / sqrt(M * (z+1)**3 + (1-M-L) * (z+1)**2 + L)
     else:
         f = lambda z: 1. / sqrt(M * (z+1)**3 + (1-M-L) * (z+1)**2 + L) / (z+1)**2
 
     factor = quad(f, zi, zf)[0]
 
-    if env().filled_beam:
+    if filled_beam:
 
         if k == 0:
             delksi = factor
