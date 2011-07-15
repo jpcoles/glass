@@ -312,13 +312,16 @@ def check_time_delay(o, sol):
             r0 = sum(row, axis=0)
             r1 = sum(row2, axis=0)
 
-            res += '[%i %i]' % (r0,r1)
+            l0 = log10(abs(r0)) if r0 else -13
+            l1 = log10(abs(r1)) if r1 else -13
 
-            #res += '['
-            #res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
-            #res += ' '
-            #res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
-            #res += ']'
+            #res += '[%i %i]' % (r0,r1)
+
+            res += '['
+            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
+            res += ' '
+            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
+            res += ']'
 
         Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )
 

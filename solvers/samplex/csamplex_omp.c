@@ -1063,7 +1063,6 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             if (Zorig != 0) break;
         }
     }
-#endif
 
 #if WITH_GOOGLE_PROFILER
     ProfilerStop();
