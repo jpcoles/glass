@@ -119,6 +119,7 @@ class Environment:
         self.solutions = None
         self.models = None
         self.accepted_models = None
+        self.basis_options = {}
 
         # For use in cosmo.py. Based on WMAP7+BAO
         self.omega_matter = 0.28
@@ -136,9 +137,9 @@ class Environment:
 
         self.withgfx = True
 
-    def __getattr__(self, name):
-        f = glass_command_list.get(name, None)
-        assert f is not None, 'Glass command %s not found.' % name
+#   def __getattr__(self, name):
+#       f = glass_command_list.get(name, None)
+#       assert f is not None, 'Glass command %s not found.' % name
 
     def current_object(self):
         return self._current_object

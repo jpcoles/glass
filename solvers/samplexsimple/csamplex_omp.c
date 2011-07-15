@@ -152,6 +152,7 @@ typedef struct
     int32_t step;
     int32_t nthreads;
     double obj_val;
+    int32_t Z;
 } report_t;
 report_t report = {0,0,0.0};
 
@@ -230,9 +231,11 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
     DBG(3) fprintf(stderr, "> choosePivot()\n");
 
-//  #pragma omp parallel for  \
-//          private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
-//          shared(bcol, t, L, tabl)
+#if 0
+    #pragma omp parallel for  \
+            private(col, l, cleft, cpiv, cinc, k, tinc, accept) \
+            shared(bcol, t, L, tabl)
+#endif
     for (r = 1; r <= R; r++)
     {
         col = &tabl->data[r * tabl->rows + 0];
@@ -357,6 +360,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
     return res;
 }
 #else
+#if 0
 int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 { 
@@ -404,14 +408,8 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
         for (k=1; k <= L; k++) 
         { 
-            //if (col[k] >= -SML) continue; /* only interested in negative values */
-            //if (col[k] >= -1e-10) continue; /* only interested in negative values */
-            //fprintf(stderr, "k=%i col[%i]=%.20g\n", k,k,col[k]);
             if (col[k] >= 0) continue; /* only interested in negative values */
 
-            //tinc = -bcol[k] * col[0]/col[k];
-            //tinc = fabs(bcol[k] * col[0]/col[k]);
-            //tinc = fabs(bcol[k] * col[0]/col[k]);
             tinc = fabs(bcol[k]/col[k]);
             DBG(1) assert(!isinf(tinc));
 
@@ -445,7 +443,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
             DBG(2) fprintf(stderr, "ACCEPTING tinc=%.15e %i %.20g\n", tinc, accept, col[k]);
 
             //------------------------------------------------------------------
-            // Remeber this pivot element for later.
+            // Remember this pivot element for later.
             //------------------------------------------------------------------
             l     = k; 
             cleft = left[k]; 
@@ -526,6 +524,134 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
     *piv0  =  piv;
     return res;
 }
+#else
+int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
+                      int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
+{ 
+    typedef struct
+    {
+        int32_t l,r;
+        dble_t piv, inc, col0, objf_inc;
+    } state_t;
+
+    state_t t = {0, 0, 0., 1e20, 0., 0.};
+
+    int first_time;
+    int32_t k, r;
+    dble_t * restrict bcol = &tabl->data[0];
+
+    int32_t accept;
+    dble_t tinc;
+    dble_t * restrict col;
+
+    //fprintf(stderr, "> choosePivot()\n");
+
+    int32_t res = NOPIVOT; 
+
+    //--------------------------------------------------------------------------
+    // Examine each column. Those with a positive values in the first row are
+    // potential pivot columns.
+    //--------------------------------------------------------------------------
+    for (r = 1; r <= R; r++)
+    {
+        col = &tabl->data[r * tabl->rows + 0];
+
+        if (col[0] <= 1e-14) continue;
+
+        DBG(2) fprintf(stderr, "r=%i\n", r);
+
+        //----------------------------------------------------------------------
+        // Assume that this column will show the system is unbounded.
+        //----------------------------------------------------------------------
+        res = UNBOUNDED;
+
+        state_t s = {0, 0, 0., 0., 0., 0.};
+
+        //----------------------------------------------------------------------
+        // Find the column entry that is most restrictive. Save the entry that
+        // increases the objective function the most. Entries must be negative.
+        //----------------------------------------------------------------------
+        first_time = 1;
+        for (k=1;  k <= L;  k++) 
+        { 
+            //fprintf(stderr, "col[%i]=%.15e\n", k, col[k]);
+            if (col[k] < -1e-14)
+            {
+                //--------------------------------------------------------------
+                //--------------------------------------------------------------
+                res = FOUND_PIVOT;
+
+                tinc = bcol[k] / fabs(col[k]);
+
+                assert(tinc > 0); assert(!isinf(tinc));
+                //assert(tinc != prev_inc);
+                //fprintf(stderr, "tinc = %.15e, col[%i]=%.15e bcol[%i]=%.15e\n", tinc, k, col[k], k, bcol[k]);
+
+                //--------------------------------------------------------------
+                // Accept this pivot element if we haven't found anything yet or
+                // if this entry is more restrictive than the previous one.
+                //--------------------------------------------------------------
+                accept = first_time || (tinc < s.inc);
+
+                if (accept) 
+                {
+                    s.l   = k;
+                    s.r   = r;
+                    s.inc = tinc;
+                    s.piv = col[k];
+                    s.objf_inc = tinc*col[0];
+
+                    assert(s.piv != 0);
+                    assert(s.inc != 0);
+                    assert(col[0] != 0);
+                    assert(s.objf_inc != 0);
+                }
+                first_time=0;
+            }
+        }
+
+        //----------------------------------------------------------------------
+        // If no negative column entry was found then the system must be
+        // unbounded.
+        //----------------------------------------------------------------------
+        if (res == UNBOUNDED)
+        {
+            return res;
+        }
+
+        //fprintf(stderr, "- %.15e %.15e %i\n", s.objf_inc, t.objf_inc, res);
+        if (s.objf_inc > t.objf_inc)
+        {
+            //fprintf(stderr, "ACCEPTING tinc=%.15e  %.20e  %.15e  objf_inc=%.15e\n", s.inc, s.piv, s.inc, s.objf_inc);
+            t.l = s.l;
+            t.r = s.r;
+            t.inc = s.inc;
+            t.piv = s.piv;
+            t.objf_inc = s.objf_inc;
+            assert(t.piv != 0);
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // If no positive entry was found in the first row then there is nothing 
+    // to do.
+    //--------------------------------------------------------------------------
+    if (res == NOPIVOT)
+        return res;
+
+    DBG(2) fprintf(stderr, "ACCEPTING inc=%.15e\n", t.inc);
+    //fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
+
+    assert(t.piv != 0);
+
+    *lpiv0 = t.l;
+    *rpiv0 = t.r;
+    *piv0  = t.piv;
+    //fprintf(stderr, "< choosePivot() %i %i %e %e\n", t.l, t.r, t.piv, t.inc);
+    return res;
+}
+
+#endif
 #endif
 
 int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
@@ -603,7 +729,7 @@ redo:
 
         //fprintf(stderr, "tinc %g\n", tinc);
 
-        if (tinc < 1e-9) 
+        if (0) //tinc < 1e-9)
         {
             fprintf(stderr, "*************************************\n");
             fprintf(stderr, "*************************************\n");
@@ -711,7 +837,7 @@ char buf[100];
 void periodic_report(int sig)
 {
     assert(sig == SIGALRM);
-    sprintf(buf, "\riter %8i  %24.15e [%i]", report.step, report.obj_val, report.nthreads);
+    sprintf(buf, "\riter %8i  objf=%.8e  Z=%i  [nthreads=%i]", report.step, report.obj_val, report.Z, report.nthreads);
     write(STDERR_FILENO, buf, sizeof(buf));
     fsync(STDERR_FILENO);
     alarm(1);
@@ -769,7 +895,6 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     int32_t ret, n;
 
-    long Zorig = Z;
 
 
     /* Remember, this is in FORTRAN order */
@@ -807,6 +932,106 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     //omp_set_num_threads(nthreads);
 
+    if (Z == 0)
+    {
+        report.step     = n;
+        report.obj_val  = tabl.data[0];
+        report.nthreads = 0;
+        report.Z = 0;
+
+        ret = choose_pivot1(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+
+        if (ret == FOUND_PIVOT) 
+        {
+            ret = NOPIVOT;
+
+            //------------------------------------------------------------------
+            // Actual pivot
+            //------------------------------------------------------------------
+            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
+
+            //----------------------------------------------------------------------
+            // Swap left and right variables.
+            //----------------------------------------------------------------------
+            int32_t lq = left[lpiv];
+            int32_t rq = right[rpiv];
+
+            left[lpiv]  = rq;
+            right[rpiv] = lq;
+        }
+    }
+    else
+    {
+        for (n=0;; n++)
+        {
+            report.step     = n;
+            report.obj_val  = tabl.data[0];
+            report.nthreads = 0;
+            report.Z = Z;
+
+            ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+
+            if (ret != FOUND_PIVOT) break;
+
+            //------------------------------------------------------------------
+            // Actual pivot
+            //------------------------------------------------------------------
+            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
+
+            //----------------------------------------------------------------------
+            // Swap left and right variables.
+            //----------------------------------------------------------------------
+            int32_t lq = left[lpiv];
+            int32_t rq = right[rpiv];
+
+            left[lpiv]  = rq;
+            right[rpiv] = lq;
+
+            if (lq < 0)
+            { 
+                //------------------------------------------------------------------
+                // Remove the pivot column
+                //------------------------------------------------------------------
+                memmove(right+rpiv+0, 
+                        right+rpiv+1, 
+                        sizeof(*right)*(R-rpiv)); /* (R+1)-(rpiv+1) */
+
+                memmove(tabl.data + (rpiv+0)*tabl.rows, 
+                        tabl.data + (rpiv+1)*tabl.rows,
+                        sizeof(*tabl.data) * (R-rpiv)*tabl.rows);
+
+                Z--; 
+                R--;
+                need_assign_pivot_threads = 1;
+                DBG(1) fprintf(stderr, "\nREMOVED %i Z=%ld R=%ld\n\n", rpiv, Z,R);
+            }
+
+
+            DBG(2)
+            {
+                for (i=0; i <= R; i++)
+                {
+                    dble_t *col = &(tabl.data[i * tabl.rows + 0]);
+                    for (j=0; j <= L; j++)
+                    {
+                        if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
+                        {
+                            fprintf(stderr, "+++++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
+                            //assert(0);
+                        }
+                    }
+                }
+            }
+
+            if (Z==0) 
+            {
+                ret = FEASIBLE;
+                break;
+            }
+        }
+    }
+
+#if 0
     for (n=0;; n++)
     {
 #if 0
@@ -834,7 +1059,9 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         }
 
         if (Z == 0)
+        {
             ret = choose_pivot1(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+        }
         else
             ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
 
@@ -850,7 +1077,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         // Actual pivot
         //------------------------------------------------------------------
         if (Z == 0)
-            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 1e-11);
+            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
         else
             doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
 
@@ -906,6 +1133,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             if (Zorig != 0) break;
         }
     }
+#endif
 
 #if WITH_GOOGLE_PROFILER
     ProfilerStop();
@@ -993,6 +1221,7 @@ void doPivot0X(
     //DBG(3) fprintf(stderr, "< doPivot()\n");
 }
 
+#if 0
 void doPivot0(
     matrix_t * restrict tabl,
     long L, const long R,
@@ -1084,4 +1313,65 @@ void doPivot0(
     //fprintf(stderr, "ending doPivot. obj = %g\n", tabl->data[0]);
 
     //DBG(3) fprintf(stderr, "< doPivot()\n");
+}
+#endif
+void doPivot0(
+    matrix_t * restrict tabl,
+    long L, const long R,
+    dble_t piv, 
+    int32_t lpiv, const int32_t rpiv,
+    dble_t PREC)
+{
+    int32_t r, i;
+
+    dble_t * restrict col;
+    dble_t col_lpiv;
+    dble_t xx;
+
+    dble_t * restrict pcol = tabl->data + (rpiv * tabl->rows);
+
+    for (r=0; r <= R; ++r)
+    {
+        if (r == rpiv) continue;
+
+        col      = tabl->data + (r * tabl->rows); 
+        col_lpiv = col[lpiv];     
+        xx       = -col_lpiv / piv;  
+
+        for (i=0; i <= L; i++) 
+        {
+            dble_t t = fma(pcol[i],xx, col[i]);
+            col[i] = t + (fma(pcol[i],xx, col[i]) - t);
+            col[i] *= fabs(col[i]) > PREC;
+        }
+
+        col[lpiv] = xx;   
+        col[lpiv] *= fabs(col[lpiv]) > PREC;
+    }
+
+    for (i=0; i <= L; i++)
+    {
+        pcol[i] /= piv;
+        pcol[i] *= fabs(pcol[i]) > PREC;
+    }
+    pcol[lpiv] = 1.0 / piv;
+    pcol[lpiv] *= fabs(pcol[lpiv]) > PREC;
+
+    DBG(1)
+    {
+        int f=0;
+        for (i=1; i <= L; i++)
+        {
+            if (tabl->data[i] < 0
+            || (fabs(tabl->data[i]) > 0 && fabs(tabl->data[i]) <= PREC)
+            || isinf(tabl->data[i])
+            ) //-SML)
+            {
+                fprintf(stderr, "%e\n", tabl->data[i]);
+                f = 1;
+            }
+        }
+        //fprintf(stderr, "piv=%e\n", piv);
+        assert(f==0);
+    }
 }

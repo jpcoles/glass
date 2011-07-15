@@ -191,7 +191,7 @@ def Xestimated_Re(obj, ps, src_index):
     return mean([Vl,Vs]), Vl, Vs, arctan2(D1[1], D1[0]) * 180/pi
 
 
-class PixelBasis: 
+class PixelBasis(object): 
 
     def __init__(self):
 
@@ -228,12 +228,14 @@ class PixelBasis:
     def __getattr__(self, name):
         if name == 'nbrs':
             Log( 'Finding neighbors...' )
-            self.nbrs = all_neighbors(self.int_ploc, 1.5*self.int_cell_size)
+            super(PixelBasis, self).__setattr__('nbrs',  all_neighbors(self.int_ploc,            1.5 * self.int_cell_size))
             return self.nbrs
         elif name == 'nbrs2':
             Log( 'Finding neighbors 2...' )
-            self.nbrs2 = all_neighbors(self.int_ploc,     self.int_cell_size*self.grad_rmax)
+            super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             return self.nbrs2
+        else:
+            raise AttributeError('Attribute %s not found in PixelBasis' % name)
 
     def init(self, obj):
         self.myobject = obj
@@ -741,16 +743,13 @@ class PixelBasis:
 #           dist    = empty_like(ploc)
 #           cell_size = self.top_level_cell_size / self.subdivision
 
+
             if not data.has_key('deflect'):
                 x = False
                 _or = None 
                 for i,theta in enumerate(ploc):
                     subtract(theta, ploc, dist)
-                    #print dist.shape, cell_size.shape, ploc.shape
-#               deflect[i] = complex(sum(kappa * poten_dx(dist,cell_size)),
-#                                    sum(kappa * poten_dy(dist,cell_size)))
-
-                    deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)),
+                    deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)), 
                                          dot(kappa, poten_dy(dist,cell_size)))
 
                     if obj.shear:

@@ -1,7 +1,7 @@
 from __future__ import division
 from environment import env, command
 #from solvers.samplex.samplex import Samplex
-from solvers.samplexsimple.samplex import Samplex
+#from solvers.samplexsimple.samplex import Samplex
 #from solvers.lpsolve.samplex import Samplex
 from basis import PixelBasis as basis_class
 from numpy import load, mean, pi, radians
@@ -12,8 +12,8 @@ def minsteep(a):                assert False, "minsteep not supported. Use steep
 @command
 def maxsteep(a):                assert False, "maxsteep not supported. Use steepness()."
 
-def _foo(options):
-   return Samplex(**options)
+#def _foo(options):
+   #return Samplex(**options)
    #return Samplex(nvars, nthreads=env().ncpus) 
 
 

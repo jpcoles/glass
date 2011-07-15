@@ -5,7 +5,7 @@ import gc
 from numpy import isfortran, asfortranarray, sign, logical_and, any
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt, arange
-from numpy import argwhere, argmin, inf, isinf
+from numpy import argwhere, argmin, inf, isinf, amin, abs, where
 from numpy import histogram, logspace, flatnonzero, isinf
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
 #from glrandom import random, ran_set_seed
@@ -40,7 +40,7 @@ class SamplexSolution:
 
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
-    SML = 1e-12
+    SML = 1e-5
     EPS = 1e-14
 
     def __init__(self, **kw):
@@ -48,7 +48,8 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        self.sol_type  = kw.get('solution type', 'vertex')
+        self.sol_type  = kw.get('solution type', 'interior')
+        self.with_noise   = kw.get('add noise', False)
 
         Log( "Samplex created" )
         Log( "    ncols = %i" % ncols )
@@ -100,11 +101,13 @@ class Samplex:
         #    % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count)
 
         Log( '=' * 80 )
-        Log( 'SAMPLEX' )
+        Log( 'SAMPLEX (Simple)' )
         Log( '=' * 80 )
 
         Log( "random seed = %s" % self.random_seed )
         Log( "threads = %s" % self.nthreads )
+        Log( "solution type = %s" % self.sol_type )
+        Log( "with noise = %s" % self.with_noise )
 
         Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -155,6 +158,7 @@ class Samplex:
             out.close()
             Log( 'done.' )
 
+
         Log( "Building matrix" )
         for i,[f,a] in enumerate(self.eq_list):
             f(a)
@@ -169,13 +173,29 @@ class Samplex:
         Log( "    R = %i" % self.nRight )
         Log( "    S = %i" % self.nSlack )
 
+        Log( "%6s %6s %6s\n%6i %6i %6i" 
+            % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
+
+        if 0:
+            import numpy as np
+            import pylab as pl
+            m = np.empty((len(self.eq_list), len(self.eq_list[0][1])))
+            print m.shape
+            for i,e in enumerate(self.eq_list):
+                f,a = e
+                m[i] = a
+                if f == self._eq:  m[i][m[i] != 0] = 1
+                if f == self._geq: m[i][m[i] != 0] = 2
+                if f == self._leq: m[i][m[i] != 0] = 3
+            #m[m != 0] = 1
+            pl.matshow(m)
+            pl.show()
+
         # We delete this now so that pickeling doesn't fail later when the
         # state is saved.
         del self.eq_list
 
 
-        Log( "%6s %6s %6s\n%6i %6i %6i" 
-            % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
 
         #print self.lhv
         self.lhv = array(self.lhv, dtype=numpy.int32)
@@ -263,7 +283,7 @@ class Samplex:
                 if self.sol_type == 'vertex':
                     p = self.curr_sol.vertex[:self.nVars+1].copy()
                 elif self.sol_type == 'interior':
-                    p = self.interior_point()
+                    p = self.interior_point(self.curr_sol)
 
                 if p is not None: 
                     break
@@ -297,7 +317,11 @@ class Samplex:
         s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
         s.vertex[0] = self.data[0,0]
 
-        assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        print 'Testing solution is negative...'
+        assert all(s.vertex[1:] >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+        print 'Nope.'
+
+        #assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
         #s.vertex[0] = self.data[0,0]
 
         return s
@@ -331,8 +355,12 @@ class Samplex:
 
     def set_auxil_objective(self):
         # This is the same as below. Just wanted to check correctness
-        sum(self.data[self.lhv < 0,:self.nRight+1], axis=0, out=self.data[0,:self.nRight+1])
+
+        # Sum the coefficients for each normal variable and store in the first row
+        sum( self.data[self.lhv < 0, :self.nRight+1], axis=0, out=self.data[0,:self.nRight+1] )
+
         self.data[0,:self.nRight+1] *= -1
+        print 'Auxiliary obj fn', self.data[0]
         return
 
 
@@ -354,10 +382,9 @@ class Samplex:
         #sys.exit(0)
         #print "-----------------------------------"
 
-
     #=========================================================================
 
-    def interior_point(self, r=None):
+    def interior_point_ORIG(self, r=None):
         if r is None: r = random()
 
         sol = self.curr_sol
@@ -403,11 +430,15 @@ class Samplex:
         #print dist[a]
         #print scale
         #print scale[dist > self.SML]
-        smallest_scale = min(scale)
+        smallest_scale = amin(scale) 
+        print 'interior point: smallest scale is %.15e' % smallest_scale
+        print 'interior point: r is %.15e' % r
         #smallest_scale = min(smallest_scale, min(scale[dist > self.SML]))
 
         assert not isinf(smallest_scale)
         assert smallest_scale > 0.99, smallest_scale
+
+        print dist
 
         k = smallest_scale * (1.0-r)
 
@@ -419,12 +450,81 @@ class Samplex:
         spanvars = slice(1,self.nVars+self.nSlack+1)
         self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
         #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
-        assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
+        assert all(self.moca >= 0), (self.moca[self.moca < 0], self.moca)
+        #assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
         s = self.moca.copy()[:self.nVars+1]
         #print s
         return s
 
+
+    #=========================================================================
+
+    def interior_point(self, sol, r=None):
+        if r is None: r = random()
+
+        #sol = self.curr_sol
+
+        k = 0
+        smallest_scale = inf
+
+#       q = slice(1, self.nVars + self.nSlack +1)
+#       #q = slice(1, self.nLeft+1)
+#       iv    = sol.vertex[q]
+#       assert all(iv >= 0)
+#       dist  = iv - self.moca[q]
+
+        iv    = sol.vertex[sol.lhv[1:]]
+        assert all(iv > 0)
+        dist  = iv - self.moca[sol.lhv[1:]]
+        a = dist > 0 #self.EPS
+        if not any(a):
+            return None #self.moca.copy(), 'g'
+
+        scale = iv[a] / dist[a]
+
+        smallest_scale = amin(scale) 
+        print 'interior point: smallest scale is %.15e' % smallest_scale
+        print 'interior point: r is %.15e' % r
+        #smallest_scale = min(smallest_scale, min(scale[dist > self.SML]))
+
+        assert not isinf(smallest_scale)
+        assert smallest_scale > 0.99, smallest_scale
+
+        #print dist
+
+        k = smallest_scale * (1.0-r)
+
+        self.sum_ln_k += log(k)
+        #assert self.sum_ln_k < 1
+
+        spanvars = slice(1,self.nVars+self.nSlack+1)
+        q = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
+        if any(q < 0):
+            print '!! k is ', k
+            print '!!', self.moca[q < 0]
+            print '!!', where(q < 0)
+            print 
+            print '!!', sol.vertex[q < 0]
+            print '!!', self.moca[q < 0]
+            #print '!!', self.moca
+            assert 0
+
+        self.moca[spanvars] = q
+        s = self.moca.copy()[:self.nVars+1]
+        return s
+
+
+    #=========================================================================
+
+    def add_noise(self, a):
+        if a[0] == 0: 
+            w = abs(a) > self.EPS
+            w[0] = True
+            b = a.copy()
+            b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
+            return b
+        return a
 
     #=========================================================================
 
@@ -447,6 +547,10 @@ class Samplex:
             self.nVars = len(a)-1
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
+
+        if self.with_noise:
+            a = self.add_noise(a)
+
         if a[0] < 0: 
             self.nLeft  += 1
             self.nSlack += 1
@@ -464,6 +568,10 @@ class Samplex:
             self.nVars = len(a)-1
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
+
+        if self.with_noise:
+            a = self.add_noise(a)
+
         if a[0] <= 0: 
             self.nLeft  += 1
             self.nSlack += 1
@@ -478,6 +586,8 @@ class Samplex:
         self.eq_list.append([self._leq, a])
 
     def _eq(self, a): 
+        assert len(a) == self.nVars+1
+
         if a[0] < 0: a *= -1
 
         self.nLeft += 1
@@ -491,23 +601,13 @@ class Samplex:
         #a[abs(a) < self.EPS] = 0
         self.data[self.nLeft, 0:1+self.nVars] = a
 
-    def add_noise(self, a):
-        if a[0] == 0: 
-            a[0] += self.SML * random()
-            w = abs(a[1:]) > self.EPS
-            a[w] += self.SML * (2*random(len(w.nonzero())) - 1)
-#           a[0] += self.SML * random()
-#           w = abs(a[1:]) > self.EPS
-#           a[w] += self.SML * random(len(w.nonzero()))
-
-    def _geq(self, a, with_noise=True): 
+    def _geq(self, a): 
+        assert len(a) == self.nVars+1
         self.geq_count += 1
-
-        #if with_noise: self.add_noise(a) 
 
         if a[0] < 0: 
             a *= -1
-            self._leq(a, with_noise=False)
+            self._leq(a)
             self.leq_count -= 1
         else:
             self.nLeft  += 1
@@ -518,25 +618,16 @@ class Samplex:
             # First copy the array into data before adding noise so that the
             # values are correctly typecast.
             #-------------------------------------------------------------------
-#           a[abs(a) < self.EPS] = 0
+
             self.data[self.nLeft, 0:1+self.nVars] = a
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
 
-            if with_noise:
-                for n in xrange(self.nVars+1):
-                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-
-#           self.add_noise(self.data[self.nLeft])
-
-
-    def _leq(self, a, with_noise=True): 
+    def _leq(self, a): 
+        assert len(a) == self.nVars+1
         self.leq_count += 1
-        #if with_noise: self.add_noise(a) 
+
         if a[0] <= 0: 
             a *= -1
-            self._geq(a, with_noise=False)
+            self._geq(a)
             self.geq_count -= 1
         else:
             self.nLeft += 1
@@ -557,24 +648,7 @@ class Samplex:
             # First copy the array into data before adding noise so that the
             # values are correctly type cast.
             #-------------------------------------------------------------------
-#           a[abs(a) < self.EPS] = 0
+
             self.data[self.nLeft, 0:1+self.nVars] = a
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
-
-            if with_noise:
-                for n in xrange(self.nVars+1):
-                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-                        #if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0] += self.SML * random()
-#               w = abs(self.data[self.nLeft, 1:]) > self.EPS
-#               self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
-
-#           self.add_noise(self.data[self.nLeft])
-
-            #Log( '**\n %s' % self.nRight )
             self.data[self.nLeft, self.nRight] = 1.0
 

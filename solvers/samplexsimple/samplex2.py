@@ -256,19 +256,18 @@ class Samplex:
                       self.nTemp,
                       self.nRight]
 
-        #yield self.curr_sol.vertex[0:self.nVars+1]
+        self.vertex_solutions = []
 
-        #spanvars = slice(1,self.nVars+self.nSlack+1)
-        #self.moca = self.data[spanvars, 0].copy()
+        while len(self.vertex_solutions) != self.nVars + 1:
+            while True:
+                self.next_solution()
+                self.curr_sol = self.package_solution()                
 
-#       print histogram(self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1],
-#                       bins = logspace(-14, 4),
-#                       new = False)
-
-##      x = self.data[0:self.nLeft+1, 0:self.nRight+self.nSlack+1].flatten()
-##      hist(x, bins = 100, log=True)
-##      show()
-##      sys.exit(0)
+                if self.curr_sol is not None: 
+                    self.vertex_solutions.append(self.curr_sol)
+                    break
+                
+                print 'SAME VERTEX!'
 
         self.sum_ln_k = 0
         self.n_solutions = 0
@@ -277,13 +276,10 @@ class Samplex:
             self.n_solutions += 1
             while True:
                 self.next_solution()
-                self.curr_sol = self.package_solution()                
+                next = random_integers(len(self.vertex_solutions)) - 1
+                self.curr_sol = self.vertex_solutions[next]
 
-                #print self.sol_type
-                if self.sol_type == 'vertex':
-                    p = self.curr_sol.vertex[:self.nVars+1].copy()
-                elif self.sol_type == 'interior':
-                    p = self.interior_point(self.curr_sol)
+                p = self.interior_point(self.curr_sol)
 
                 if p is not None: 
                     break
@@ -354,109 +350,12 @@ class Samplex:
         return True
 
     def set_auxil_objective(self):
-        # This is the same as below. Just wanted to check correctness
-
         # Sum the coefficients for each normal variable and store in the first row
         sum( self.data[self.lhv < 0, :self.nRight+1], axis=0, out=self.data[0,:self.nRight+1] )
-
         self.data[0,:self.nRight+1] *= -1
+
         print 'Auxiliary obj fn', self.data[0]
         return
-
-
-        #print self.data
-        #print self.lhv
-        #print self.rhv
-        for r in xrange(self.nRight+1):
-            col = self.data[:,r]
-            col[0] = 0
-            for k in xrange(1,self.nLeft+1):
-                if self.lhv[k] < 0:
-                    col[0] -= col[k]
-
-        #self.data[0,:] = [0,0,2,-4,0]
-        Log( "Auxiliary objective function" )
-        #print self.data[0,:]
-        #print self.nLeft, self.nRight
-        #print self.lhv[1:]
-        #sys.exit(0)
-        #print "-----------------------------------"
-
-    #=========================================================================
-
-    def interior_point_ORIG(self, r=None):
-        if r is None: r = random()
-
-        sol = self.curr_sol
-
-        k = 0
-        smallest_scale = inf
-        best_iv=0
-        best_dist = 0
-        best_moca = 0
-        best_dist_err = 0
-
-#       for i in xrange(1, len(self.lhv)+1):
-#           l2 = self.lhv[i]
-#           iv = self.data[l2,0]
-#           dist = iv - self.moca[l2]
-#           #dist_err = dist + self.moca[l2] - iv
-
-##           scale = iv / dist
-##           scale[dist < self.SML] = inf
-##           smallest_scale = min(smallest_scale, min(scale))
-
-
-#           if dist > self.SML:
-#               scale = iv / dist
-#               if scale < smallest_scale:
-#                   smallest_scale = scale
-#                   k = smallest_scale * (1.0-r)
-
-#               assert iv+self.SML < dist, '%f !< %f' % (iv+self.SML, dist)
-
-        #for i in sol.lhv: print sol.vertex[i], self.moca[i]
-
-        iv    = sol.vertex[sol.lhv[1:]]
-        dist  = iv - self.moca[sol.lhv[1:]]
-        a = dist > self.SML
-        if not any(a):
-            return None #self.moca.copy(), 'g'
-
-        scale = iv[a] / dist[a]
-
-        #print iv
-        #print self.moca[sol.lhv]
-        #print dist[a]
-        #print scale
-        #print scale[dist > self.SML]
-        smallest_scale = amin(scale) 
-        print 'interior point: smallest scale is %.15e' % smallest_scale
-        print 'interior point: r is %.15e' % r
-        #smallest_scale = min(smallest_scale, min(scale[dist > self.SML]))
-
-        assert not isinf(smallest_scale)
-        assert smallest_scale > 0.99, smallest_scale
-
-        print dist
-
-        k = smallest_scale * (1.0-r)
-
-        self.sum_ln_k += log(k)
-        #assert self.sum_ln_k < 1
-
-        #old_moca = self.moca.copy()
-
-        spanvars = slice(1,self.nVars+self.nSlack+1)
-        self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
-        #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
-        assert all(self.moca >= 0), (self.moca[self.moca < 0], self.moca)
-        #assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
-
-        s = self.moca.copy()[:self.nVars+1]
-        #print s
-        return s
-
 
     #=========================================================================
 
@@ -499,15 +398,18 @@ class Samplex:
         #assert self.sum_ln_k < 1
 
         spanvars = slice(1,self.nVars+self.nSlack+1)
-        self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
-        if not all(self.moca >= 0):
+        q = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
+        if any(q < 0):
             print '!! k is ', k
-            print '!!', self.moca[self.moca < 0]
-            print '!!', where(self.moca < 0)
+            print '!!', q[q < 0]
+            print '!!', where(q < 0)
             print 
-            print '!!', sol.vertex[self.moca < 0]
+            print '!!', sol.vertex[q < 0]
+            print '!!', self.moca[q < 0]
             #print '!!', self.moca
             assert 0
+
+        self.moca[spanvars] = q
 
         s = self.moca.copy()[:self.nVars+1]
         return s

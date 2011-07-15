@@ -1,7 +1,7 @@
 from __future__ import division
 from environment import env, command
 import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all
+from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all, dot, sum
 from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
 from itertools import izip
 from log import log as Log
@@ -22,6 +22,8 @@ def _make_prior(f, where):
             self.f, self.check, self.where = f, None, where
         def __eq__(self, f):
             return f in [self.f, self.f.__name__]
+        def __call__(self, *args, **kwargs):
+            return f(*args, **kwargs)
     #print f
     all_priors.append(P(f, where))
     return all_priors[-1]
@@ -114,35 +116,33 @@ def check_image_pos(o, sol):
     shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
     ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
 
-    rows = new_row(o, 2)
     for i,src in enumerate(o.sources):
         res = ''
         for img in src.images:
-            rows[:,:] = 0
             r0 = (img.pos.real + b.map_shift) * src.zcap
             r1 = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
-            r0 += sum(sol[pix_start:pix_end] * -poten_dx(positions, b.cell_size))
-            r1 += sum(sol[pix_start:pix_end] * -poten_dy(positions, b.cell_size))
+            r0 -= sum(sol[pix_start:pix_end] * poten_dx(positions, b.cell_size))
+            r1 -= sum(sol[pix_start:pix_end] * poten_dy(positions, b.cell_size))
 
             if o.shear:
-                r0 += sol[shear_start] * -o.shear.poten_dx(img.pos)
-                r1 += sol[shear_start] * -o.shear.poten_dy(img.pos)
+                r0 -= sol[shear_start] * o.shear.poten_dx(img.pos)
+                r1 -= sol[shear_start] * o.shear.poten_dy(img.pos)
 
-                r0 += sol[shear_start+1] * -o.shear.poten_d2x(img.pos)
-                r1 += sol[shear_start+1] * -o.shear.poten_d2y(img.pos)
+                r0 -= sol[shear_start+1] * o.shear.poten_d2x(img.pos)
+                r1 -= sol[shear_start+1] * o.shear.poten_d2y(img.pos)
 
             srcpos = srcpos_start + 2*i
-            r0 += -sol[srcpos+0]
-            r1 += -sol[srcpos+1]
+            r0 -= sol[srcpos+0]
+            r1 -= sol[srcpos+1]
 
             l0 = log10(abs(r0)) if r0 else -13
             l1 = log10(abs(r1)) if r1 else -13
 
             res += '['
-            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-4i' % l0
+            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
             res += ' '
-            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '%-4i' % l1
+            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
             res += ']'
             #res += '[%-4i %-4i]' % (r0, r1)
 
@@ -166,6 +166,8 @@ def time_delay(o, leq, eq, geq):
 
     zLp1 = o.z + 1
 
+    shft = [b.map_shift, b.map_shift]
+
     for i, src in enumerate(o.sources):
         for img0,img1,delay in src.time_delays:
 
@@ -175,11 +177,17 @@ def time_delay(o, leq, eq, geq):
 
             srcpos = srcpos_start + 2*i
 
-            x0, y0 = img0.pos.real, img0.pos.imag
-            x1, y1 = img1.pos.real, img1.pos.imag
+            r0, r1 = img0.pos, img1.pos
+
+            x0, y0 = r0.real, r0.imag
+            x1, y1 = r1.real, r1.imag
 
             # The constant term
-            row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*b.map_shift
+            #row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*b.map_shift
+
+            row[0]  = (abs(r1)**2 - abs(r0)**2) / 2
+            row[0] += dot([x1-x0, y1-y0], shft)
+            #row[0] += dot([x0-x1, y0-y1], shft)
             row[0] *= src.zcap
 
             # The beta term
@@ -216,6 +224,103 @@ def time_delay(o, leq, eq, geq):
             #print 'row:', len(row), row
 
             #print row
+
+@object_prior_check(time_delay)
+def check_time_delay(o, sol):
+
+    Log( "Check Time Delay (' ':-12  '.':-11  '-':-10  '*':-9)" )
+
+    ls = []
+    f = lambda x: ls.append(x)
+    time_delay(o, f,f,f)
+
+    for l in ls:
+        s = l[0] + dot(sol[1:], l[1:])
+        print s
+
+    return
+
+
+    b  = o.basis
+    nu = 1+b.H0
+
+    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
+    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+
+    zLp1 = o.z + 1
+
+    for i, src in enumerate(o.sources):
+        res = ''
+        for img0,img1,delay in src.time_delays:
+
+            delay = [d / zLp1 if d else d for d in delay]
+
+            row = new_row(o)
+
+            srcpos = srcpos_start + 2*i
+
+            x0, y0 = img0.pos.real, img0.pos.imag
+            x1, y1 = img1.pos.real, img1.pos.imag
+
+            # The constant term
+            row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*b.map_shift
+            row[0] *= src.zcap
+
+            # The beta term
+            row[srcpos:srcpos+2]  = x0-x1, y0-y1
+            #row[srcpos:srcpos+2] *= src.zcap
+
+            # The ln terms
+            row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
+            row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
+
+            if o.shear:
+                row[shear_start+0] -= o.shear.poten(1, img1.pos)
+                row[shear_start+0] += o.shear.poten(1, img0.pos)
+                row[shear_start+1] -= o.shear.poten(2, img1.pos)
+                row[shear_start+1] += o.shear.poten(2, img0.pos)
+
+#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
+#               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
+#               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
+
+            row2 = None
+
+            if len(delay) == 1:
+                d = delay[0]
+                if d is None: row[nu] =  0
+                else:         row[nu] = -d
+            else:
+                l,u = delay
+                if   l is None: row[nu] = -u
+                elif u is None: row[nu] = -l
+                else:
+                    row2 = row.copy()
+                    row[nu]  = -l
+                    row2[nu] = -u
+
+            print row.shape
+            print sol.shape
+            row = row[1:]*sol[1:] - row[0]
+            if row2 is not None:
+                row2 *= sol
+            else:
+                row2 = row
+
+            r0 = sum(row, axis=0)
+            r1 = sum(row2, axis=0)
+
+            res += '[%i %i]' % (r0,r1)
+
+            #res += '['
+            #res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
+            #res += ' '
+            #res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
+            #res += ']'
+
+        Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
@@ -696,7 +801,7 @@ def J2gradient(o, leq, eq, geq):
     theta = opts.get('theta', 45)
     L     = opts.get('size',  Lmin)
 
-    assert (L >= 1.1*o.basis.top_level_cell_size), 'size=%f < %f is too small' % (L, Lmin)
+    assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
 
     Log( "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
 

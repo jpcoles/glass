@@ -1,8 +1,10 @@
 from __future__ import division
 import sys
+import numpy as np
 from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
+from random import random
 from scales import time_to_physical
 from potential import poten
 from scipy.linalg import det
@@ -61,6 +63,20 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             if srcdiff[j] > speps: break
             initial_guess.append(ploc[j])
 
+
+#   if not initial_guess:
+#       initial_guess = []
+
+#       for i in range(20):
+#           r = obj.basis.mapextent * random()
+#           t  = 2 * np.pi * random()
+#           sx = r * np.cos(t)
+#           sy = r * np.sin(t)
+#           initial_guess.append(complex(sx,sy))
+    
+
+
+
 #-------------------------------------------------------------------------------
 
 #           for ii in initial_guess:
@@ -109,19 +125,18 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     # Only those images that truly satisfy the equation are accepted.
     #---------------------------------------------------------------------------
 
-    initial_guess.append(0j)
+    initial_guess.append(src)
     if verbose: print 'Initial guesses', initial_guess
 
     def lenseq(theta0):
         theta = complex(*theta0)
         r = src - theta + obj.basis.deflect(theta, ps) / zcap
         return r.real, r.imag
-        #return abs(r)
 
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
-        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-12)
+        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True) #, xtol=1e-12)
         #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
 
         if not ier: continue
@@ -315,7 +330,7 @@ def observables(model, obj_index, src_index, seq):
 
     imglist = [[seq[0][0], seq[0][3]]]
 
-    prev = seq[0][1]
+    _,_,prev,_ = seq[0]
     for img,t,_,parity in seq[1:]:
         t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
         imglist.append([img, parity,t0])
@@ -347,7 +362,6 @@ def write_code(model, obj_index, src_index, seq, simple=False):
         
     print "[" + ",\n ".join(map(img2str, zip(letters, obs))) + "]"
 
-    print '\n'.join(map(str,obs))
     return
         
     imglist = ["['%s', (% 9.5f,% 9.5f), '%s']" % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])]

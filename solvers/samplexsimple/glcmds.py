@@ -13,3 +13,7 @@ def samplex_objective_function(type):
 def samplex_solution_type(type):
     assert type in ['vertex', 'interior']
     env().model_gen_options['solution type'] = type
+
+@command
+def samplex_add_noise(n=True):
+    env().model_gen_options['add noise'] = n

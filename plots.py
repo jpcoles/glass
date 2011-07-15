@@ -33,7 +33,7 @@ _styles = [{'label':r'rejected', 'c':'r', 'ls':'-', 'z':-1, 'line':Line2D([],[],
            {'label':r'accepted', 'c':'b', 'ls':'-', 'z': 0, 'line':Line2D([],[],c='b',ls='-')},
            {'label':r'unknown',  'c':'k', 'ls':'-', 'z':+1, 'line':Line2D([],[],c='k',ls='-')}]
 
-_system_colors = 'rgbmykw'
+_system_colors = 'gbmykw'
 _source_colors = 'c'
 
 def system_color(i): return _system_colors[i%len(_system_colors)]
@@ -69,7 +69,7 @@ def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None, 
                 if img.parity_name == 'unk':
                     cs.append('red')
                 else:
-                    cs.append(source_color(i))
+                    cs.append(system_color(i))
             else:
                 cs.append(color)
 
@@ -331,6 +331,7 @@ def grad_tau(model, obj_index, which, src_index):
     d = correlate1d(arrival, w, axis=which, mode='constant')
 
     d = d[1:-1,1:-1]
+    d[abs(d) < 1e-3] = 0
     d[d>0] = 1
     d[d<0] = -1
     matshow(d, fignum=False, extent=[-R,R,-R,R], alpha=0.5)

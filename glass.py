@@ -23,6 +23,7 @@ def Ximport_functions(pkg):
             g[name.split('glcmd__')[1]] = func
 
 def glass_basis(name, **kwargs):
+    env().basis_options = kwargs
     f = __import__(name, globals(), locals())
     for name,func in glass_command_list.iteritems():
         if __builtins__.__dict__.has_key(name):

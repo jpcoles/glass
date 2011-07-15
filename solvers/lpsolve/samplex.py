@@ -5,8 +5,12 @@ from numpy import zeros, array, all, log, empty
 from numpy import inf, isinf
 from numpy.random import random, random_integers, seed as ran_set_seed
 
-from lpsolve55 import lpsolve, EQ,GE,LE, OPTIMAL, INFEASIBLE, UNBOUNDED, TIMEOUT, SUBOPTIMAL
+import lpsolve55 as lp
+from lpsolve55 import lpsolve, EQ,GE,LE
 from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
+
+from lpsolve55 import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
+from lpsolve55 import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 
 from log import log as Log
 
@@ -104,13 +108,27 @@ class Samplex:
         Log( "Getting solutions" )
 
         self.start_new_objective('random')
-        #lpsolve('set_simplextype', self.lp, SIMPLEX_PRIMAL_PRIMAL)
+        #lpsolve('set_simplextype', self.lp, lp.SIMPLEX_DUAL_DUAL)
+        #lpsolve('set_simplextype', self.lp, lp.SIMPLEX_PRIMAL_PRIMAL)
         #lpsolve('set_pivoting', self.lp, PRICER_DANTZIG)
+        #lpsolve('set_pivoting', self.lp, lp.PRICER_DANTZIG | lp.PRICE_ADAPTIVE)
+        #lpsolve('set_pivoting', self.lp, lp.PRICER_STEEPESTEDGE | lp.PRICE_ADAPTIVE)
         #lpsolve('set_presolve', self.lp, PRESOLVE_LINDEP)
         #lpsolve('set_timeout', self.lp, 0)
         res = lpsolve('solve', self.lp)
         #lpsolve('set_presolve', self.lp, PRESOLVE_NONE)
-        print 'solve result', res
+        restxt = {NOMEMORY:          'NOMEMORY',
+                  OPTIMAL:           'OPTIMAL',
+                  SUBOPTIMAL:        'SUBOPTIMAL',
+                  INFEASIBLE:        'INFEASIBLE',
+                  UNBOUNDED:         'UNBOUNDED',
+                  DEGENERATE:        'DEGENERATE',
+                  NUMFAILURE:        'NUMFAILURE',
+                  USERABORT:         'USERABORT',
+                  TIMEOUT:           'TIMEOUT',
+                  PRESOLVED:         'PRESOLVED'}[res]
+
+        print 'solve result %s (%i)' % (restxt, res)
 
         if res != OPTIMAL: return
 
@@ -193,13 +211,15 @@ class Samplex:
             else:
                 break
 
+        print 'Solution after %i steps.' % lpsolve('get_total_iter', self.lp)
+
 
     def package_solution(self):
         objv  = array(lpsolve('get_objective', self.lp))
         vars  = array(lpsolve('get_variables', self.lp)[0])
         slack = array(lpsolve('get_constraints', self.lp)[0]) - array(lpsolve('get_rh', self.lp)[1:])
 
-        slack[abs(slack) < 1e-10] = 0
+        slack[abs(slack) < 1e-5] = 0
 
         nvars = len(vars)
         nslack = len(slack)
@@ -213,6 +233,8 @@ class Samplex:
         s.vertex[1:nvars+1] = vars
         s.vertex[1+nvars:1+nvars+nslack] = slack
         s.vertex[0] = objv
+
+        assert all(s.vertex[1:] >= 0), s.vertex[s.vertex < 0]
 
         return s
 
@@ -295,10 +317,10 @@ class Samplex:
 
     def noise(self, a):
         if a[0] == 0:
-            w = abs(a) > 1e-10
+            w = abs(a) > 1e-14
             w[0] = True
             b = a.copy()
-            b[w] += 1e-8*(2*random()-1)
+            b[w] += 1e-6*(2*random(len(w.nonzero()))-1)
             return b
 
         return a

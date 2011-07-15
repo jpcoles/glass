@@ -11,15 +11,22 @@ import funcs
 import priors
 from funcs import default_post_process
 
-if 0:
-    from solvers.lpsolve.samplex import Samplex
-    import solvers.lpsolve.glcmds 
-elif 0:
+opts = env().basis_options
+if not opts.has_key('solver') or opts['solver'] == 'samplex':
     from solvers.samplex.samplex import Samplex
     import solvers.samplex.glcmds 
-else:
+elif opts.has_key('solver') and opts['solver'] == 'lpsolve':
+    from solvers.lpsolve.samplex import Samplex
+    import solvers.lpsolve.glcmds 
+elif opts.has_key('solver') and opts['solver'] == 'samplexsimple':
     from solvers.samplexsimple.samplex import Samplex
     import solvers.samplexsimple.glcmds 
+elif opts.has_key('solver') and opts['solver'] == 'samplexsimple2':
+    from solvers.samplexsimple.samplex2 import Samplex
+    import solvers.samplexsimple.glcmds 
+else:
+    assert 0, 'Unknown solver %s' % opts['solver']
+
 
 if env().withgfx:
     import plots
@@ -236,6 +243,8 @@ def change_source(models, src, invalidate=True):
     for m in models:
         assert len(src) == len(m['obj,data'])
         for [obj,data],s in izip(m['obj,data'], src):
+            #if not isinstance(s, complex):
+                #raise ValueError('The new source position must be given as a complex number or tuple')
             data['src'] = s
 
     if invalidate:

@@ -149,7 +149,9 @@ CREATED ON: %s'''
     #env().post_process_funcs = []
     #env().post_filter_funcs = []
 
+    import numpy as np
     with open(fname, 'w') as f:
+        print np.asanyarray(env())
         savez(f, env())
 
     #env().post_process_funcs = ppf

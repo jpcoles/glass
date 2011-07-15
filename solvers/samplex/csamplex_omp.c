@@ -526,7 +526,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 }
 #else
 int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
-                      int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
+                      int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0, int phase)
 { 
     typedef struct
     {
@@ -534,7 +534,7 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
         dble_t piv, inc, col0, objf_inc;
     } state_t;
 
-    state_t t = {0, 0, 0., 1e20, 0., 0.};
+    state_t t = {0, 0, 0., 1e20, 0., -1.};
 
     int first_time;
     int32_t k, r;
@@ -546,7 +546,26 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
     //fprintf(stderr, "> choosePivot()\n");
 
+    //--------------------------------------------------------------------------
+    // Look for a degeneracy. If we find such a row only look across that row
+    // for a variable to swap out.
+    //--------------------------------------------------------------------------
+    int32_t start_k=1, end_k=L;
+    int degeneracy = 0;
+//  for (k=1;  k <= L;  k++) 
+//  { 
+//      if (bcol[k] == 0) 
+//      {
+//          bcol[k] = (1-drand48()) * 1e-8;
+//          //start_k = k;
+//          //end_k = k;
+//          //degeneracy = 1;
+//          //break;
+//      }
+//  }
+
     int32_t res = NOPIVOT; 
+
 
     //--------------------------------------------------------------------------
     // Examine each column. Those with a positive values in the first row are
@@ -567,33 +586,46 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
         state_t s = {0, 0, 0., 0., 0., 0.};
 
+
         //----------------------------------------------------------------------
         // Find the column entry that is most restrictive. Save the entry that
         // increases the objective function the most. Entries must be negative.
         //----------------------------------------------------------------------
         first_time = 1;
-        for (k=1;  k <= L;  k++) 
+        for (k=start_k;  k <= end_k;  k++) 
         { 
             //fprintf(stderr, "col[%i]=%.15e\n", k, col[k]);
-            if (col[k] < -1e-14)
+            if (col[k] < 0)
             {
+                accept = 0;
+
                 //--------------------------------------------------------------
                 //--------------------------------------------------------------
                 res = FOUND_PIVOT;
 
                 tinc = bcol[k] / fabs(col[k]);
 
-                assert(tinc > 0); assert(!isinf(tinc));
-                //assert(tinc != prev_inc);
-                //fprintf(stderr, "tinc = %.15e, col[%i]=%.15e bcol[%i]=%.15e\n", tinc, k, col[k], k, bcol[k]);
+//              if (bcol[k] == 0)
+//              {
+//                  degeneracy = 1;
+//                  //fprintf(stderr, "DEGENERACY\n");
+//              }
+
+                //fprintf(stderr, "r=%i  tinc = %.15e, col[%i]=%.15e bcol[%i]=%.15e\n", r, tinc, k, col[k], k, bcol[k]);
+                if (!degeneracy)
+                {
+                    assert(bcol[k] != 0);
+                    assert(tinc > 0); assert(!isinf(tinc));
+                    //assert(tinc != prev_inc);
+                    accept = first_time || (tinc < s.inc);
+                }
 
                 //--------------------------------------------------------------
                 // Accept this pivot element if we haven't found anything yet or
                 // if this entry is more restrictive than the previous one.
                 //--------------------------------------------------------------
-                accept = first_time || (tinc < s.inc);
 
-                if (accept) 
+                if (degeneracy || accept) 
                 {
                     s.l   = k;
                     s.r   = r;
@@ -602,10 +634,13 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
                     s.objf_inc = tinc*col[0];
 
                     assert(s.piv != 0);
-                    assert(s.inc != 0);
+                    //assert(s.inc != 0);
                     assert(col[0] != 0);
-                    assert(s.objf_inc != 0);
+                    //assert(s.objf_inc != 0);
                 }
+
+                if (degeneracy) break;
+
                 first_time=0;
             }
         }
@@ -620,7 +655,26 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
         }
 
         //fprintf(stderr, "- %.15e %.15e %i\n", s.objf_inc, t.objf_inc, res);
-        if (s.objf_inc > t.objf_inc)
+        int good_enough =  left[s.l] < 0;
+
+//      if (phase == 2)
+//      {
+//          good_enough |= (left[s.l] > left[t.l]);
+//      }
+
+        int accept2 = 0;
+
+        if (degeneracy)
+        {
+            if (t.l == 0)
+                good_enough = 1;
+            else
+                good_enough = drand48() > 0.5;
+            //degeneracy = 0;
+        }
+
+
+        if (good_enough || (s.objf_inc > t.objf_inc))
         {
             //fprintf(stderr, "ACCEPTING tinc=%.15e  %.20e  %.15e  objf_inc=%.15e\n", s.inc, s.piv, s.inc, s.objf_inc);
             t.l = s.l;
@@ -629,6 +683,9 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
             t.piv = s.piv;
             t.objf_inc = s.objf_inc;
             assert(t.piv != 0);
+
+            if (good_enough)
+                break;
         }
     }
 
@@ -930,146 +987,19 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     Py_BEGIN_ALLOW_THREADS
 
+    int Zorig = Z;
+
     //omp_set_num_threads(nthreads);
 
-    if (Z == 0)
-    {
-        report.step     = n;
-        report.obj_val  = tabl.data[0];
-        report.nthreads = 0;
-        report.Z = 0;
-
-        ret = choose_pivot1(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
-
-        if (ret == FOUND_PIVOT) 
-        {
-            ret = NOPIVOT;
-
-            //------------------------------------------------------------------
-            // Actual pivot
-            //------------------------------------------------------------------
-            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
-
-            //----------------------------------------------------------------------
-            // Swap left and right variables.
-            //----------------------------------------------------------------------
-            int32_t lq = left[lpiv];
-            int32_t rq = right[rpiv];
-
-            left[lpiv]  = rq;
-            right[rpiv] = lq;
-        }
-    }
-    else
-    {
-        for (n=0;; n++)
-        {
-            report.step     = n;
-            report.obj_val  = tabl.data[0];
-            report.nthreads = 0;
-            report.Z = Z;
-
-            ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
-
-            if (ret != FOUND_PIVOT) break;
-
-            //------------------------------------------------------------------
-            // Actual pivot
-            //------------------------------------------------------------------
-            doPivot0(&tabl, L, R, piv, lpiv, rpiv, 0);
-
-            //----------------------------------------------------------------------
-            // Swap left and right variables.
-            //----------------------------------------------------------------------
-            int32_t lq = left[lpiv];
-            int32_t rq = right[rpiv];
-
-            left[lpiv]  = rq;
-            right[rpiv] = lq;
-
-            if (lq < 0)
-            { 
-                //------------------------------------------------------------------
-                // Remove the pivot column
-                //------------------------------------------------------------------
-                memmove(right+rpiv+0, 
-                        right+rpiv+1, 
-                        sizeof(*right)*(R-rpiv)); /* (R+1)-(rpiv+1) */
-
-                memmove(tabl.data + (rpiv+0)*tabl.rows, 
-                        tabl.data + (rpiv+1)*tabl.rows,
-                        sizeof(*tabl.data) * (R-rpiv)*tabl.rows);
-
-                Z--; 
-                R--;
-                need_assign_pivot_threads = 1;
-                DBG(1) fprintf(stderr, "\nREMOVED %i Z=%ld R=%ld\n\n", rpiv, Z,R);
-            }
-
-
-            DBG(2)
-            {
-                for (i=0; i <= R; i++)
-                {
-                    dble_t *col = &(tabl.data[i * tabl.rows + 0]);
-                    for (j=0; j <= L; j++)
-                    {
-                        if (ABS(ABS(col[j]) - 22.00601215427127) < 1e-3)
-                        {
-                            fprintf(stderr, "+++++ i=%i j=%i  col[j]=%f\n", i, j, col[j]);
-                            //assert(0);
-                        }
-                    }
-                }
-            }
-
-            if (Z==0) 
-            {
-                ret = FEASIBLE;
-                break;
-            }
-        }
-    }
-
-#if 0
     for (n=0;; n++)
     {
-#if 0
-        if (Z == 0) // && report.obj_val)
-        {
-            if (fabs(tabl.data[0]) < 1e-8)
-            //if (fabs(tabl.data[0] - report.obj_val) < 1e-9)
-            {
-                fprintf(stderr, "@@@@@ %.20f\n", fabs(tabl.data[0]));
-
-                ret = NOPIVOT;
-                break;
-            }
-        }
-#endif
 
         report.step     = n;
         report.obj_val  = tabl.data[0];
         report.nthreads = 0;
+        report.Z = Z;
 
-        if (Z == 0 && n == 1) 
-        {
-            ret = NOPIVOT;
-            break;
-        }
-
-        if (Z == 0)
-        {
-            ret = choose_pivot1(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
-        }
-        else
-            ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
-
-//      if (report.step > 10000) 
-//      {
-//          ret = NOPIVOT;
-//          break;
-//      }
+        ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv, 2*(Z==0));
 
         if (ret != FOUND_PIVOT) break;
 
@@ -1338,10 +1268,16 @@ void doPivot0(
         col_lpiv = col[lpiv];     
         xx       = -col_lpiv / piv;  
 
+        //assert(fabs(col_lpiv) > 1e-14);
+        //col_lpiv *= fabs(col_lpiv) > 1e-14;
+
         for (i=0; i <= L; i++) 
         {
-            dble_t t = fma(pcol[i],xx, col[i]);
-            col[i] = t + (fma(pcol[i],xx, col[i]) - t);
+            //dble_t t = fma(pcol[i],xx, col[i]);
+            //col[i] = t; // + (fma(pcol[i],xx, col[i]) - t);
+
+            //col[i] = (-(pcol[i] * col_lpiv) + piv*col[i]) / piv;
+            col[i] = -(pcol[i] * col_lpiv) / piv + col[i];
             col[i] *= fabs(col[i]) > PREC;
         }
 
