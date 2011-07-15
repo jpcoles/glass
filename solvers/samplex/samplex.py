@@ -54,6 +54,7 @@ class Samplex:
         self.objf_choice = kw.get('objf choice', 'random')
         self.sol_type  = kw.get('solution type', 'interior')
         self.with_noise   = kw.get('add noise', False)
+        self.reset   = kw.get('reset', False)
 
         Log( "Samplex created" )
         Log( "    ncols = %i" % ncols )
@@ -233,8 +234,8 @@ class Samplex:
         self.curr_sol = self.package_solution()                
         self.moca     = self.curr_sol.vertex.copy()
 
-        p = self.curr_sol.vertex[:self.nVars+1].copy()
-        yield p
+        #p = self.curr_sol.vertex[:self.nVars+1].copy()
+        #yield p
 
         self.dcopy = [self.data.copy('F'),
                       self.lhv.copy(),
@@ -289,6 +290,16 @@ class Samplex:
 #           pl.show()
 
             yield p
+
+            if self.reset:
+                self.data   = self.dcopy[0].copy('F')
+                self.lhv    = self.dcopy[1].copy()
+                self.rhv    = self.dcopy[2].copy()
+                self.nVars  = self.dcopy[3]
+                self.nLeft  = self.dcopy[4]
+                self.nSlack = self.dcopy[5]
+                self.nTemp  = self.dcopy[6]
+                self.nRight = self.dcopy[7]
 
 #   def next_solution(self):
 
@@ -653,7 +664,10 @@ class Samplex:
             w = abs(a) > self.EPS
             w[0] = True
             b = a.copy()
-            b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
+            b[w] += 10e-6 * (random(len(w.nonzero())))
+            #b[w] += 10e-8 * (random(len(w.nonzero())))
+            #b[w] += self.SML * (random(len(w.nonzero())))
+            #b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
             return b
         return a
 

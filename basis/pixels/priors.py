@@ -183,11 +183,8 @@ def time_delay(o, leq, eq, geq):
             x1, y1 = r1.real, r1.imag
 
             # The constant term
-            #row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*b.map_shift
-
             row[0]  = (abs(r1)**2 - abs(r0)**2) / 2
             row[0] += dot([x1-x0, y1-y0], shft)
-            #row[0] += dot([x0-x1, y0-y1], shft)
             row[0] *= src.zcap
 
             # The beta term
@@ -230,15 +227,20 @@ def check_time_delay(o, sol):
 
     Log( "Check Time Delay (' ':-12  '.':-11  '-':-10  '*':-9)" )
 
-    ls = []
-    f = lambda x: ls.append(x)
-    time_delay(o, f,f,f)
+##  ls = []
+##  f = lambda x: ls.append(x)
+##  time_delay(o, f,f,f)
 
-    for l in ls:
-        s = l[0] + dot(sol[1:], l[1:])
-        print s
+##  res = []
+##  for l in ls:
+##      s = l[0] + dot(sol[1:], l[1:])
 
-    return
+##      l0 = log10(abs(s)) if s else -13
+
+##      res.append(' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0)
+
+##  Log( '    [%s]' % ' '.join(res) )
+##  return
 
 
     b  = o.basis
@@ -250,6 +252,7 @@ def check_time_delay(o, sol):
     ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     zLp1 = o.z + 1
+    shft = [b.map_shift, b.map_shift]
 
     for i, src in enumerate(o.sources):
         res = ''
@@ -261,11 +264,13 @@ def check_time_delay(o, sol):
 
             srcpos = srcpos_start + 2*i
 
+            r0, r1 = img0.pos, img1.pos
             x0, y0 = img0.pos.real, img0.pos.imag
             x1, y1 = img1.pos.real, img1.pos.imag
 
             # The constant term
-            row[0] = (abs(img1.pos)**2 - abs(img0.pos)**2) / 2 + (x1-x0 + y1-y0)*b.map_shift
+            row[0]  = (abs(r1)**2 - abs(r0)**2) / 2
+            row[0] += dot([x1-x0, y1-y0], shft)
             row[0] *= src.zcap
 
             # The beta term
@@ -301,26 +306,21 @@ def check_time_delay(o, sol):
                     row[nu]  = -l
                     row2[nu] = -u
 
-            print row.shape
-            print sol.shape
-            row = row[1:]*sol[1:] - row[0]
-            if row2 is not None:
-                row2 *= sol
-            else:
-                row2 = row
-
-            r0 = sum(row, axis=0)
-            r1 = sum(row2, axis=0)
+            r0 = dot(row[1:], sol[1:]) + row[0]
+            if row2:
+                r1 = dot(row2[1:], sol[1:]) + row2[0]
 
             l0 = log10(abs(r0)) if r0 else -13
-            l1 = log10(abs(r1)) if r1 else -13
+            if row2:
+                l1 = log10(abs(r1)) if r1 else -13
 
             #res += '[%i %i]' % (r0,r1)
 
             res += '['
             res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
-            res += ' '
-            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
+            if row2:
+                res += ' '
+                res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
             res += ']'
 
         Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )

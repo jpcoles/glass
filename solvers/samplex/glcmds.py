@@ -17,3 +17,7 @@ def samplex_solution_type(type):
 @command
 def samplex_add_noise(n=True):
     env().model_gen_options['add noise'] = n
+
+@command
+def samplex_reset(n=True):
+    env().model_gen_options['reset'] = n

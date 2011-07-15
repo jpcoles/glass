@@ -676,6 +676,13 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
 
         if (good_enough || (s.objf_inc > t.objf_inc))
         {
+//          if (fabs(s.objf_inc - t.objf_inc) < 1e-8)
+//          {
+//              if (s.piv < t.piv)
+//              {
+//                  continue;
+//              }
+//          }
             //fprintf(stderr, "ACCEPTING tinc=%.15e  %.20e  %.15e  objf_inc=%.15e\n", s.inc, s.piv, s.inc, s.objf_inc);
             t.l = s.l;
             t.r = s.r;
@@ -1276,8 +1283,18 @@ void doPivot0(
             //col[i] = t; // + (fma(pcol[i],xx, col[i]) - t);
 
             //col[i] = (-(pcol[i] * col_lpiv) + piv*col[i]) / piv;
-            col[i] = -(pcol[i] * col_lpiv) / piv + col[i];
+            dble_t x = -(pcol[i] * col_lpiv) / piv;
+            dble_t y = col[i];
+
+
+            col[i] = x + y;
             col[i] *= fabs(col[i]) > PREC;
+
+//          if (fabs(x-y) <= 1e-16 && x != y && x != 0 && y != 0)
+//          {
+//              fprintf(stderr, "%.15e %.15e\n", x,y);
+//              assert (fabs(x-y) > 1e-16);
+//          }
         }
 
         col[lpiv] = xx;   
