@@ -1,7 +1,9 @@
 import sys
+from environment import command
 
 log_files = [sys.stdout]
 
+@command
 def setup_log(files=[], stdout=True, stderr=False):
     global log_files
     if not hasattr(files, '__iter__'): files = [files]
@@ -10,6 +12,6 @@ def setup_log(files=[], stdout=True, stderr=False):
     if stderr: log_files.append(sys.stderr)
 
     
-def log(s=''):
+def log(*args):
     for f in log_files:
-        print >>f, s
+        print >>f, '    '.join(args)

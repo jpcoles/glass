@@ -7,7 +7,7 @@ from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, dot, sqrt, arange
 from numpy import argwhere, argmin, inf, isinf, amin
 from numpy import histogram, logspace, flatnonzero, isinf
-from numpy.random import random, normal, random_integers, seed as ran_set_seed
+from numpy.random import randint, random, normal, random_integers, seed as ran_set_seed
 #from glrandom import random, ran_set_seed
 
 import pylab as pl
@@ -38,8 +38,8 @@ class SamplexUnexpectedError:
 
 class SamplexSolution:
     def __init__(self):
-        self.lhv = None
-        self.vertex = None
+        self.lhv = None # Array positions of left hand variables
+        self.loc = None # The n-dimenional coordinates
 
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
@@ -53,7 +53,7 @@ class Samplex:
         rngseed  = kw.get('rngseed',  0)
         self.objf_choice = kw.get('objf choice', 'random')
         self.sol_type  = kw.get('solution type', 'interior')
-        self.with_noise   = kw.get('add noise', False)
+        self.noise   = kw.get('add noise', 1e-6)
         self.reset   = kw.get('reset', False)
 
         Log( "Samplex created" )
@@ -111,7 +111,7 @@ class Samplex:
         Log( "random seed = %s" % self.random_seed )
         Log( "threads = %s" % self.nthreads )
         Log( "solution type = %s" % self.sol_type )
-        Log( "with noise = %s" % self.with_noise )
+        Log( "with noise = %s" % self.noise )
 
         Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -217,8 +217,8 @@ class Samplex:
 #       #imshow(d.T)
 #       show()
 
-    def status(self):
-        if self.iteration & 15 == 0:
+    def status(self, force=False):
+        if force or self.iteration & 15 == 0:
             Log( "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0]) )
 
     def next(self, nsolutions=None):
@@ -232,9 +232,10 @@ class Samplex:
 
 
         self.curr_sol = self.package_solution()                
-        self.moca     = self.curr_sol.vertex.copy()
+        self.moca     = deepcopy(self.curr_sol)
+        #self.moca     = self.curr_sol.loc.copy()
 
-        #p = self.curr_sol.vertex[:self.nVars+1].copy()
+        #p = self.curr_sol.loc[:self.nVars+1].copy()
         #yield p
 
         self.dcopy = [self.data.copy('F'),
@@ -246,7 +247,7 @@ class Samplex:
                       self.nTemp,
                       self.nRight]
 
-        #yield self.curr_sol.vertex[0:self.nVars+1]
+        #yield self.curr_sol.loc[0:self.nVars+1]
 
         #spanvars = slice(1,self.nVars+self.nSlack+1)
         #self.moca = self.data[spanvars, 0].copy()
@@ -260,27 +261,58 @@ class Samplex:
 ##      show()
 ##      sys.exit(0)
 
-        self.sum_ln_k = 0
-        self.n_solutions = 0
-        while self.n_solutions != nsolutions:
-            self.iteration=0
-            self.n_solutions += 1
-            while True:
-                self.next_solution()
-                self.curr_sol = self.package_solution()                
+        if 1:
+            self.sol_list = []
+            self.B = []
 
-                print self.sol_type
-                if self.sol_type == 'vertex':
-                    print 'SADFDSAF'
-                    p = self.curr_sol.vertex[:self.nVars+1].copy()
-                elif self.sol_type == 'interior':
-                    print '!@#!@#'
-                    p = self.interior_point()
+            for i in range(5):
+                self.next_solution_trail()
 
-                if p is not None: 
-                    break
-                
-                print 'SAME VERTEX!'
+            self.sum_ln_k = 0
+            self.n_solutions = 0
+            ip = self.moca
+            while self.n_solutions != nsolutions:
+                self.iteration=0
+                self.n_solutions += 1
+
+                curr_sol = self.sol_list[randint(len(self.sol_list))]
+                s, ip = self.interior_point(curr_sol, ip)
+                #yield s.loc[:self.nVars+1]
+                self.B.append(s)
+
+            self.n_solutions = 0
+            while self.n_solutions != nsolutions:
+                self.iteration=0
+                self.n_solutions += 1
+
+                curr_sol = self.B[randint(len(self.B))]
+                s, ip = self.interior_point(curr_sol, ip)
+                yield s.loc[:self.nVars+1]
+
+
+        if 0:
+
+            self.sum_ln_k = 0
+            self.n_solutions = 0
+            while self.n_solutions != nsolutions:
+                self.iteration=0
+                self.n_solutions += 1
+                while True:
+                    self.next_solution_trail()
+                    self.curr_sol = self.package_solution()                
+
+                    print self.sol_type
+                    if self.sol_type == 'vertex':
+                        print 'SADFDSAF'
+                        p = self.curr_sol.loc[:self.nVars+1].copy()
+                    elif self.sol_type == 'interior':
+                        print '!@#!@#'
+                        p = self.interior_point()
+
+                    if p is not None: 
+                        break
+                    
+                    print 'SAME VERTEX!'
 
 #           q = self.data.copy()
 #           q = q[q != 0]
@@ -289,17 +321,17 @@ class Samplex:
 #           pl.hist(np.log10(np.abs(q)))
 #           pl.show()
 
-            yield p
+                yield p
 
-            if self.reset:
-                self.data   = self.dcopy[0].copy('F')
-                self.lhv    = self.dcopy[1].copy()
-                self.rhv    = self.dcopy[2].copy()
-                self.nVars  = self.dcopy[3]
-                self.nLeft  = self.dcopy[4]
-                self.nSlack = self.dcopy[5]
-                self.nTemp  = self.dcopy[6]
-                self.nRight = self.dcopy[7]
+                if self.reset:
+                    self.data   = self.dcopy[0].copy('F')
+                    self.lhv    = self.dcopy[1].copy()
+                    self.rhv    = self.dcopy[2].copy()
+                    self.nVars  = self.dcopy[3]
+                    self.nLeft  = self.dcopy[4]
+                    self.nSlack = self.dcopy[5]
+                    self.nTemp  = self.dcopy[6]
+                    self.nRight = self.dcopy[7]
 
 #   def next_solution(self):
 
@@ -316,6 +348,35 @@ class Samplex:
 #           self.status()
 #           self.iteration += 1
 
+    def next_solution_trail(self):
+
+        r = -1
+        while True:
+
+            r = self.start_new_objective(kind=self.objf_choice, last_r=r)
+            self.iteration = 0
+            while True:
+                result = self.pivot()
+                if  result == self.NOPIVOT:   
+                    #self.sol_list.append(self.package_solution())
+                    self.status(force=True)
+                    break
+                elif result == self.FEASIBLE:  
+                    if self.iteration % 10 == 0:
+                        self.sol_list.append(self.package_solution())
+                elif result == self.UNBOUNDED: raise SamplexUnboundedError()
+                else:
+                    Log( result )
+                    raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+
+                self.iteration += 1
+
+            if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
+                print 'BAD VARIABLE', abs(self.data[0,0])
+                self.forbidden_variables.append(r)
+            else:
+                break
+
     def next_solution(self):
 
         r = -1
@@ -324,7 +385,9 @@ class Samplex:
             r = self.start_new_objective(kind=self.objf_choice, last_r=r)
             while True:
                 result = self.pivot()
-                if   result == self.NOPIVOT:   break
+                if   result == self.NOPIVOT:   
+                    self.status(force=True)
+                    break
                 elif result == self.FEASIBLE:  pass
                 elif result == self.UNBOUNDED: raise SamplexUnboundedError()
                 else:
@@ -344,16 +407,16 @@ class Samplex:
     def package_solution(self):
         s = SamplexSolution()
         #print "***", self.nVars+self.nSlack+1
-        s.vertex = zeros(self.nVars+self.nSlack+1, dtype=self.data.dtype)
+        s.loc = zeros(self.nVars+self.nSlack+1, dtype=self.data.dtype)
 
         assert self.lhv.size == self.nLeft+1, '%i %i' % (self.lhv.size, self.nLeft+1)
         s.lhv = self.lhv.copy()
-        s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
-        s.vertex[0] = self.data[0,0]
+        s.loc[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
+        s.loc[0] = self.data[0,0]
 
-        assert all(s.vertex[1:] >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        #assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        #s.vertex[0] = self.data[0,0]
+        assert all(s.loc[1:] >= 0), ("Negative vertex coordinate!", s.loc[s.loc < 0])
+        #assert all(s.loc[1:] >= -self.SML), ("Negative vertex coordinate!", s.loc[s.loc < 0])
+        #s.loc[0] = self.data[0,0]
 
         return s
 
@@ -574,10 +637,13 @@ class Samplex:
 
     #=========================================================================
 
-    def interior_point(self, r=None):
+    def interior_point(self, sol, lip, r=None):
+        """Produce a new interior point from the solution sol and the last
+           interior point lip."""
+
         if r is None: r = random()
 
-        sol = self.curr_sol
+        #sol = self.curr_sol
 
         k = 0
         smallest_scale = inf
@@ -605,10 +671,10 @@ class Samplex:
 
 #               assert iv+self.SML < dist, '%f !< %f' % (iv+self.SML, dist)
 
-        #for i in sol.lhv: print sol.vertex[i], self.moca[i]
+        #for i in sol.lhv: print sol.loc[i], self.moca[i]
 
-        iv    = sol.vertex[sol.lhv[1:]]
-        dist  = iv - self.moca[sol.lhv[1:]]
+        iv    = sol.loc[sol.lhv[1:]]
+        dist  = iv - lip.loc[sol.lhv[1:]]
         a = dist > 0
         #a = dist > self.SML
         if not any(a):
@@ -634,27 +700,37 @@ class Samplex:
 
         #old_moca = self.moca.copy()
 
-        spanvars = slice(1,self.nVars+self.nSlack+1)
-        #self.moca[spanvars] = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
+        vars = slice(1,self.nVars+self.nSlack+1)
+        #self.moca[vars] = sol.loc[vars] + k * (self.moca[vars]-sol.loc[vars])
         #assert all(self.moca >= -self.SML), self.moca[self.moca < 0]
         #assert all(self.moca >= 0), (self.moca[self.moca < 0], self.moca)
         ##assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
-        q = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
-        if any(q < 0):
-            print '!! k is ', k
-            print '!!', self.moca[q < 0]
-            print '!!', where(q < 0)
+        q = sol.loc[vars] + k * (lip.loc[vars]-sol.loc[vars])
+        w = q < 0
+        if any(w):
+            print '!! k,r,smallest_scale are ', k, r, smallest_scale
+            print '!!', lip.loc[w]
+            print '!!', argwhere(w)
             print 
-            print '!!', sol.vertex[q < 0]
-            print '!!', self.moca[q < 0]
-            #print '!!', self.moca
+            print '!!', sol.loc[w]
+            print '!!', q[w]
             assert 0
 
-        self.moca[spanvars] = q
-        s = self.moca.copy()[:self.nVars+1]
+        k = smallest_scale 
+
+        q2 = deepcopy(lip)
+        q2.loc[vars] = sol.loc[vars] + k * lip.loc[vars] - k*sol.loc[vars]
+
+        ip = deepcopy(lip)
+        ip.loc[vars] = q
+        s = deepcopy(ip)
+        #return s.loc[:self.nVars+1]
         #print s
-        return s
+
+        #print '*', s
+        #print '^', q2[:self.nVars+1]
+        return q2, ip
 
 
     #=========================================================================
@@ -664,7 +740,7 @@ class Samplex:
             w = abs(a) > self.EPS
             w[0] = True
             b = a.copy()
-            b[w] += 10e-6 * (random(len(w.nonzero())))
+            b[w] += self.noise * (random(len(w.nonzero())))
             #b[w] += 10e-8 * (random(len(w.nonzero())))
             #b[w] += self.SML * (random(len(w.nonzero())))
             #b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
@@ -691,7 +767,7 @@ class Samplex:
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
 
-        if self.with_noise: 
+        if self.noise: 
             a = self.add_noise(a)
 
         if a[0] < 0: 
@@ -712,7 +788,7 @@ class Samplex:
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
 
-        if self.with_noise: 
+        if self.noise: 
             a = self.add_noise(a)
 
         if a[0] <= 0: 

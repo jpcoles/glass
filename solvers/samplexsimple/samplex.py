@@ -13,7 +13,12 @@ from numpy.random import random, normal, random_integers, seed as ran_set_seed
 if 0:
     from pylab import figimage, show, imshow, hist, matshow, figure
 
-from log import log as Log
+try:
+    from log import log as Log
+except ImportError:
+    def l(x):
+        print x
+    Log = l
 
 import csamplex
 
@@ -50,9 +55,10 @@ class Samplex:
         rngseed  = kw.get('rngseed',  0)
         self.sol_type  = kw.get('solution type', 'interior')
         self.with_noise   = kw.get('add noise', False)
+        self.stride = kw.get('stride', 1)
 
         Log( "Samplex created" )
-        Log( "    ncols = %i" % ncols )
+        Log( "    ncols = %s" % ncols )
         if ncols is not None:
             self.nVars = ncols
             self.nRight = self.nVars
@@ -108,6 +114,7 @@ class Samplex:
         Log( "threads = %s" % self.nthreads )
         Log( "solution type = %s" % self.sol_type )
         Log( "with noise = %s" % self.with_noise )
+        Log( "stride = %s" % self.stride )
 
         Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -232,7 +239,7 @@ class Samplex:
 
     def status(self):
         if self.iteration & 15 == 0:
-            Log( "model %i]  iter % 5i  obj-val %f" % (self.n_solutions+1, self.iteration, self.data[0,0]) )
+            Log( "model %i]  iter % 5i  obj-val %.8g" % (self.n_solutions, self.iteration, self.data[0,0]) )
 
     def next(self, nsolutions=None):
 
@@ -270,6 +277,9 @@ class Samplex:
 ##      show()
 ##      sys.exit(0)
 
+        #print self.curr_sol.vertex
+        #print self.data
+
         self.sum_ln_k = 0
         self.n_solutions = 0
         while self.n_solutions != nsolutions:
@@ -279,6 +289,8 @@ class Samplex:
                 self.next_solution()
                 self.curr_sol = self.package_solution()                
 
+                #print self.curr_sol.vertex
+                #print self.data
                 #print self.sol_type
                 if self.sol_type == 'vertex':
                     p = self.curr_sol.vertex[:self.nVars+1].copy()
@@ -289,15 +301,20 @@ class Samplex:
                     break
                 
                 print 'SAME VERTEX!'
+                assert 0
 
             #print 'sol', p
             yield p
 
     def next_solution(self):
 
+        step = 0
         while True:
             result = self.pivot()
-            if   result == self.NOPIVOT:   break
+            if   result == self.NOPIVOT:   
+                step += 1
+                if step >= self.stride:
+                    break
             elif result == self.FEASIBLE:  pass
             elif result == self.UNBOUNDED: raise SamplexUnboundedError()
             else:
@@ -431,8 +448,8 @@ class Samplex:
         #print scale
         #print scale[dist > self.SML]
         smallest_scale = amin(scale) 
-        print 'interior point: smallest scale is %.15e' % smallest_scale
-        print 'interior point: r is %.15e' % r
+        #print 'interior point: smallest scale is %.15e' % smallest_scale
+        #print 'interior point: r is %.15e' % r
         #smallest_scale = min(smallest_scale, min(scale[dist > self.SML]))
 
         assert not isinf(smallest_scale)
@@ -522,7 +539,8 @@ class Samplex:
             w = abs(a) > self.EPS
             w[0] = True
             b = a.copy()
-            b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
+            #b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
+            b[w] += 10e-6 * (random(len(w.nonzero())))
             return b
         return a
 

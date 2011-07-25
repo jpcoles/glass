@@ -191,6 +191,7 @@ PyMODINIT_FUNC initcsamplex()
     (void)Py_InitModule("csamplex", csamplex_methods);
 }
 
+#if 0
 int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
 { 
@@ -316,6 +317,198 @@ int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
     //fprintf(stderr, "< choosePivot() %i %i %e %e\n", t.l, t.r, t.piv, t.inc);
     return res;
 }
+#else
+int32_t choose_pivot0(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
+                      int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0, int phase)
+{ 
+    typedef struct
+    {
+        int32_t l,r;
+        dble_t piv, inc, col0, objf_inc;
+    } state_t;
+
+    state_t t = {0, 0, 0., 1e20, 0., -1.};
+
+    int first_time;
+    int32_t k, r;
+    dble_t * restrict bcol = &tabl->data[0];
+
+    int32_t accept;
+    dble_t tinc;
+    dble_t * restrict col;
+
+    //fprintf(stderr, "> choosePivot()\n");
+
+    //--------------------------------------------------------------------------
+    // Look for a degeneracy. If we find such a row only look across that row
+    // for a variable to swap out.
+    //--------------------------------------------------------------------------
+    int32_t start_k=1, end_k=L;
+    int degeneracy = 0;
+//  for (k=1;  k <= L;  k++) 
+//  { 
+//      if (bcol[k] == 0) 
+//      {
+//          bcol[k] = (1-drand48()) * 1e-8;
+//          //start_k = k;
+//          //end_k = k;
+//          //degeneracy = 1;
+//          //break;
+//      }
+//  }
+
+    int32_t res = NOPIVOT; 
+
+
+    //--------------------------------------------------------------------------
+    // Examine each column. Those with a positive values in the first row are
+    // potential pivot columns.
+    //--------------------------------------------------------------------------
+    for (r = 1; r <= R; r++)
+    {
+        col = &tabl->data[r * tabl->rows + 0];
+
+        if (col[0] <= 1e-14) continue;
+
+        DBG(2) fprintf(stderr, "r=%i\n", r);
+
+        //----------------------------------------------------------------------
+        // Assume that this column will show the system is unbounded.
+        //----------------------------------------------------------------------
+        res = UNBOUNDED;
+
+        state_t s = {0, 0, 0., 0., 0., 0.};
+
+
+        //----------------------------------------------------------------------
+        // Find the column entry that is most restrictive. Save the entry that
+        // increases the objective function the most. Entries must be negative.
+        //----------------------------------------------------------------------
+        first_time = 1;
+        for (k=start_k;  k <= end_k;  k++) 
+        { 
+            //fprintf(stderr, "col[%i]=%.15e\n", k, col[k]);
+            if (col[k] < 0)
+            {
+                accept = 0;
+
+                //--------------------------------------------------------------
+                //--------------------------------------------------------------
+                res = FOUND_PIVOT;
+
+                tinc = bcol[k] / fabs(col[k]);
+
+                if (bcol[k] == 0)
+                {
+                    degeneracy = 1;
+                    fprintf(stderr, "DEGENERACY\n");
+                }
+
+                //fprintf(stderr, "r=%i  tinc = %.15e, col[%i]=%.15e bcol[%i]=%.15e\n", r, tinc, k, col[k], k, bcol[k]);
+                if (!degeneracy)
+                {
+                    assert(bcol[k] != 0);
+                    assert(tinc > 0); assert(!isinf(tinc));
+                    //assert(tinc != prev_inc);
+                    accept = first_time || (tinc < s.inc);
+                }
+
+                //--------------------------------------------------------------
+                // Accept this pivot element if we haven't found anything yet or
+                // if this entry is more restrictive than the previous one.
+                //--------------------------------------------------------------
+
+                if (degeneracy || accept) 
+                {
+                    s.l   = k;
+                    s.r   = r;
+                    s.inc = tinc;
+                    s.piv = col[k];
+                    s.objf_inc = tinc*col[0];
+
+                    assert(s.piv != 0);
+                    //assert(s.inc != 0);
+                    assert(col[0] != 0);
+                    //assert(s.objf_inc != 0);
+                }
+
+                if (degeneracy) break;
+
+                first_time=0;
+            }
+        }
+
+        //----------------------------------------------------------------------
+        // If no negative column entry was found then the system must be
+        // unbounded.
+        //----------------------------------------------------------------------
+        if (res == UNBOUNDED)
+        {
+            return res;
+        }
+
+        //fprintf(stderr, "- %.15e %.15e %i\n", s.objf_inc, t.objf_inc, res);
+        int good_enough =  left[s.l] < 0;
+
+//      if (phase == 2)
+//      {
+//          good_enough |= (left[s.l] > left[t.l]);
+//      }
+
+        int accept2 = 0;
+
+        if (degeneracy)
+        {
+            good_enough = 1;
+//          if (t.l == 0)
+//              good_enough = 1;
+//          else
+//              good_enough = drand48() > 0.5;
+            //degeneracy = 0;
+        }
+
+
+        if (good_enough || (s.objf_inc > t.objf_inc))
+        {
+//          if (fabs(s.objf_inc - t.objf_inc) < 1e-8)
+//          {
+//              if (s.piv < t.piv)
+//              {
+//                  continue;
+//              }
+//          }
+            //fprintf(stderr, "ACCEPTING tinc=%.15e  %.20e  %.15e  objf_inc=%.15e\n", s.inc, s.piv, s.inc, s.objf_inc);
+            t.l = s.l;
+            t.r = s.r;
+            t.inc = s.inc;
+            t.piv = s.piv;
+            t.objf_inc = s.objf_inc;
+            assert(t.piv != 0);
+
+            if (good_enough)
+                break;
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // If no positive entry was found in the first row then there is nothing 
+    // to do.
+    //--------------------------------------------------------------------------
+    if (res == NOPIVOT)
+        return res;
+
+    DBG(2) fprintf(stderr, "ACCEPTING inc=%.15e\n", t.inc);
+    //fprintf(stderr, "< choosePivot() %i %i %e %e\n", lpiv, rpiv, piv, inc);
+
+    assert(t.piv != 0);
+
+    *lpiv0 = t.l;
+    *rpiv0 = t.r;
+    *piv0  = t.piv;
+    //fprintf(stderr, "< choosePivot() %i %i %e %e\n", t.l, t.r, t.piv, t.inc);
+    return res;
+}
+#endif
 
 int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, long R,
                       int32_t *lpiv0, int32_t *rpiv0, dble_t *piv0)
@@ -343,11 +536,16 @@ int32_t choose_pivot1(matrix_t *tabl, int32_t *left, int32_t *right, long L, lon
     dble_t cinc = 0;
     int32_t accept = 0;
 
+    int tries=0;
+
     {
+     
 redo:
+    tries++;
+
 #if 1
     //--------------------------------------------------------------------------
-    // Choose a random columns from the right hand variables
+    // Choose a random column from the right hand variables
     //--------------------------------------------------------------------------
     r = (int)(drand48() * R) + 1;
     assert(r >= 1);
@@ -380,7 +578,7 @@ redo:
     //--------------------------------------------------------------------------
     // Now find the left hand variable which limits the move to the next vertex
     //--------------------------------------------------------------------------
-    fprintf(stderr, "*************************************\n");
+    DBG(1) fprintf(stderr, "*************************************\n");
     for (k=1; k <= L; k++) 
     { 
         if (col[k] >= 0) continue;
@@ -445,8 +643,12 @@ redo:
 //          Lvalid[nvalid] = k;
 //          nvalid++;
 //      }
+
     }
     }
+
+    if (tries < 3 && min_tinc < 1e-4)
+        goto redo;
 
 
     int32_t res; 
@@ -481,7 +683,7 @@ redo:
 
         //fprintf(stderr, "tinc accepted  %20g\n", tinc);
 
-        fprintf(stderr, "ACCEPTING tinc=%.15e\n", tinc);
+        DBG(1) fprintf(stderr, "ACCEPTING tinc=%.15e\n", tinc);
         DBG(2) fprintf(stderr, "< choosePivot() %i %i %e %e %e\n", min_k, r, bcol[min_k], col[min_k], tinc);
 
         assert(col[min_k] < 0);
@@ -625,6 +827,10 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     }
     else
     {
+        fprintf(stderr, "--------\n");
+        fprintf(stderr, "Z = %i\n", Z);
+        fprintf(stderr, "--------\n");
+
         for (n=0;; n++)
         {
             report.step     = n;
@@ -632,7 +838,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
             report.nthreads = 0;
             report.Z = Z;
 
-            ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+            ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv, 1);
 
             if (ret != FOUND_PIVOT) break;
 
@@ -705,7 +911,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     alarm(0);
     signal(SIGALRM, SIG_DFL);
 
-    fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
+    //fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
 
     PyObject_SetAttrString(o, "nRight", PyInt_FromLong(R));
     PyObject_SetAttrString(o, "nTemp", PyInt_FromLong(Z));
@@ -738,8 +944,13 @@ void doPivot0(
 
         for (i=0; i <= L; i++) 
         {
-            dble_t t = fma(pcol[i],xx, col[i]);
-            col[i] = t + (fma(pcol[i],xx, col[i]) - t);
+            //dble_t t = fma(pcol[i],xx, col[i]);
+            //col[i] = t + (fma(pcol[i],xx, col[i]) - t);
+            //col[i] *= fabs(col[i]) > PREC;
+            dble_t x = -(pcol[i] * col_lpiv) / piv;
+            dble_t y = col[i];
+
+            col[i] = x + y;
             col[i] *= fabs(col[i]) > PREC;
         }
 

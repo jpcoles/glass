@@ -330,7 +330,7 @@ def observables(model, obj_index, src_index, seq):
 
     imglist = [[seq[0][0], seq[0][3]]]
 
-    _,_,prev,_ = seq[0]
+    _,prev,_,_ = seq[0]
     for img,t,_,parity in seq[1:]:
         t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
         imglist.append([img, parity,t0])

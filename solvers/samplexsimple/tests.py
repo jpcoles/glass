@@ -1,3 +1,4 @@
+#glass_basis('basis.pixels', solver='samplexsimple')
 import sys
 from numpy import array, radians, linspace
 from pylab import show, scatter, figure, plot, xlim, ylim
@@ -8,7 +9,7 @@ from math import cos, sin, pi
 def NR1(s):
     s.leq(array([-740, 1, 0,  2,  0]))
     s.leq(array([0,   0,  2,  0, -7]))
-    s.geq(array([-0.5, 0,  1,- 1,  2]))
+    s.geq(array([-0.5, 0,  1, -1,  2]))
     s.eq( array([-9,   1, 1,  1,  1]))
 
 def poly0(s):
@@ -104,25 +105,27 @@ def run(fs):
         xs = []
         ys = []
         cs = []
-        for v, [sol,c] in s.next(10000):
+        #for v, [sol,c] in s.next(10):
+        for sol in s.next(1000):
             pass
             #print v
-            if not xs:
-                cs.append('g')
-            else:
-                cs.append('b')
-            xs.append(v[1])
-            ys.append(v[2])
+#           if not xs:
+#               cs.append('g')
+#           else:
+#               cs.append('b')
+            #xs.append(v[1])
+            #ys.append(v[2])
 
             xs.append(sol[1])
             ys.append(sol[2])
-            cs.append(c)
+            #cs.append(c)
 
-        scatter(xs, ys, c=cs)
+        scatter(xs, ys)
 
     show()
 
 
+run([NR1])
 #run([poly1])
-run([lambda s: fromFile(s, sys.argv[1])])
+#run([lambda s: fromFile(s, sys.argv[1])])
 

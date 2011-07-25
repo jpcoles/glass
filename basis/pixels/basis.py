@@ -893,8 +893,8 @@ class PixelBasis(object):
             assert isinstance(s, (list, tuple)) and len(s) == 2, \
                    "solution_from_grid(): Each element of src must be a 2 item list"
             offs = o+self.srcpos_start + 2*i
-            print '!'*80
-            print s
+            #print '!'*80
+            #print s
             sol[offs : offs+2] = s
             sol[offs : offs+2] += self.map_shift
             sol[offs : offs+2] *= obj.sources[i].zcap

@@ -996,17 +996,28 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
 
     int Zorig = Z;
 
+//  fprintf(stderr, "--------\n");
+//  fprintf(stderr, "Z = %i\n", Z);
+//  fprintf(stderr, "--------\n");
+
     //omp_set_num_threads(nthreads);
+
+    int nsteps = 1000 * drand48();
 
     for (n=0;; n++)
     {
+        if (Z == 0 && n >= nsteps) 
+        {
+            ret = NOPIVOT;
+            break;
+        }
 
         report.step     = n;
         report.obj_val  = tabl.data[0];
         report.nthreads = 0;
         report.Z = Z;
 
-        ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv, 2*(Z==0));
+        ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv, 1+(Z==0));
 
         if (ret != FOUND_PIVOT) break;
 
@@ -1067,7 +1078,8 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         if (Z==0) 
         {
             ret = FEASIBLE;
-            if (Zorig != 0) break;
+            break;
+            //if (Zorig != 0) break;
         }
     }
 
@@ -1082,7 +1094,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
     alarm(0);
     signal(SIGALRM, SIG_DFL);
 
-    fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
+    //fprintf(stderr, "\rtime: %4.2f CPU seconds. %39c\n", (etime-stime), ' ');
 
     PyObject_SetAttrString(o, "nRight", PyInt_FromLong(R));
     PyObject_SetAttrString(o, "nTemp", PyInt_FromLong(Z));

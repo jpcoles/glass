@@ -15,7 +15,7 @@ def samplex_solution_type(type):
     env().model_gen_options['solution type'] = type
 
 @command
-def samplex_add_noise(n=True):
+def samplex_add_noise(n=1e-6):
     env().model_gen_options['add noise'] = n
 
 @command
