@@ -24,6 +24,9 @@ elif opts.has_key('solver') and opts['solver'] == 'samplexsimple':
 elif opts.has_key('solver') and opts['solver'] == 'samplexsimple2':
     from solvers.samplexsimple.samplex2 import Samplex
     import solvers.samplexsimple.glcmds 
+elif opts.has_key('solver') and opts['solver'] == 'rwalk':
+    from solvers.rwalk.samplex import Samplex
+    import solvers.rwalk.glcmds 
 else:
     assert 0, 'Unknown solver %s' % opts['solver']
 

@@ -1081,8 +1081,11 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         offs = 0;
         int accept = 1;
         double s = 0;
+        #pragma omp parallel private(s,accept, offs)
         for (i=0; accept && i < eqs.rows; i++)
         {
+            offs = i * eqs.cols;
+
             s = 0;
             double c = eqs.data[offs++];
             for (j=0; j < dim; j++)
