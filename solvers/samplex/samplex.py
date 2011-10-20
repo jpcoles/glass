@@ -812,10 +812,6 @@ class Samplex:
 
         self.eq_count += 1
         self.lhv.append(-self.nTemp)
-        #print a
-        #print self.nVars
-        #print self.data.shape
-        #a[abs(a) < self.EPS] = 0
         self.data[self.nLeft, 0:1+self.nVars] = a
 
     def _geq(self, a): 
@@ -829,29 +825,10 @@ class Samplex:
             self.nLeft  += 1
             self.nSlack += 1
             self.lhv.append(self.nVars+self.nSlack)
-
-            #-------------------------------------------------------------------
-            # First copy the array into data before adding noise so that the
-            # values are correctly typecast.
-            #-------------------------------------------------------------------
-#           a[abs(a) < self.EPS] = 0
             self.data[self.nLeft, 0:1+self.nVars] = a
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
-
-
-
-            if 0:
-                for n in xrange(self.nVars+1):
-                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-
-#           self.add_noise(self.data[self.nLeft])
-
 
     def _leq(self, a): 
         self.leq_count += 1
-        #if with_noise: self.add_noise(a) 
         if a[0] <= 0: 
             a *= -1
             self._geq(a)
@@ -860,41 +837,11 @@ class Samplex:
             self.nLeft += 1
             self.nSlack += 1
             self.nTemp += 1
-            #print "nRight=", self.nRight
             self.nRight += 1
 
             self.lhv.append(-self.nTemp)
             self.rhv.append(self.nVars+self.nSlack)
 
-            #print "adding ", a
-            #print self.data[self.nLeft, 0:1+self.nVars]
-            #print self.nLeft, self.nRight
-            #print self.data.shape
-
-            #-------------------------------------------------------------------
-            # First copy the array into data before adding noise so that the
-            # values are correctly type cast.
-            #-------------------------------------------------------------------
-#           a[abs(a) < self.EPS] = 0
             self.data[self.nLeft, 0:1+self.nVars] = a
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0:1+self.nVars] += self.SML * random(len(a))
-
-            #if self.with_noise: self.add_noise(self.data[self.nLeft, 0:1+self.nVars]) 
-
-            if 0:
-                for n in xrange(self.nVars+1):
-                    if n==0 or abs(self.data[self.nLeft, n]) > self.EPS:
-                        if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-                        #if self.data[self.nLeft,0] == 0: self.data[self.nLeft, n] += self.SML * random()
-
-#           if self.data[self.nLeft,0] == 0: 
-#               self.data[self.nLeft, 0] += self.SML * random()
-#               w = abs(self.data[self.nLeft, 1:]) > self.EPS
-#               self.data[self.nLeft, w] += self.SML * random(len(w.nonzero()))
-
-#           self.add_noise(self.data[self.nLeft])
-
-            #Log( '**\n %s' % self.nRight )
             self.data[self.nLeft, self.nRight] = 1.0
 
