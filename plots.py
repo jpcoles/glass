@@ -16,6 +16,7 @@ from matplotlib.patches import Circle, Ellipse
 from matplotlib.lines import Line2D
 from scales import density_to_physical, distance_to_physical, Arcsec_to_Kpc, convert
 import math
+from collections import defaultdict
 
 #import matplotlib.axes3d as p3
 import mpl_toolkits.mplot3d as p3
@@ -117,11 +118,11 @@ def src_plot(models=None, obj_index=0, hilite_model=None, hilite_color='g'):
         for i,sys in enumerate(obj.sources):
             xs.append(data['src'][i].real)
             ys.append(data['src'][i].imag)
-            cs.append(source_color(i))
+            cs.append(system_color(i))
         if hilite:
-            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000)
+            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='d', alpha=0.5)
         else:
-            over(scatter,xs, ys, s=80, c=cs, zorder=1000)
+            over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5)
 
     if isinstance(models, dict):
         plot(models['obj,data'][obj_index])
@@ -178,14 +179,20 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
     R = obj.basis.mapextent
 
     grid = obj.basis.kappa_grid(data)
-    grid = grid.copy() + 1e-10
+    grid = grid.copy() + 1e-4
+#   grid2 = grid.copy() 
+#   for i in xrange(grid.shape[0]):
+#       for j in xrange(grid.shape[1]):
+#           grid[i,j] = abs(grid2[grid.shape[0]-i-1, grid.shape[1]-j-1] - grid[i,j]) / grid[i,j]
+#   grid = grid.copy() + 1e-4
+
     #grid[grid >= 1] = 0
 
     kw = {'extent': [-R,R,-R,R],
           'interpolation': 'nearest',
           'aspect': 'equal',
           'origin': 'upper',
-          'cmap': cm.terrain,
+          'cmap': cm.bone,
           'fignum': False,
           'vmin': -2,
           'vmax': 0}
@@ -205,27 +212,28 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
     ylabel('arcsec')
 
 @command
-def potential_plot(model, obj_index, src_index, with_colorbar=True):
+def potential_plot(model, obj_index, src_index, with_colorbar=True, with_contours=False):
     obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     grid = obj.basis.potential_grid(data)
     levs = obj.basis.potential_contour_levels(data)
 #   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
-    matshow(grid, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
-    colorbar()
+    matshow(grid, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
+    if with_colorbar: colorbar()
 #   contour(grid, extent=[-R,R,-R,R], origin='upper')
     #print levs
-    for i,lev in enumerate(levs):
-        over(contour, grid, lev, colors = system_color(i), 
-             extent=[-R,R,-R,R], origin='upper', extend='both')
+    if with_contours:
+        for i,lev in enumerate(levs):
+            over(contour, grid, lev, colors = system_color(i), 
+                 extent=[-R,R,-R,R], origin='upper', extend='both')
 
 
     xlabel('arcsec')
     ylabel('arcsec')
-    figure();
-    xs = linspace(-R, R, grid.shape[0])
-    plot(xs, grid[grid.shape[1]//2, :], 'k-')
-    plot(xs, 5*xs, 'r-')
+#   figure();
+#   xs = linspace(-R, R, grid.shape[0])
+#   plot(xs, grid[grid.shape[1]//2, :], 'k-')
+#   plot(xs, 5*xs, 'r-')
 
     #suptitle('Potential')
 
@@ -234,7 +242,7 @@ def critical_curve_plot(model, obj_index, src_index):
     obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     g = obj.basis.maginv_grid(data)[src_index]
-    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
+    matshow(g, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
     over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
 
 @command
@@ -247,8 +255,17 @@ def arrival_plot(model, obj_index, src_index, only_contours=False, clevels=30, w
     lev = obj.basis.arrival_contour_levels(data)
     if lev: lev = lev[src_index]
 
+    kw = {'extent': [-R,R,-R,R],
+          'interpolation': 'nearest',
+          'aspect': 'equal',
+          'origin': 'upper',
+          'cmap': cm.bone,
+          'fignum': False,
+          'vmin': -4,
+          'vmax': 0}
+
     if not only_contours:
-        matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
+        matshow(g, **kw)
         if with_colorbar: colorbar()
         #lev = 50 if not lev else lev[src_index]
 
@@ -257,18 +274,16 @@ def arrival_plot(model, obj_index, src_index, only_contours=False, clevels=30, w
     print amin(g), amax(g)
     loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
     print loglev
+    kw.update({'colors':'k', 'linewidths':1, 'cmap':None})
     over(contour, g, 
          #loglev,
+         #logspace(amin(log(lev), amax(lev), 50),  
          clevels, #logspace(amin(g), amax(g), 50),  
-         colors='k',
-         linewidths=1, 
-         extent=[-R,R,-R,R], 
-         origin='upper')
-         #extent=[-R,R,-R,R], origin='upper', extend='both')
+         **kw)
     if lev:
         print '***', lev, '***'
-        over(contour, g, lev, colors=system_color(src_index), linewidths=3, 
-             extent=[-R,R,-R,R], origin='upper')
+        kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
+        over(contour, g, lev, **kw)
     #grid()
 
 @command
@@ -308,7 +323,16 @@ def deflect_plot(model, obj_index, which, src_index):
 
     g = obj.basis.deflect_grid(data, which, src_index)
 
-    matshow(g, fignum=False, cmap=cm.terrain, extent=[-R,R,-R,R], interpolation='nearest')
+    vmin = log10(amin(g[g>0]))
+    g = g.copy() + 1e-10
+    kw = {'extent': [-R,R,-R,R],
+          'interpolation': 'nearest',
+          'aspect': 'equal',
+          'origin': 'upper',
+          'cmap': cm.bone,
+          'fignum': False}
+
+    matshow(g, **kw)
     #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
 @command
@@ -472,22 +496,24 @@ def _data_plot2(models, X,Y, **kwargs):
     y_label = None
 
     every = kwargs.get('every', 1)
+    upto = kwargs.get('upto', len(models))
     plotf = kwargs.get('plotf', semilogy)
     mark_images = kwargs.get('mark_images', True)
     hilite_model = kwargs.get('hilite_model', None)
     hilite_color = kwargs.get('hilite_color', 'y')
 
     normal_kw   = {'zorder':0,    'drawstyle':'steps-post', 'alpha':0.5}
-    hilite_kw   = {'zorder':1000, 'drawstyle':'steps-post', 'alpha':1.0, 'lw':4}
+    hilite_kw   = {'zorder':-1000, 'drawstyle':'steps-post', 'alpha':1.0, 'lw':4}
     accepted_kw = {'zorder':500,  'drawstyle':'steps-post', 'alpha':0.5}
 
     normal = []
     hilite = []
     accepted = []
-    imgs = set()
+    #imgs = set()
+    imgs = defaultdict(set)
     xmin, xmax = inf, -inf
     ymin, ymax = inf, -inf
-    for mi,m in enumerate(models[::every]):
+    for mi,m in enumerate(models[:upto:every]):
         for [obj, data] in m['obj,data']:
 
             try:
@@ -520,14 +546,15 @@ def _data_plot2(models, X,Y, **kwargs):
             if mark_images:
                 for i,src in enumerate(obj.sources):
                     for img in src.images:
-                        imgs.add(convert('arcsec to %s' % xs.units, abs(img.pos), obj.dL, data['nu']))
+                        imgs[i].add(convert('arcsec to %s' % xs.units, abs(img.pos), obj.dL, data['nu']))
 
     if normal:   plotf(*normal, **normal_kw)
     if hilite:   plotf(*hilite, **hilite_kw)
     if accepted: plotf(*accepted, **accepted_kw)
 
-    for x in imgs:
-        axvline(x, c=system_color(0), ls='-', zorder=-2, alpha=0.5)
+    for k,v in imgs.iteritems():
+        for img_pos in v:
+            axvline(img_pos, c=system_color(k), ls='-', zorder=-2, alpha=0.5)
 
     if use[0] or use[1]:
         lines  = [s['line']  for s,u in zip(_styles, use) if u]
@@ -679,6 +706,29 @@ def H0_plot(models=None, objects=None, key='accepted'):
         print 'H0_plot: ', m, (u-m), (m-l)
     else:
         print "H0_plot: No H0 values accepted"
+
+_time_delays_xlabel = r'Days'
+@command
+def time_delays_plot(models=None, object=0, key='accepted'):
+    if models is None: models = env().models
+
+    d = defaultdict(list)
+    for m in models:
+        obj,data = m['obj,data'][object]
+        t0 = data['arrival times'][object][0]
+        for i,t in enumerate(data['arrival times'][object][1:]):
+            d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.z, data['nu'])) )
+            t0 = t
+
+    for k,v in d.iteritems():
+        print 'td plot', k, len(v)
+        print v
+        hist(v, histtype='step', label='%s - %s' % (str(k+1),str(k+2)))
+
+    legend()
+
+    xlabel(_time_delays_xlabel)
+    ylabel(r'$\mathrm{Number}$')
 
 
 _scale_factor_xlabel = r'Scale factor'

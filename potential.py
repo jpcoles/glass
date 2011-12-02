@@ -1,5 +1,5 @@
 from __future__ import division
-from numpy import arctan, log, vectorize, array
+from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos
 
 @vectorize
@@ -21,14 +21,17 @@ def poten2d_indef(x,y):
 
 #@vectorize
 def poten(r, a):
+
     x,y = r.real, r.imag
+
     xm,xp = x - a/2, x + a/2
     ym,yp = y - a/2, y + a/2
 
     xm2, xp2 = xm**2, xp**2
     ym2, yp2 = ym**2, yp**2
 
-    # FIXME: What happens when we divide by 0 or do log 0?
+    # What happens when we divide by 0 or do log 0?
+    # xm and ym are guaranteed never to be zero from the definition. x and y may be zero.
     v = ( -3 * a**2
       + ( xm2*arctan(ym/xm) + ym2*arctan(xm/ym) + xm*ym*log(xm2 + ym2) )
       + ( xp2*arctan(yp/xp) + yp2*arctan(xp/yp) + xp*yp*log(xp2 + yp2) )

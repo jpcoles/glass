@@ -207,20 +207,29 @@ def model(nmodels, *args, **kwargs):
 
     #init_model_generator(nmodels)
 
-    env().models = []
-    env().solutions = []
+    if env().models is None:
+        env().models = []
+        env().solutions = []
+
+    models = []
+    solutions = []
+
     for i,m in enumerate(generate_models(env().objects, nmodels, *args, **kwargs)):
         Log( 'Model %i/%i complete.' % (i+1, nmodels) )
-        env().models.append(m)
-        env().solutions.append(m['sol'])
+        models.append(m)
+        solutions.append(m['sol'])
+        print '???', id(m['sol'])
 
-    _post_process()
+    _post_process(models)
 
     env().accepted_models = env().models
 
-def _post_process():
-    nmodels = len(env().models)
-    for i,m in enumerate(env().models):
+    env().models.extend(models)
+    env().solutions.extend(solutions)
+
+def _post_process(models):
+    nmodels = len(models)
+    for i,m in enumerate(models):
         for o,data in m['obj,data']:
             if o.post_process_funcs:
                 Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )

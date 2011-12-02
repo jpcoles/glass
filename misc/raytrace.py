@@ -6,7 +6,7 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
 from scales import time_to_physical
-from potential import poten
+from potential import poten, poten_dx, poten_dy
 from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
@@ -38,6 +38,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     ploc    = obj.basis.ploc
     src     = ps['src'][src_index]
     zcap    = obj.sources[src_index].zcap
+    #zcap=1
 
     if ipeps is None:
         #ipeps = 2 * obj.basis.top_level_cell_size
@@ -169,9 +170,13 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             tau  = abs(i-src)**2 / 2
             tau *= zcap
             xxx = dot(ps['kappa'], poten(i - obj.basis.ploc, obj.basis.cell_size))
+            print i, tau, xxx
             tau -= xxx
             if obj.shear:
                 tau -= s1*obj.shear.poten(1,i) + s2*obj.shear.poten(2,i)
+            print tau
+            #print '!!', poten(i - obj.basis.ploc, obj.basis.cell_size)[0]
+            print '!!', dot(ps['kappa'], poten(complex(1,0) - obj.basis.ploc, obj.basis.cell_size))
             imgs0.append([i,tau])
 
 
@@ -182,6 +187,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     M = []
     imgs = []
     for img in imgs0:
+        print 'tau', tau
         i, tau = img
         theta = arctan2(i.imag, i.real) * 180/pi
         K = zcap*identity(2) - obj.basis.magnification(i, theta, ps)
@@ -332,11 +338,42 @@ def observables(model, obj_index, src_index, seq):
 
     _,prev,_,_ = seq[0]
     for img,t,_,parity in seq[1:]:
+        print parity, t-prev
         t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
         imglist.append([img, parity,t0])
         prev = t
 
     return imglist
+
+def write_glass_code(model, obj_index, src_index, seq, simple=False):
+
+    obj,ps = model['obj,data'][obj_index]
+
+    if not seq: return
+
+    letters = [ x for x in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+    
+    while len(seq) > len(letters):
+        letters += [ x+x[0] for x in letters[-26:] ]
+
+    obs = observables(model, obj_index, src_index, seq)
+
+    #def img2str(img, time_delay, l, parity):
+        #return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (l, img.real, img.imag, parity, time_delay)
+
+    def img2str(a):
+        return "%s = (% 9.15f,% 9.15f)" % (a[0],a[1][0].real,a[1][0].imag)
+
+    def img2str2(a):
+        if len(a[1]) == 2:
+            return "%s, '%s'" % (a[0], a[1][1])
+        else:
+            return "%s, '%s', %.15f" % (a[0], a[1][1], a[1][2])
+        
+    print "\n".join(map(img2str, zip(letters, obs)))
+    print ("source(%0.2f, " % obj.sources[src_index].z) + ', '.join(map(img2str2, zip(letters, obs))) + ")"
+
+    return
 
 def write_code(model, obj_index, src_index, seq, simple=False):
 
@@ -356,9 +393,9 @@ def write_code(model, obj_index, src_index, seq, simple=False):
 
     def img2str(a):
         if len(a[1]) == 2:
-            return "['%s', (% 9.5f,% 9.5f), '%s']" % (a[0],a[1][0].real,a[1][0].imag, a[1][1])
+            return "['%s', (% 9.15f,% 9.15f), '%s']" % (a[0],a[1][0].real,a[1][0].imag, a[1][1])
         else:
-            return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
+            return "['%s', (% 9.15f,% 9.15f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
         
     print "[" + ",\n ".join(map(img2str, zip(letters, obs))) + "]"
 

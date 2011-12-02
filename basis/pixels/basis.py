@@ -15,7 +15,7 @@ from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, n
                   zeros_like, ndenumerate, s_, isinf, where, dot, array, \
                   add, subtract, multiply, append, ceil, ones, sort, sign, diff, \
                   trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
-                  sin, cos, pi, matrix, diag, average, log, sqrt, mean
+                  sin, cos, pi, matrix, diag, average, log, sqrt, mean, hypot
 
 if 0:
     import pylab
@@ -30,7 +30,7 @@ from scipy.signal import convolve2d
 import scipy.ndimage._ni_support as _ni_support
 import scipy.ndimage._nd_image as _nd_image
 
-from math import hypot, atan2, pi
+from math import atan2, pi
 from itertools import izip
 
 from environment import env
@@ -266,7 +266,8 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
         self.maprad = obj.maprad
         if self.maprad is None:
-            self.maprad = rmax * 1.5
+            self.maprad = rmax * 1.1 
+            #self.maprad = rmax * 1.5
             #self.maprad = rmax+rmin
             #self.maprad = min([rmax+rmin, 2*rmax-rmin])
 
@@ -361,6 +362,8 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
         self.rings = [ argwhere(rkeys == i).ravel() for i in unique(rkeys) ]
 
+        self.oppose = [ argwhere(self.int_ploc == -l).ravel() for l in self.int_ploc ]
+
         # XXX: Need these for the annular density prior
         #inner_image_ring = rmin // self.cell_size
         #outer_image_ring = rmax // self.cell_size + 1
@@ -441,9 +444,21 @@ class PixelBasis(object):
         Log( '    Central pixel offset = %i'    % self.central_pixel )
         Log( 'Offsets        % 5s  % 5s' % ('Start', 'End') )
         Log( '    pix        % 5i  % 5i' % (self.pix_start, self.pix_end) )
-        Log( '    shear      % 5i  % 5i' % (self.shear_start,  self.shear_end) )
-        Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
-        Log( '    srcpos     % 5i  % 5i' % (self.srcpos_start, self.srcpos_end) )
+        if self.shear_start == self.shear_end:
+            Log( '    shear           %s' % 'None')
+        else:
+            Log( '    shear      % 5i  % 5i' % (self.shear_start,  self.shear_end) )
+
+        if self.ptmass_start == self.ptmass_end:
+            Log( '    ptmass          %s' % 'None')
+        else:
+            Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
+
+        if self.srcpos_start == self.srcpos_end:
+            Log( '   osrcpos          %s' % 'None')
+        else:
+            Log( '    srcpos     % 5i  % 5i' % (self.srcpos_start, self.srcpos_end) )
+
         Log( '    H0         % 5i'       % (self.H0) )
 
 #       xy    = self.refined_xy_grid({})
@@ -778,7 +793,7 @@ class PixelBasis(object):
 
         return data['srcdiff'][src_index]
 
-    @memoize
+    #@memoize
     def deflect_grid(self, data, which, src_index):
         if not data.has_key('deflect'):
             self.srcdiff(data, src_index)
@@ -825,7 +840,8 @@ class PixelBasis(object):
                         [4,16,26,16,4],
                         [1,4,7,4,1]]
                         ) / 273.
-        grid = convolve2d(grid, kernel, mode='same')
+        
+        #grid = convolve2d(grid, kernel, mode='same')
 
         #-----------------------------------------------------------------------
         # Convert physical units to internal units.
@@ -850,21 +866,29 @@ class PixelBasis(object):
     def solution_isothermal(self, theta_E, src=None, H0inv=None, shear=None, ptmass=None,
                             top_level_func_name='solution_isothermal()'):
 
-        def g(a,b, j,k):
-            return       log(a + sqrt(a**2 + j**2)) * j \
-                   + a * log(j + sqrt(a**2 + j**2))     \
-                   -     log(b + sqrt(b**2 + j**2)) * j \
-                   - b * log(j + sqrt(b**2 + j**2))     \
-                   -     log(a + sqrt(a**2 + k**2)) * k \
-                   - a * log(k + sqrt(a**2 + k**2))     \
-                   +     log(b + sqrt(b**2 + k**2)) * k \
-                   + b * log(k + sqrt(b**2 + k**2))
+        def gp(a,b):
+            return b*log(hypot(a,b) + a) + a*log(hypot(a,b) + b) - b
+
+        def g(a,b,j,k):
+            return (gp(b,k) - gp(b,j)) - (gp(a,k) - gp(a,j))
+
+#       def g(a,b, j,k):
+#           return       log(a + sqrt(a**2 + j**2)) * j \
+#                  + a * log(j + sqrt(a**2 + j**2))     \
+#                  -     log(b + sqrt(b**2 + j**2)) * j \
+#                  - b * log(j + sqrt(b**2 + j**2))     \
+#                  -     log(a + sqrt(a**2 + k**2)) * k \
+#                  - a * log(k + sqrt(a**2 + k**2))     \
+#                  +     log(b + sqrt(b**2 + k**2)) * k \
+#                  + b * log(k + sqrt(b**2 + k**2))
+
+        nu = convert('H0^-1 in Gyr to nu', H0inv)
 
         dx = self.cell_size / 2.
         dy = dx
         gg = g(self.ploc.real-dx, self.ploc.real+dx, self.ploc.imag-dy, self.ploc.imag+dy)
         gg /= self.cell_size**2
-        print gg
+        assert numpy.all(gg >= 0)
         return self.solution_from_array(0.5*theta_E * gg,
                                         src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
                                         top_level_func_name=top_level_func_name)
@@ -903,7 +927,8 @@ class PixelBasis(object):
         sol[o+self.H0] = nu
         #sol[o+self.H0] = time_to_internal(obj, H0inv)
 
-        return self.solution_to_dict(sol)
+        return sol
+        #return self.solution_to_dict(sol)
 
 
     def solution_from_grid(self, grid, src=None, H0inv=None, shear=None, ptmass=None,

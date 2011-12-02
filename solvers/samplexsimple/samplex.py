@@ -540,7 +540,7 @@ class Samplex:
             w[0] = True
             b = a.copy()
             #b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
-            b[w] += 10e-6 * (random(len(w.nonzero())))
+            b[w] += 10e-5 * (random(len(w.nonzero())))
             return b
         return a
 

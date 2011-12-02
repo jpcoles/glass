@@ -60,9 +60,10 @@ class Samplex:
         ncols    = kw.get('ncols', None)
         nthreads = kw.get('nthreads', 1)
         rngseed  = kw.get('rngseed',  0)
-        self.sol_type  = kw.get('solution type', 'interior')
         self.with_noise   = kw.get('add noise', 1e-6)
         self.stride = kw.get('stride', 1)
+        self.accept_rate = kw.get('acceptance rate', 0.25)
+        self.accept_rate_tol = kw.get('acceptance tol', 0.05)
 
         Log( "Samplex created" )
         Log( "    ncols = %s" % ncols )
@@ -121,9 +122,10 @@ class Samplex:
 
         Log( "random seed = %s" % self.random_seed )
         Log( "threads = %s" % self.nthreads )
-        Log( "solution type = %s" % self.sol_type )
         Log( "with noise = %s" % self.with_noise )
         Log( "stride = %s" % self.stride )
+        Log( "acceptence rate = %s" % self.accept_rate )
+        Log( "acceptence rate tolerance = %s" % self.accept_rate_tol )
 
         Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -257,7 +259,38 @@ class Samplex:
         if self.iteration & 15 == 0:
             Log( "model %i]  iter % 5i  obj-val %.8g" % (self.n_solutions, self.iteration, self.data[0,0]) )
 
+    def in_simplex(self, np, tol=0, eq_tol=1e-8, verbose=False):
+        ok = True
+
+        for i,[c,e] in enumerate(self.eq_list_no_noise):
+            a0 = dot(np, e[1:])
+            a  = e[0] + a0
+
+            #print np.flags, e[1:].flags
+            #assert 0
+            if c == 'geq':
+                if a < -tol: 
+                    print 'F>', i,a
+                    ok = False
+            elif c == 'leq':
+                if a > tol: 
+                    print 'F<', i,a
+                    ok = False
+            elif c == 'eq':
+                if abs(a) > eq_tol: 
+                    print 'F=', i,a, (1 - abs(e[0]/a0))
+                    ok = False
+
+            if verbose: print "TT", c, a
+              
+        #print 'T '
+        return ok
+
     def next(self, nsolutions=None):
+
+        if nsolutions == 0: return
+
+        assert nsolutions is not None
 
 
         def distance_to_plane(pt,dir):
@@ -278,55 +311,77 @@ class Samplex:
 
             return dist
 
+        def compute_eval_zeros():
+            s = min(max(0,n_stored - window_size), window_size)
+
+            ev,evec = eigh(cov(store[:, s:n_stored]))
+            nzero = 0
+            for r in range(dim):
+                if ev[r] < 1e-12:
+                    nzero += 1
+
+            return nzero
+            
+        def compute_midpoint():
+            s = min(max(0,n_stored - window_size), window_size)
+
+            ev,evec = eigh(cov(store[:, s:n_stored]))
+            avg = store[:, s:n_stored].mean(axis=1)
+            nzero = 0
+            for r in range(dim):
+                if ev[r] < 1e-12:
+                    eval[r] = 0
+                    nzero += 1
+                else:
+                    direction = evec[:,r]
+                    tmax1 = -distance_to_plane(avg, -direction)
+                    tmax2 = +distance_to_plane(avg, +direction)
+                    avg += direction * ((tmax2 + tmax1) / 2)
+            
+            if nzero != self.eq_count:
+                print '-'*80
+                Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
+                print '-'*80
+
+            return avg
+
         def compute_eval():
-            ev,evec = eigh(cov(store[:, :n_stored]))
+            s = min(max(0,n_stored - window_size), window_size)
+
+            ev,evec = eigh(cov(store[:,  :n_stored]))
             #print evec
             #print '-' * 80
             #print ev.T
             #print '-' * 80
             #project_evec(evec)
             #print evec
-            avg = store[:, :n_stored].mean(axis=1)
+            avg = store[:,  :n_stored].mean(axis=1)
+            nzero = 0
             for r in range(dim):
-                if ev[r] < 1e-15:
+                #print ev[r]
+                if ev[r] < 1e-12:
                     eval[r] = 0
+                    nzero += 1
                 else:
                     direction = evec[:,r]
                     tmax1 = -distance_to_plane(avg, -direction)
                     tmax2 = +distance_to_plane(avg, +direction)
                     eval[r] = (tmax2 - tmax1) / sqrt(12)
 
-            #print eval
+            #f = open('eval.out', 'a+')
+            #print >>f, '['+','.join(map(str,eval))+'],'
+            #f.close()
             multiply(eval, evec, est_evec)
+            if nzero != self.eq_count:
+                print '-'*80
+                Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
+                print '-'*80
             #print est_evec
             #assert 0
 
         def random_direction(np):
             return dot(normal(0, 2.4/dof, dim), np.T)
 
-        def in_simplex(np, tol=0, eq_tol=1e-8, verbose=False):
-            for i,[c,e] in enumerate(self.eq_list_no_noise):
-                a = e[0] + dot(np, e[1:])
-
-                #print np.flags, e[1:].flags
-                #assert 0
-                if c == 'geq':
-                    if a < -tol: 
-                        #print 'F>', i,a
-                        return False
-                elif c == 'leq':
-                    if a > tol: 
-                        #print 'F<', i,a
-                        return False
-                elif c == 'eq':
-                    if abs(a) > eq_tol: 
-                        #print 'F=', i,a
-                        return False
-
-                if verbose: print "TT", c, a
-                  
-            #print 'T '
-            return True
 
         def project(x):
             q = dot(A, x)
@@ -349,9 +404,9 @@ class Samplex:
 
         dim = self.nVars
         dof = dim - self.eq_count
-        window_size = int(1.5 * dim)
+        window_size = int(5 * dim)
         redo = dim ** 2
-        nmodels = 10
+        nmodels = nsolutions
 
         store = zeros((dim, window_size+nmodels), order='Fortran', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
@@ -362,8 +417,8 @@ class Samplex:
         for i,[c,e] in enumerate(self.eq_list_no_noise):
             self.eqs[i,:] = e
 
-        print self.eqs[0,:]
-        print self.eqs[1,:]
+        #print self.eqs[0,:]
+        #print self.eqs[1,:]
 
         n_stored = 0
 
@@ -403,33 +458,46 @@ class Samplex:
         # First we need to find a small sample within the solution space
         #-----------------------------------------------------------------------
 
-        print "Finding %i initial solutions" % window_size
-
         self.sum_ln_k = 0
         self.n_solutions = 0
+        self.stride = int(dim+1)
+
+        self.start_new_objective()
+
         while n_stored < window_size:
-            self.iteration=0
-            self.n_solutions += 1
-            while True:
-                for i in range(100):
-                    self.next_solution()
-                    self.curr_sol = self.package_solution()                
-#                   p = self.interior_point(self.curr_sol)
-                    p = self.curr_sol.vertex[:self.nVars+1]
 
-                if p is not None: 
-                    break
-                
-                print 'SAME VERTEX!'
-                assert 0
+            for i in xrange(self.stride):
+                if not self.next_solution():
+                    self.start_new_objective()
+                    self.iteration=0
+                    self.n_solutions += 1
+            
+            self.curr_sol = self.package_solution()                
+            #p = self.interior_point(self.curr_sol)
+            p = self.curr_sol.vertex[:self.nVars+1]
 
-            if in_simplex(p[1:], tol=1e30, eq_tol=1e-5):
-                project(p[1:])
+            assert p is not None
+
+            project(p[1:])
+            if self.in_simplex(p[1:], tol=1e30, eq_tol=1e-5):
                 store[:,n_stored] = p[1:]
                 n_stored += 1
-                print n_stored
-#           else:
-#               print 'FAILED'
+                print "Found %i/%i initial solutions\r" % (n_stored,window_size),
+                sys.stdout.flush()
+            else:
+                print 'point not in simplex'
+
+            if n_stored > 2:
+                a = store[:,:n_stored-1].mean(axis=1)
+                d = store[:,:n_stored].mean(axis=1)
+                print 'avg d', sqrt(sum(pow(a-d,2)))
+
+            if n_stored > 1 and compute_eval_zeros() == self.eq_count:
+                print 'WOULD STOP HERE'
+#               window_size = n_stored
+#               break
+
+        print
 
         #-----------------------------------------------------------------------
         # Now we can start the random walk
@@ -437,19 +505,29 @@ class Samplex:
 
         #est_evec = None
         vec = store[:,:n_stored].mean(axis=1)
+        #vec = compute_midpoint()
         self.vec = vec
-        assert in_simplex(vec, tol=0, eq_tol=1e-4)
+        project(self.vec)
+        assert self.in_simplex(vec, tol=1e-10, eq_tol=1e-12)
+        #assert in_simplex(vec, tol=1e-10, eq_tol=1e-4)
+        #assert in_simplex(vec, tol=0, eq_tol=1e-4)
         print '**********'
         print '**********'
 
         print 'window_size', window_size
         print 'redo', redo
 
-        print 'vec', vec
+        #print 'vec', vec
 
+        self.twiddle = 2.4
+
+        accept_rate = self.accept_rate
+        accept_rate_tol = self.accept_rate_tol
+
+        i = 0
         self.accepted = 0
         self.rejected = 0
-        for i in range(nmodels):
+        while i < nmodels:
 
             #if i==0 or random_integers(nmodels+window_size)/4 > i+window_size:
             if (i%20) == 0:
@@ -458,8 +536,32 @@ class Samplex:
                 #print '**', est_evec[0,:]
                 #assert 0
 
-            print 'Walking...'
-            self.rwalk()
+
+            old_accepted = self.accepted
+            j=0
+            np[:] = self.vec.copy()
+            while True:
+                print 'Walking...'
+                print 'twiddle is', self.twiddle
+                self.rwalk()
+                #if self.accepted == 0: continue
+
+                r = self.accepted / (self.accepted + self.rejected)
+                print '%.3f Acceptance rate  (%i Accepted  %i Rejected)' % (r, self.accepted, self.rejected)
+
+                if abs(r - accept_rate) < accept_rate_tol:
+                    break
+
+                self.twiddle *= 1 + ((r-accept_rate) / accept_rate / 2)
+
+                #self.twiddle *= max(1e-3,r) / accept_rate
+                self.twiddle = max(1e-14,self.twiddle)
+                #self.vec[:] = np.copy()
+                #if i > 0:
+                    #assert self.in_simplex(self.vec)
+                print 'RESTARTING r =',r
+                self.accepted = 0
+                self.rejected = 0
 
 #           accepted_once = False
 #           for j in range(redo):
@@ -475,12 +577,21 @@ class Samplex:
 #               print "ACCEPTED ONCE"
             #print vec;
 
+            r = self.accepted / (self.accepted + self.rejected)
             project(self.vec)
-            #assert in_simplex(vec)
+            print self.vec[self.vec < 0]
+            assert numpy.all(self.vec >= 0)
+            assert self.in_simplex(self.vec)
             store[:,n_stored] = self.vec
             n_stored += 1
             #assert 0
-            print 'Stored %i models' % n_stored
+            print '%i models left to generate' % (nmodels-i-1)
+
+            q = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+            q[1:] = self.vec
+            yield q
+
+            i += 1
 
         # 1. Select initial set of random points
         # 2. Calculate the mean and eigenvectors of said points
@@ -491,32 +602,32 @@ class Samplex:
         # 7. Recompute eigenvectors every so often
 
         #for s in store[:,window_size:].T:
-        for s in store[:,window_size:n_stored].T:
-        #for s in store[:,:n_stored].T:
-            q = zeros(dim+1, order='Fortran', dtype=numpy.float64)
-            q[1:] = s
-            yield q
+#       for s in store[:,window_size:n_stored].T:
+#       #for s in store[:,:n_stored].T:
+#           q = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+#           q[1:] = s
+#           yield q
 
         print '%i Acceptance  %i Rejected' % (self.accepted, self.rejected)
         print '%.3f Acceptance rate' % (self.accepted / (self.accepted + self.rejected))
 
     def next_solution(self):
 
-        step = 0
-        while True:
-            result = self.pivot()
-            if   result == self.NOPIVOT:   
-                step += 1
-                if step >= self.stride:
-                    break
-            elif result == self.FEASIBLE:  pass
-            elif result == self.UNBOUNDED: raise SamplexUnboundedError()
-            else:
-                Log( result )
-                raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+        result = self.pivot()
+        if   result == self.FOUND_PIVOT:   
+            return True
+        elif result == self.NOPIVOT:  
+            return False
+        elif result == self.FEASIBLE:  assert 0
+        elif result == self.UNBOUNDED: raise SamplexUnboundedError()
+        else:
+            Log( result )
+            raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
-            self.status()
-            self.iteration += 1
+        #self.status()
+        self.iteration += 1
+
+        return True
 
     def package_solution(self):
         s = SamplexSolution()
@@ -536,6 +647,28 @@ class Samplex:
         #s.vertex[0] = self.data[0,0]
 
         return s
+
+    def start_new_objective(self):
+
+        self.obj = 2*random(1+self.nVars+self.nSlack) - 1.0
+        self.set_objective(self.obj)
+
+    def set_objective(self, obj):
+        #print "obj", obj
+        for r in xrange(self.nRight+1):
+            col = self.data[:,r]
+            n   = self.rhv[r]
+            #print '@', obj[n], n
+            col[0] = obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
+            #col[0] = obj[n] if 0 <= n <= self.nVars else 0
+            for k in xrange(1, self.nLeft+1):
+                n = self.lhv[k]
+                #print obj[n]
+                if 0 <= n <= self.nVars+self.nSlack:
+                    col[0] += col[k] * obj[n]
+
+        #print '!' * 80
+        #print 'objfn', self.data[0,:self.nRight+1]
 
     def find_feasible(self):
 
@@ -559,7 +692,7 @@ class Samplex:
             elif result == self.FEASIBLE:    break
             elif result == self.FOUND_PIVOT: pass
 
-            self.status()
+            #self.status()
             self.iteration += 1
 
         return True
@@ -571,7 +704,7 @@ class Samplex:
         sum( self.data[self.lhv < 0, :self.nRight+1], axis=0, out=self.data[0,:self.nRight+1] )
 
         self.data[0,:self.nRight+1] *= -1
-        print 'Auxiliary obj fn', self.data[0]
+        #print 'Auxiliary obj fn', self.data[0]
         return
 
 

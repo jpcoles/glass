@@ -72,9 +72,9 @@ def init_model_generator(nmodels, regenerate=False):
     Log( '=' * 80 )
     Log( 'PIXEL BASIS MODEL GENERATOR' )
     Log( '=' * 80 )
-    if nmodels == 0:
-        Log( "No models requested." )
-        return
+#   if nmodels == 0:
+#       Log( "No models requested." )
+#       return
 
     #---------------------------------------------------------------------------
     # Decide which priors to use. The initial list is the list of default
@@ -93,7 +93,7 @@ def init_model_generator(nmodels, regenerate=False):
 
     Log( 'Priors:' )
     for p in all_priors:
-        Log( '    %s %s' % (p.f.__name__, '[EXCLUDED]' if p not in priors else '') )
+        Log( '%10s %s' % ('[EXCLUDED]' if p not in priors else '', p.f.__name__) )
 
     lp = filter(lambda x: x.where == 'object_prior',   priors)
     gp = filter(lambda x: x.where == 'ensemble_prior', priors)
@@ -164,7 +164,7 @@ def package_solution(sol, objs, fn_package_sol = None):
 @command
 def generate_models(objs, n, *args, **kwargs):
 
-    if n <= 0: return
+    #if n <= 0: return
 
     mode = kwargs.get('mode', 'default')
 
@@ -181,8 +181,28 @@ def generate_models(objs, n, *args, **kwargs):
 #<<<<<<< .mine
         #yield _projected_model(objs[0], *kwargs['data'])
 #=======
-        yield _projected_model(objs[0], *data)
+        ps = _projected_model(objs[0], *data)
+
+        init_model_generator(n)
+        for o in objs:
+            for p in acc_objpriors:
+                if p.check: p.check(o, ps['sol'])
+        for p in acc_enspriors:
+            if p.check: p.check(objs, ps['sol'])
+
+        yield ps
+
 #>>>>>>> .r118
+    elif mode == 'isothermal':
+        assert n==1, 'Can only generate a single model in isothermal mode.'
+        assert len(objs) == 1, 'Can only model a single object from isothermal.'
+        data = kwargs.get('data', None)
+        assert data is not None, 'data keyword must be given with model parameters.'
+        objs[0].basis.array_offset = 1
+
+        ps = objs[0].basis.solution_isothermal(*data)
+        yield package_solution(ps, [objs[0]])
+
     elif mode != 'default':
         assert False, 'Unsupported model mode "%s"' % mode
     else:
@@ -235,7 +255,8 @@ def _projected_model(obj, X,Y,M, src, H0inv):
 
     grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
     ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)
-    return package_solution(ps, [obj], fn_package_sol = lambda x:ps)
+    return package_solution(ps, [obj])
+    #return package_solution(ps, [obj], fn_package_sol = lambda x:ps)
 #   return {'sol':      ps,
 #           'obj,data': [[obj,ps]],
 #           'tagged':   False}

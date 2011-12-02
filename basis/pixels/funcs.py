@@ -1,7 +1,8 @@
 from __future__ import division
 from scales import convert
-from numpy import cumsum, mean, average, array, where, pi
+from numpy import cumsum, mean, average, array, where, pi, dot, abs
 from environment import DArray
+from potential import poten, poten_dx, poten_dy
 
 def estimated_Rlens(obj, ps, src_index):
 
@@ -51,6 +52,28 @@ def estimated_Rlens(obj, ps, src_index):
 
     return mean([Vl,Vs]), Vl, Vs, 0
 
+def arrival_time(m):
+
+    obj,ps = m
+
+    at = []
+    for s,src in zip(obj.sources, ps['src']):
+        taus = []
+        for img in s.images:
+            theta = img.pos
+
+            tau  = abs(theta-src)**2 / 2
+            tau *= s.zcap
+            tau -= dot(ps['kappa'], poten(theta - obj.basis.ploc, obj.basis.cell_size))
+            if obj.shear:
+                s1,s2 = ps['shear']
+                tau -= s1*obj.shear.poten(1,theta) + s2*obj.shear.poten(2,theta)
+
+            taus.append(tau)
+        at.append(taus)
+
+    return at
+
 #def estimated_profile_slope(m, vdisp_true, beta):
 #
 #    a = r_half * (2**(1./(3-beta)) - 1)
@@ -77,10 +100,7 @@ def default_post_process(m):
     ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
     ps['Sigma(R)']  =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])
     ps['kappa(R)']  =  array([average(ps['kappa'][r]                  )         for r in b.rings])
-    #ps['kappa(<R)'] = (lambda a: cumsum(a[:,0]) / cumsum(a[:,1]))([ [sum(ps['kappa'][r]), len(r)] for r in b.rings ])
     ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]) for r in b.rings]) / cumsum([len(r) for r in b.rings])
-
-    #ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]) for r in b.rings]) / cumsum([len(r) for r in b.rings])
 
     ps['Rlens'] = {}
     ps['Rlens']['arcsec'] = [ estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
@@ -91,6 +111,7 @@ def default_post_process(m):
     #ps['R(1/2 K)']['arcsec'] = ps['R']['arcsec'][(ps['kappa(<R)'] - 0.5*ps['Ktot']) >= 0.0][0]
     #ps['R(1/2 K)']['kpc']    = ps['R(1/2 K)']['arcsec'] * rscale
 
+    ps['arrival times'] = arrival_time(m)
 
     # convert to DArray
 

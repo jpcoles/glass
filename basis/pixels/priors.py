@@ -136,6 +136,8 @@ def check_image_pos(o, sol):
             r0 -= sol[srcpos+0]
             r1 -= sol[srcpos+1]
 
+            #print img.pos, r0,r1, sol[srcpos:srcpos+2]
+
             l0 = log10(abs(r0)) if r0 else -13
             l1 = log10(abs(r1)) if r1 else -13
 
@@ -383,10 +385,10 @@ def hubble_constant(o, leq, eq, geq):
     """This requires a particular hubble constant for the object."""
 
     if env().nu is None:
-        Log( "Hubble Constant DISABLED")
+        Log( "[DISABLED] Hubble Constant")
         return
 
-    Log( "Hubble Constant" + str(env().nu))
+    Log( " "*11 + "Hubble Constant" + str(env().nu))
 
     nu = 1+o.basis.H0
 
@@ -590,10 +592,10 @@ def magnification(o, leq, eq, geq):
 def annular_density(o, leq, eq, geq):
     theta = o.prior_options.get('annular_density', None)
     if theta is None:
-        Log( "Annular density DISABLED" )
+        Log( "[DISABLED] Annular density" )
         return
 
-    Log( "Annular density %s" % theta )
+    Log( ' '*11 + "Annular density %s" % theta )
 
     if theta is not None and theta != 0:
         row = new_row(o)
@@ -614,9 +616,11 @@ def external_shear(o, leq, eq, geq):
         on = [0.1, -1]
 
     if on is None:
-        on = 'DISABLED'
+        on = '[DISABLED]'
+    else:
+        on = ''
 
-    Log( "External Shear %s" % on)
+    Log( "%10s External Shear" % on)
 
 ##############################################################################
 
@@ -626,10 +630,10 @@ def profile_steepness(o, leq, eq, geq):
     steep = o.prior_options.get('steepness', None)
 
     if steep is None: 
-        Log( "Profile Steepness DISABLED" )
+        Log( "[DISABLED] Profile Steepness" )
         return
 
-    Log( "Profile Steepness %s" % steep )
+    Log( " "*11 + "Profile Steepness %s" % steep )
 
     minsteep, maxsteep = steep
     assert maxsteep is None or maxsteep >= minsteep
@@ -642,45 +646,44 @@ def profile_steepness(o, leq, eq, geq):
     #---------------------------------------------------------------------------
     # First handle the central pixel
     #---------------------------------------------------------------------------
-    r0,r1 = o.basis.rings[0:2]
-    row[pix_start+r0] =  1.0 / len(r0)
-    row[pix_start+r1] = -1.0 / len(r1)
-    #print r0,r1
-    #print row
-    c=1
-    geq(row)
+#   r0,r1 = o.basis.rings[0:2]
+#   lc = (0.5) ** minsteep
+#   lpc = (1.5) ** minsteep
+#   row[pix_start+r0] = lc / len(r0)
+#   row[pix_start+r1] = -lpc / len(r1)
+#   #print r0,r1
+#   #print row
+#   c=1
+#   geq(row)
 
+    c = 0
 
     #---------------------------------------------------------------------------
     # Now the rest of the rings.
     #---------------------------------------------------------------------------
-    for l in xrange(1,nrings-1):
+    for l in xrange(0,nrings-1):
         r0 = o.basis.rings[l]
         r1 = o.basis.rings[l+1]
 
+        row = new_row(o)
+        lc  = (l+0.5) ** minsteep
+        lpc = (l+1.5) ** minsteep
+        row[pix_start+r0] =  lc  / len(r0)
+        row[pix_start+r1] = -lpc / len(r1)
+
         if minsteep == maxsteep:
-            row = new_row(o)
-            lc  = l ** minsteep
-            lpc = -((l+1) ** minsteep)
-            row[pix_start+r0] = lc  / len(r0)
-            row[pix_start+r1] = lpc / len(r1)
             eq(row)
         else:
-            row = new_row(o)
-            lc  = l ** minsteep
-            lpc = -((l+1) ** minsteep)
-            row[pix_start+r0] = lc  / len(r0)
-            row[pix_start+r1] = lpc / len(r1)
             geq(row)
 
-            if maxsteep is not None:
-                row = new_row(o)
-                lc  = l ** maxsteep
-                lpc = -((l+1) ** maxsteep)
-                row[pix_start+r0] = lc  / len(r0)
-                row[pix_start+r1] = lpc / len(r1)
-                leq(row)
-                c += 1
+#           if maxsteep is not None:
+#               row = new_row(o)
+#               lc  = l ** maxsteep
+#               lpc = (l+1) ** maxsteep
+#               row[pix_start+r0] =  lc  / len(r0)
+#               row[pix_start+r1] = -lpc / len(r1)
+#               leq(row)
+#               c += 1
 
 
 #   print "\tmaxsteep=", maxsteep, "minsteep=",minsteep
@@ -688,12 +691,24 @@ def profile_steepness(o, leq, eq, geq):
 #       row = zeros(1+o.basis.nvar)
 #       r0 = o.basis.rings[1]
 #       r1 = o.basis.rings[-2]
-#       lc  = -1
-#       lpc =  nrings ** maxsteep
-#       row[pix_start+r0] = lc  / len(r0)
-#       row[pix_start+r1] = lpc / len(r1)
+
+#       lc  = 1
+#       lpc = (nrings) ** maxsteep
+#       row[pix_start+r0] = -lc  / len(r0)
+#       row[pix_start+r1] =  lpc / len(r1)
 #       geq(row)
 #       c += 1
+
+#   r0 = o.basis.rings[0]
+#   r1 = o.basis.rings[-1]
+#   row = zeros(1+o.basis.nvar)
+#   lc  =  1
+#   lpc = -nrings ** minsteep
+#   row[pix_start+r0] = lc  / len(r0)
+#   row[pix_start+r1] = lpc / len(r1)
+#   geq(row)
+#   c += 1
+
     Log( "\t# eqs = %i" % c )
         
 #@default_prior
@@ -806,7 +821,7 @@ def J2gradient(o, leq, eq, geq):
 
     assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
 
-    Log( "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
+    Log( " "*11 + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -878,20 +893,42 @@ def central_pixel_max(o, leq, eq, geq):
     row[ [0,cp] ] = -M, 1
     leq(row)
 
+#@default_prior
+@object_prior
+def central_pixel_min(o, leq, eq, geq):
+
+    cp = o.basis.central_pixel + 1+o.basis.pix_start
+    Log( "Central pixel minimum %i" % cp )
+
+    #g = o.prior_options.get('central_pixel_minimum')
+    #M     = g['M']
+    #H0inv = g['H0inv']
+    #nu    = g['nu']
+#
+    #max_nu = env().nu[-1] # should this be min?
+##
+    #M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
+
+    row = new_row(o)
+    row[ [0,cp] ] = -13.25, 1
+    #row[ [0,cp] ] = -M, 1
+    geq(row)
+
+@default_prior
 @object_prior
 def PLsmoothness(o, leq, eq, geq):
     """A pixel cannot be more that twice the average of the neighbouring pixels."""
 
     smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
     if not smth:
-        Log( "Smoothness [None]" )
+        Log( "[DISABLED] Smoothness" )
         return
 
     pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+    Log( " "*11 + "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,r,nbrs in o.basis.nbrs:
@@ -934,7 +971,7 @@ def JCsmoothness(o, leq, eq, geq):
 
     Log( "\t# eqs = %i" % c )
 
-@default_prior
+#@default_prior
 @object_prior
 def smoothness(o, leq, eq, geq):
     """A pixel cannot be more that twice the average of the neighbouring pixels."""
@@ -980,9 +1017,9 @@ def shared_h(objs, nvars, leq, eq, geq):
         on = True
 
     if not on: 
-        Log( "Shared h DISABLED" )
+        Log( "[DISABLED] Shared h" )
     else:
-        Log( "Shared h" )
+        Log( " "*11 + "Shared h" )
 
 
 @object_prior
@@ -1010,10 +1047,10 @@ def min_kappa_grid(o, leq, eq, geq):
     g = o.prior_options.get('minkappa')
 
     if not g: 
-        Log( "Minimum Kappa Grid DISABLED" )
+        Log( "[DISABLED] Minimum Kappa Grid" )
         return
 
-    Log( "Minimum Kappa Grid" )
+    Log( " "*11 + "Minimum Kappa Grid" )
 
     X,Y,M = g['grid']
     H0inv = g['H0inv']
@@ -1042,10 +1079,10 @@ def Xmin_kappa_grid(o, leq, eq, geq):
     g = o.prior_options.get('minkappa')
 
     if not g: 
-        Log( "Minimum Kappa Grid DISABLED" )
+        Log( "[DISABLED] Minimum Kappa Grid" )
         return
 
-    Log( "Minimum Kappa Grid" )
+    Log( " "*11 + "Minimum Kappa Grid" )
 
     X,Y,M = g['grid']
     H0inv = g['H0inv']
@@ -1110,10 +1147,10 @@ def smoothness2(o, leq, eq, geq):
 def symmetry(o, leq, eq, geq):
 
     if not o.symm:
-        Log( "Symmetry DISABLED" )
+        Log( "[DISABLED] Symmetry" )
         return
 
-    Log( "Symmetry" )
+    Log( " "*11 + "Symmetry" )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -1152,3 +1189,35 @@ def max_kappa(o, leq, eq, geq):
         row = new_row(o)
         row[ [0,j] ] = 100, -1
         leq(row)
+
+@default_prior
+@object_prior
+def smooth_symmetry(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 3})
+    if not smth:
+        Log( "[DISABLED] Smooth Symmetry" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( " "*11 + "Smooth Symmetry (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    for i,j in enumerate(o.basis.oppose):
+        if i == o.basis.central_pixel: continue
+
+        _,r,nbrs = o.basis.nbrs[j]
+
+
+        row = new_row(o)
+        row[pix_start + nbrs] = 1
+        row[pix_start + i]    = -len(nbrs) / smoothness_factor
+
+        geq(row)
+        c += 1
+
+    Log( "\t# eqs = %i" % c )

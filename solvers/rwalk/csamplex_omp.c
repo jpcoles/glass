@@ -806,11 +806,12 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         report.nthreads = 0;
         report.Z = 0;
 
-        ret = choose_pivot1(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+        //ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv);
+        ret = choose_pivot0(&tabl, left, right, L, R, &lpiv, &rpiv, &piv, 1);
 
         if (ret == FOUND_PIVOT) 
         {
-            ret = NOPIVOT;
+            //ret = NOPIVOT;
 
             //------------------------------------------------------------------
             // Actual pivot
@@ -1006,6 +1007,10 @@ void normal(double stddev, double mean, double *r0, double *r1)
     y1 = x1 * w;
     y2 = x2 * w;
 
+    // XXX
+    //y1 = 2.0 * drand48() - 1.0;
+    //y2 = 2.0 * drand48() - 1.0;
+    // XXX
     *r0 = y1 * stddev + mean;
     *r1 = y2 * stddev + mean;
 }
@@ -1028,6 +1033,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 
     long accepted = PyInt_AsLong(PyObject_GetAttrString(o, "accepted"));
     long rejected = PyInt_AsLong(PyObject_GetAttrString(o, "rejected"));
+    double twiddle = PyFloat_AsDouble(PyObject_GetAttrString(o, "twiddle"));
 
     PyObject *po_vec = PyObject_GetAttrString(o, "vec");
     PyObject *po_np = PyObject_GetAttrString(o, "np");
@@ -1052,23 +1058,22 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     const long leq_offs = eq_offs + eq_count;
     const long geq_offs = leq_offs + leq_count;
 
-    fprintf(stderr, "eq  %ld %ld\n", eq_offs, eq_count);
-    fprintf(stderr, "leq %ld %ld\n", leq_offs, leq_count);
-    fprintf(stderr, "geq %ld %ld\n", geq_offs, geq_count);
+    //fprintf(stderr, "eq  %ld %ld\n", eq_offs, eq_count);
+    //fprintf(stderr, "leq %ld %ld\n", leq_offs, leq_count);
+    //fprintf(stderr, "geq %ld %ld\n", geq_offs, geq_count);
 
     int once_accepted = 0;
     while (redo-- > 0)
     {
-        //memset(np, 0, sizeof(*np) * dim);
-        memcpy(np, vec, sizeof(*np) * dim);
+        memset(np, 0, sizeof(*np) * dim);
 
-        /* Add a random direction */
+        /* Make a random direction */
         long offs = 0;
         double r,r1;
         for (i=0; i < dim; i++)
         {
             if ((i&1) == 0)
-                normal(2.4/dof, 0, &r, &r1);
+                normal(twiddle/dof, 0, &r, &r1);
             else
                 r = r1;
 
@@ -1077,11 +1082,20 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
                 np[j] += q * est_evec.data[offs++];
         }
 
+        int accept = 1;
+
+        /* Add our starting point */
+        for (i=0; i < dim; i++)
+        {
+            np[i] += vec[i];
+            if (np[i] < 0) { accept = 0; break; }
+        }
+
+
         /* Check if we are still in the simplex */
         offs = 0;
-        int accept = 1;
         double s = 0;
-        #pragma omp parallel private(s,accept, offs)
+        //#pragma omp parallel private(s,accept, offs)
         for (i=0; accept && i < eqs.rows; i++)
         {
             offs = i * eqs.cols;
@@ -1089,8 +1103,12 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             s = 0;
             double c = eqs.data[offs++];
             for (j=0; j < dim; j++)
+            {
                 s += np[j] * eqs.data[offs++];
+            }
             s += c;
+
+            if (!accept) break;
 
             if (i >= geq_offs)
             {
