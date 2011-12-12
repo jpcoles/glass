@@ -25,7 +25,8 @@ extra_compile_args = [#'-mssse3',
 #extra_compile_args += ['-fnested-functions']
 #extra_compile_args += ['-arch_only x86_64']
 extra_link_args = [] #'-L/local/ATLAS/lib']
-#extra_compile_args += ['-fopenmp']
+extra_compile_args += ['-fopenmp','-msse2']
+extra_link_args = ['-lgomp']
 
 incdir = os.path.join(get_python_lib(plat_specific=1), 'numpy/core/include')
 csamplex = Extension('solvers.samplex.csamplex',

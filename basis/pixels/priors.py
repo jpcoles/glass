@@ -47,11 +47,23 @@ def include_prior(*f):
         inc_priors.append(all_priors[i])
 
 @command
+def include_all_priors():
+    del inc_priors[:], exc_priors[:]
+    for p in all_priors:
+        inc_priors.append(p)
+
+@command
 def exclude_prior(*f):
     #assert not inc_priors, 'Cannot both include and exclude priors.'
     for p in f:
         i = all_priors.index(p)
         exc_priors.append(all_priors[i])
+
+@command
+def exclude_all_priors():
+    del inc_priors[:], exc_priors[:]
+    for p in all_priors:
+        exc_priors.append(p)
 
 
 ##############################################################################
@@ -776,6 +788,8 @@ def Pgradient(o, leq, eq, geq):
     c = 0
     for ri,r,nbrs in o.basis.nbrs2:
         if ri == o.basis.central_pixel: continue
+
+        print sort(nbrs1)
 
         px = r.real
         py = r.imag

@@ -54,7 +54,7 @@ def _angdist(zi, zf, M,L, filled_beam, tol=1e-4):
 
     return dist
 
-def scales(zl, zs):
+def scales(zl,zs):
     """Returns the following scaling factors as a dictionary:
         time:  time scale              (g days/arcsec^2)
         angdist: angular distance        (g kpc/arcs)

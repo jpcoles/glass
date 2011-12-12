@@ -1,6 +1,7 @@
 #!/bin/bash
 
-ROOT="$HOME/GLASS/glass-DEV"
+ROOT="$HOME/GLASS/glass"
+#ROOT="$HOME/GLASS/glass-DEV"
 #ROOT="$HOME/GAGL/glass"
 
 PYTHON=python

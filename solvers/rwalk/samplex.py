@@ -4,14 +4,18 @@ import numpy
 import gc
 from numpy import isfortran, asfortranarray, sign, logical_and, any
 from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, sqrt, arange, cov
+from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, sqrt, arange, cov, empty_like
 from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply
 from numpy import histogram, logspace, flatnonzero, isinf
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
-from numpy.linalg import eigh, pinv
+from numpy.linalg import eigh, pinv, eig, norm
 from numpy import dot
 import scipy.linalg.fblas
 from itertools import izip
+
+from multiprocessing import Process, Queue, Value, Lock
+from Queue import Empty as QueueEmpty
+
 #from glrandom import random, ran_set_seed
 
 #dot = lambda a, b: scipy.linalg.fblas.ddot(a, b)
@@ -50,6 +54,81 @@ class SamplexSolution:
         self.lhv = None
         self.vertex = None
 
+def should_stop(id,stopq):
+    try:
+        return stopq.get(block=False) == 'STOP'
+    except QueueEmpty:
+        return False
+
+def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, window_size, lock, est_evec):
+
+    vec = vec.copy('A')
+    np  = empty_like(vec)
+    eval  = empty_like(vec)
+    #est_evec = empty((eval.shape[0],eval.shape[0]), order='F', dtype=numpy.float64)
+    est_evec = est_evec.copy('A')
+
+    accepted = 0
+    rejected = 0
+
+    print ' '*39, 'STARTING rwalk_async THREAD'
+
+    store = store.copy('A')
+
+    csamplex.set_rnd_cseed(id + samplex.random_seed)
+
+    done = should_stop(id,stopq)
+    for i in xrange(int(nmodels / max(1,samplex.nthreads-1))):
+        #if ((i+1) % 20) == 0:
+        if (n_stored % 20) == 0:
+            print ' '*39, 'Computing eigenvalues...'
+            #print est_evec
+            samplex.compute_eval(store, eval, est_evec, n_stored, window_size)
+            #print est_evec
+            #assert 0
+
+        while not done:
+            accepted = 0
+            rejected = 0
+            #print 'Walking...'
+            #print 'twiddle is', twiddle
+
+            if should_stop(id,stopq):
+                done = True
+                break
+
+            accepted,rejected = csamplex.rwalk(samplex, vec,np,est_evec,twiddle, accepted,rejected)
+
+            r = accepted / (accepted + rejected)
+            #lock.acquire()
+            print ' '*39, '%.3f Acceptance rate  (%i Accepted  %i Rejected)' % (r, accepted, rejected)
+            #lock.release()
+
+            if abs(r - samplex.accept_rate) < samplex.accept_rate_tol:
+                break
+
+            twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
+            twiddle = max(1e-14,twiddle)
+            #lock.acquire()
+            print ' '*39, 'RESTARTING r =',r, twiddle
+            #lock.release()
+
+        if done:
+            break
+
+        samplex.project(vec)
+        #print self.vec[self.vec < 0]
+        #assert numpy.all(vec >= 0)
+        #assert samplex.in_simplex(vec)
+        store[:,n_stored] = vec
+        n_stored += 1
+        #print 'PUT', id, vec
+        q.put([id,vec.copy('A')])
+        #lock.acquire()
+        #lock.release()
+
+    print ' '*39, 'RWALK THREAD %i LEAVING  n_stored=%i' % (id,i)
+
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
     SML = 1e-5
@@ -77,7 +156,7 @@ class Samplex:
 
         self.nthreads = nthreads
         Samplex.pivot = lambda s: csamplex.pivot(s)
-        Samplex.rwalk = lambda s: csamplex.rwalk(s)
+        #Samplex.rwalk = lambda *args: csamplex.rwalk(*args)
 
         self.data = None
         self.dcopy = []
@@ -286,6 +365,124 @@ class Samplex:
         #print 'T '
         return ok
 
+    def distance_to_plane(self,pt,dir, eq_list=None):
+        if eq_list is None: eq_list = self.eq_list_no_noise
+
+        dist = inf
+        for c,e in self.eq_list_no_noise:
+            if c == 'eq':
+                continue
+            elif c == 'leq':
+                p = e
+            elif c == 'geq':
+                p = -e
+
+            a = dot(dir, p[1:])
+            if a > 0:
+                dtmp = -(p[0] + dot(pt, p[1:])) / a
+                dist = min(dist, dtmp)
+
+        # check implicit >= 0 contraints
+        for i in xrange(pt.size):
+            a = dir[i] * -1
+            if a > 0:
+                dtmp = -(0 + pt[i] * -1) / a
+                dist = min(dist, dtmp)
+
+
+        assert dist != inf
+        #if dist == inf:
+        #    return 0
+
+        return dist
+
+    def compute_eval_zeros(self, store,n_stored,window_size):
+        s = min(max(0,n_stored - window_size), window_size)
+
+        ev,evec = eigh(cov(store[:, s:n_stored]))
+        nzero = 0
+        for r in ev:
+        #for r in range(dim):
+            if r < 1e-12:
+                nzero += 1
+
+        return nzero
+        
+    def compute_midpoint(self):
+        s = min(max(0,n_stored - window_size), window_size)
+
+        ev,evec = eigh(cov(store[:, s:n_stored]))
+        avg = store[:, s:n_stored].mean(axis=1)
+        nzero = 0
+        for r in range(dim):
+            if ev[r] < 1e-12:
+                eval[r] = 0
+                nzero += 1
+            else:
+                direction = evec[:,r]
+                tmax1 = -distance_to_plane(avg, -direction)
+                tmax2 = +distance_to_plane(avg, +direction)
+                avg += direction * ((tmax2 + tmax1) / 2)
+        
+        if nzero != self.eq_count:
+            print '-'*80
+            Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
+            print '-'*80
+
+        return avg
+
+    def compute_eval(self, store, eval, est_evec, n_stored, window_size):
+        s = min(max(0,n_stored - window_size), window_size)
+
+        ev,evec = eigh(cov(store[:,  :n_stored]))
+        #print evec
+        #print '-' * 80
+        #print ev.T
+        #print '-' * 80
+        #self.project_evec(evec)
+        #print evec
+        avg = store[:,  :n_stored].mean(axis=1)
+        #print 'avg', avg
+        nzero = 0
+        for r in range(eval.shape[0]):
+            #print ev[r]
+            if ev[r] < 1e-12:
+                eval[r] = 0
+                nzero += 1
+            else:
+                direction = evec[:,r]
+                tmax1 = -self.distance_to_plane(avg, -direction)
+                tmax2 = +self.distance_to_plane(avg, +direction)
+                #print 'tmax', tmax1, tmax2
+                eval[r] = (tmax2 - tmax1) / sqrt(12)
+
+        #f = open('eval.out', 'a+')
+        #print >>f, '['+','.join(map(str,eval))+'],'
+        #f.close()
+        multiply(eval, evec, est_evec)
+        if nzero != self.eq_count:
+            print '-'*80
+            Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
+            print '-'*80
+        #print est_evec
+        #assert 0
+
+    def random_direction(self,np):
+        return dot(normal(0, 2.4/dof, dim), np.T)
+
+
+    def project(self,x):
+        if self.Apinv is not None:
+            q = dot(self.A, x)
+            q += self.b
+            q = dot(self.Apinv, q)
+            x -= q
+
+    def project_evec(self,ev):
+        for e in ev:
+            e -= dot(self.Apinv, dot(A, e))
+
+
     def next(self, nsolutions=None):
 
         if nsolutions == 0: return
@@ -293,105 +490,6 @@ class Samplex:
         assert nsolutions is not None
 
 
-        def distance_to_plane(pt,dir):
-            dist = 1e30
-            for c,e in self.eq_list_no_noise:
-
-                if c == 'eq':
-                    continue
-                elif c == 'leq':
-                    p = e
-                elif c == 'geq':
-                    p = -e
-
-                a = dot(dir, p[1:])
-                if a > 0:
-                    dtmp = -(p[0] + dot(pt, p[1:])) / a
-                    dist = min(dist, dtmp)
-
-            return dist
-
-        def compute_eval_zeros():
-            s = min(max(0,n_stored - window_size), window_size)
-
-            ev,evec = eigh(cov(store[:, s:n_stored]))
-            nzero = 0
-            for r in range(dim):
-                if ev[r] < 1e-12:
-                    nzero += 1
-
-            return nzero
-            
-        def compute_midpoint():
-            s = min(max(0,n_stored - window_size), window_size)
-
-            ev,evec = eigh(cov(store[:, s:n_stored]))
-            avg = store[:, s:n_stored].mean(axis=1)
-            nzero = 0
-            for r in range(dim):
-                if ev[r] < 1e-12:
-                    eval[r] = 0
-                    nzero += 1
-                else:
-                    direction = evec[:,r]
-                    tmax1 = -distance_to_plane(avg, -direction)
-                    tmax2 = +distance_to_plane(avg, +direction)
-                    avg += direction * ((tmax2 + tmax1) / 2)
-            
-            if nzero != self.eq_count:
-                print '-'*80
-                Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
-                print '-'*80
-
-            return avg
-
-        def compute_eval():
-            s = min(max(0,n_stored - window_size), window_size)
-
-            ev,evec = eigh(cov(store[:,  :n_stored]))
-            #print evec
-            #print '-' * 80
-            #print ev.T
-            #print '-' * 80
-            #project_evec(evec)
-            #print evec
-            avg = store[:,  :n_stored].mean(axis=1)
-            nzero = 0
-            for r in range(dim):
-                #print ev[r]
-                if ev[r] < 1e-12:
-                    eval[r] = 0
-                    nzero += 1
-                else:
-                    direction = evec[:,r]
-                    tmax1 = -distance_to_plane(avg, -direction)
-                    tmax2 = +distance_to_plane(avg, +direction)
-                    eval[r] = (tmax2 - tmax1) / sqrt(12)
-
-            #f = open('eval.out', 'a+')
-            #print >>f, '['+','.join(map(str,eval))+'],'
-            #f.close()
-            multiply(eval, evec, est_evec)
-            if nzero != self.eq_count:
-                print '-'*80
-                Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
-                print '-'*80
-            #print est_evec
-            #assert 0
-
-        def random_direction(np):
-            return dot(normal(0, 2.4/dof, dim), np.T)
-
-
-        def project(x):
-            q = dot(A, x)
-            q += b
-            q = dot(Apinv, q)
-            x -= q
-
-        def project_evec(ev):
-            for e in ev:
-                e -= dot(Apinv, dot(A, e))
 
         self.dcopy = [self.data.copy('F'),
                       self.lhv.copy(),
@@ -404,13 +502,14 @@ class Samplex:
 
         dim = self.nVars
         dof = dim - self.eq_count
-        window_size = int(5 * dim)
-        redo = dim ** 2
+        window_size = 2*dim #max(10, int(1.5 * dim))
+        redo = max(100, dim ** 2)
         nmodels = nsolutions
 
         store = zeros((dim, window_size+nmodels), order='Fortran', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
-        np    = zeros(dim, order='C', dtype=numpy.float64)
+        vec   = zeros(dim, order='C', dtype=numpy.float64)
+        np   = zeros(dim, order='C', dtype=numpy.float64)
         est_evec = zeros((dim,dim), order='F', dtype=numpy.float64)
 
         self.eqs = zeros((self.eq_count + self.geq_count + self.leq_count,dim+1), order='C', dtype=numpy.float64)
@@ -424,7 +523,6 @@ class Samplex:
 
         self.store = store
         self.eval = eval
-        self.np = np
         self.est_evec = est_evec
         self.dim = dim
         self.dof = dof
@@ -434,12 +532,17 @@ class Samplex:
         # Create pseudo inverse matrix to reproject samples back into the
         # solution space.
         #-----------------------------------------------------------------------
-        A = zeros((self.eq_count, dim), order='C', dtype=numpy.float64)
-        b = zeros(self.eq_count, order='C', dtype=numpy.float64)
-        for i,[c,e] in enumerate(self.eq_list_no_noise[:self.eq_count]):
-            A[i] = e[1:]
-            b[i] = e[0]
-        Apinv = pinv(A)
+        if self.eq_count > 0:
+            self.A = zeros((self.eq_count, dim), order='C', dtype=numpy.float64)
+            self.b = zeros(self.eq_count, order='C', dtype=numpy.float64)
+            for i,[c,e] in enumerate(self.eq_list_no_noise[:self.eq_count]):
+                self.A[i] = e[1:]
+                self.b[i] = e[0]
+            self.Apinv = pinv(self.A)
+        else:
+            self.A = None
+            self.B = None
+            self.Apinv = None
         #-----------------------------------------------------------------------
 
 
@@ -452,7 +555,7 @@ class Samplex:
 
 
         self.curr_sol = self.package_solution()                
-        self.moca     = self.curr_sol.vertex.copy()
+        self.moca     = self.curr_sol.vertex.copy('A')
 
         #-----------------------------------------------------------------------
         # First we need to find a small sample within the solution space
@@ -462,38 +565,178 @@ class Samplex:
         self.n_solutions = 0
         self.stride = int(dim+1)
 
-        self.start_new_objective()
+        #self.start_new_objective()
 
-        while n_stored < window_size:
+        if 1:
+#           j=0
+#           while True:
+#               for i in xrange(2*dim):
+#                   if not self.next_solution():
+#                       self.start_new_objective()
+#                       continue
+#                   self.curr_sol = self.package_solution()                
+#               vec += self.interior_point(self.curr_sol)[1:]
+#               j += 1
+#               np[:] = vec / j
+#               self.project(np)
+#               if self.in_simplex( np, tol=1e-10, eq_tol=1e-12):
+#                   break
 
-            for i in xrange(self.stride):
-                if not self.next_solution():
+            vec[:] = self.curr_sol.vertex[1:self.nVars+1]
+
+            if 1:
+                self.project(vec)
+                N = 0
+                while True:
+                    print 'Finding solution', N
                     self.start_new_objective()
-                    self.iteration=0
-                    self.n_solutions += 1
-            
-            self.curr_sol = self.package_solution()                
-            #p = self.interior_point(self.curr_sol)
-            p = self.curr_sol.vertex[:self.nVars+1]
+                    while self.next_solution():
+                        pass
 
-            assert p is not None
+                    #vec[:] = self.curr_sol.vertex[1:self.nVars+1]
+                    self.curr_sol = self.package_solution()                
+                    v = self.curr_sol.vertex[1:self.nVars+1].copy('A')
+                    self.project(v)
+                    vec += v
+                    N += 1
+                    if self.in_simplex(vec/(N+1), eq_tol=1e-12): break
 
-            project(p[1:])
-            if self.in_simplex(p[1:], tol=1e30, eq_tol=1e-5):
-                store[:,n_stored] = p[1:]
-                n_stored += 1
-                print "Found %i/%i initial solutions\r" % (n_stored,window_size),
-                sys.stdout.flush()
-            else:
-                print 'point not in simplex'
+                vec /= N+1
 
-            if n_stored > 2:
-                a = store[:,:n_stored-1].mean(axis=1)
-                d = store[:,:n_stored].mean(axis=1)
-                print 'avg d', sqrt(sum(pow(a-d,2)))
 
-            if n_stored > 1 and compute_eval_zeros() == self.eq_count:
-                print 'WOULD STOP HERE'
+            #p = self.curr_sol.vertex[:self.nVars+1]
+
+            P = numpy.eye(dim) 
+            if self.eq_count > 0:
+                P -= dot(self.Apinv, self.A)
+
+            #print P
+            ev, evec = eigh(P)
+
+
+            #ev[abs(ev) < 1e-12] = 0
+            #ev[abs(ev-1) < 1e-12] = 1
+
+            #self.project(vec)
+            #vec[abs(vec) < 1e-12] = 0
+
+            #print vec
+            #print evec
+
+            print 'Estimating middle point'
+            for i in range(2):
+                for r in range(eval.size):
+                    if ev[r] >= 1e-12:
+                        direction = evec[:,r]
+                        tmax1 = -self.distance_to_plane(vec, -direction, eq_list = self.eq_list)
+                        tmax2 = +self.distance_to_plane(vec, +direction, eq_list = self.eq_list)
+                        assert tmax1 < tmax2
+                        print 'tmax', tmax1, tmax2
+                        vec += direction * ((tmax1+tmax2) / 2)
+
+            print vec
+            assert self.in_simplex(vec)
+
+            #assert 0
+
+            print 'Estimating eigenvectors'
+            print vec
+            nzero = 0
+            n_stored = 0
+            for r in range(eval.size):
+                if ev[r] < 1e-12:
+                    eval[r] = 0
+                    nzero += 1
+                else:
+                    direction = evec[:,r]
+                    tmax1 = -self.distance_to_plane(vec, -direction)
+                    tmax2 = +self.distance_to_plane(vec, +direction)
+                    eval[r] = (tmax2 - tmax1) / sqrt(12)
+                    print 'tmax', tmax1, tmax2, eval[r]
+                    store[:,n_stored+0] = vec + direction * tmax1
+                    store[:,n_stored+1] = vec + direction * tmax2
+                    n_stored += 2
+
+            assert nzero == self.eq_count, '%i != %i' % (nzero, self.eq_count)
+
+            multiply(eval, evec, est_evec)
+
+            print 'est_evec', est_evec#[:,:self.eq_count]
+            #assert 0
+
+            store[:,n_stored] = vec
+            n_stored += 1
+
+            print store[:, :n_stored]
+            self.compute_eval(store, eval, est_evec, n_stored, window_size)
+            print 'est_evec', est_evec
+            #assert 0
+
+#           twiddle = 2.4
+#           while True:
+#               accepted,rejected = csamplex.rwalk(self, vec,np,est_evec,twiddle, 0,0)
+#               print accepted, rejected
+#               if accepted == 0:
+#                   twiddle /= 2
+#               else:
+#                   break
+
+#           print '**', accepted, rejected
+
+#           print eval
+#           assert self.in_simplex(vec, tol=1e-10, eq_tol=1e-12)
+#           assert 0
+
+            #print ev
+            #print evec
+
+            #x = random(dim)
+            #self.project(x)
+            #x += evec[:,100]
+            #print x[:10]
+
+            #y = x.copy()
+            #self.project(x)
+            #print x-y
+
+
+            #q = evec[0,:].copy()
+            #self.project(evec[0,:])
+            #print evec[0,:] - q
+
+            #assert 0
+
+        else:
+            while n_stored < window_size:
+
+                for i in xrange(self.stride):
+                    if not self.next_solution():
+                        self.start_new_objective()
+                        self.iteration=0
+                        self.n_solutions += 1
+                
+                self.curr_sol = self.package_solution()                
+                #p = self.interior_point(self.curr_sol)
+                p = self.curr_sol.vertex[:self.nVars+1]
+
+                assert p is not None
+
+                self.project(p[1:])
+                if self.in_simplex(p[1:], tol=1e30, eq_tol=1e-5):
+                    store[:,n_stored] = p[1:]
+                    n_stored += 1
+                    print "Found %i/%i initial solutions\r" % (n_stored,window_size)
+                    sys.stdout.flush()
+                else:
+                    print 'point not in simplex'
+
+                if n_stored > 2:
+                    a = store[:,:n_stored-1].mean(axis=1)
+                    d = store[:,:n_stored].mean(axis=1)
+                    print 'avg d', sqrt(sum(pow(a-d,2)))
+
+#           if n_stored > 1 and self.compute_eval_zeros(store,n_stored,window_size) == self.eq_count:
+#               print 'WOULD STOP HERE'
 #               window_size = n_stored
 #               break
 
@@ -504,10 +747,9 @@ class Samplex:
         #-----------------------------------------------------------------------
 
         #est_evec = None
-        vec = store[:,:n_stored].mean(axis=1)
+        #vec = store[:,:n_stored].mean(axis=1)
         #vec = compute_midpoint()
-        self.vec = vec
-        project(self.vec)
+        #self.project(vec)
         assert self.in_simplex(vec, tol=1e-10, eq_tol=1e-12)
         #assert in_simplex(vec, tol=1e-10, eq_tol=1e-4)
         #assert in_simplex(vec, tol=0, eq_tol=1e-4)
@@ -516,52 +758,88 @@ class Samplex:
 
         print 'window_size', window_size
         print 'redo', redo
-
-        #print 'vec', vec
+        print 'vec', vec
 
         self.twiddle = 2.4
 
         accept_rate = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
-        i = 0
-        self.accepted = 0
-        self.rejected = 0
-        while i < nmodels:
+        q = Queue()
+        stopq = Queue()
+        lock = Lock()
 
-            #if i==0 or random_integers(nmodels+window_size)/4 > i+window_size:
-            if (i%20) == 0:
-                print 'Computing eigenvalues...'
-                compute_eval()
-                #print '**', est_evec[0,:]
-                #assert 0
+        nthreads = self.nthreads
+        threads = []
+        for i in range(nthreads):
+            thr = Process(target=rwalk_async, args=(i, nmodels, self, store,n_stored, q,stopq, vec,self.twiddle, window_size, lock, est_evec.copy('A')))
+            #thr = Process(target=rwalk_async, args=(i, nmodels, self, store,n_stored, q,stopq, vec,self.twiddle, window_size, lock))
+            threads.append(thr)
+
+        for thr in threads:
+            thr.start()
+
+        for i in xrange(nmodels):
+            if q.qsize() + i >= nmodels:
+                for j,thr in enumerate(threads):
+                    stopq.put('STOP')
+
+            k,vec = q.get()
+            #lock.acquire()
+            #print 'GET', k, id(vec), vec
+            #lock.release()
+            assert numpy.all(vec >= 0)
+            print '%i models left to generate' % (nmodels-i-1)
+
+            t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+            t[1:] = vec
+            yield t
+
+        for i,thr in enumerate(threads):
+            stopq.put('STOP')
+
+        for thr in threads:
+            thr.terminate()
+
+        if 0:
+            i = 0
+            self.accepted = 0
+            self.rejected = 0
+            while i < nmodels:
+
+                #if i==0 or random_integers(nmodels+window_size)/4 > i+window_size:
+                if (i%20) == 0:
+                    print 'Computing eigenvalues...'
+                    compute_eval()
+                    #print '**', est_evec[0,:]
+                    #assert 0
 
 
-            old_accepted = self.accepted
-            j=0
-            np[:] = self.vec.copy()
-            while True:
-                print 'Walking...'
-                print 'twiddle is', self.twiddle
-                self.rwalk()
-                #if self.accepted == 0: continue
+                old_accepted = self.accepted
+                j=0
+                np[:] = self.vec.copy('A')
+                while True:
+                    print 'Walking...'
+                    print 'twiddle is', self.twiddle
+                    self.rwalk()
+                    #if self.accepted == 0: continue
 
-                r = self.accepted / (self.accepted + self.rejected)
-                print '%.3f Acceptance rate  (%i Accepted  %i Rejected)' % (r, self.accepted, self.rejected)
+                    r = self.accepted / (self.accepted + self.rejected)
+                    print '%.3f Acceptance rate  (%i Accepted  %i Rejected)' % (r, self.accepted, self.rejected)
 
-                if abs(r - accept_rate) < accept_rate_tol:
-                    break
+                    if abs(r - accept_rate) < accept_rate_tol:
+                        break
 
-                self.twiddle *= 1 + ((r-accept_rate) / accept_rate / 2)
+                    self.twiddle *= 1 + ((r-accept_rate) / accept_rate / 2)
 
-                #self.twiddle *= max(1e-3,r) / accept_rate
-                self.twiddle = max(1e-14,self.twiddle)
-                #self.vec[:] = np.copy()
-                #if i > 0:
-                    #assert self.in_simplex(self.vec)
-                print 'RESTARTING r =',r
-                self.accepted = 0
-                self.rejected = 0
+                    #self.twiddle *= max(1e-3,r) / accept_rate
+                    self.twiddle = max(1e-14,self.twiddle)
+                    #self.vec[:] = np.copy()
+                    #if i > 0:
+                        #assert self.in_simplex(self.vec)
+                    print 'RESTARTING r =',r
+                    self.accepted = 0
+                    self.rejected = 0
 
 #           accepted_once = False
 #           for j in range(redo):
@@ -575,23 +853,23 @@ class Samplex:
 #                   self.rejected += 1
 #           if accepted_once:
 #               print "ACCEPTED ONCE"
-            #print vec;
+                #print vec;
 
-            r = self.accepted / (self.accepted + self.rejected)
-            project(self.vec)
-            print self.vec[self.vec < 0]
-            assert numpy.all(self.vec >= 0)
-            assert self.in_simplex(self.vec)
-            store[:,n_stored] = self.vec
-            n_stored += 1
-            #assert 0
-            print '%i models left to generate' % (nmodels-i-1)
+                r = self.accepted / (self.accepted + self.rejected)
+                self.project(self.vec)
+                print self.vec[self.vec < 0]
+                assert numpy.all(self.vec >= 0)
+                assert self.in_simplex(self.vec)
+                store[:,n_stored] = self.vec
+                n_stored += 1
+                #assert 0
+                print '%i models left to generate' % (nmodels-i-1)
 
-            q = zeros(dim+1, order='Fortran', dtype=numpy.float64)
-            q[1:] = self.vec
-            yield q
+                q = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+                q[1:] = self.vec
+                yield q
 
-            i += 1
+                i += 1
 
         # 1. Select initial set of random points
         # 2. Calculate the mean and eigenvectors of said points
@@ -608,8 +886,8 @@ class Samplex:
 #           q[1:] = s
 #           yield q
 
-        print '%i Acceptance  %i Rejected' % (self.accepted, self.rejected)
-        print '%.3f Acceptance rate' % (self.accepted / (self.accepted + self.rejected))
+            print '%i Acceptance  %i Rejected' % (self.accepted, self.rejected)
+            print '%.3f Acceptance rate' % (self.accepted / (self.accepted + self.rejected))
 
     def next_solution(self):
 
@@ -797,7 +1075,7 @@ class Samplex:
         assert all(self.moca >= 0), (self.moca[self.moca < 0], self.moca)
         #assert all(self.moca >= -self.SML), (self.moca[self.moca < 0], self.moca)
 
-        s = self.moca.copy()[:self.nVars+1]
+        s = self.moca.copy('A')[:self.nVars+1]
         #print s
         return s
 
@@ -855,7 +1133,7 @@ class Samplex:
             assert 0
 
         self.moca[spanvars] = q
-        s = self.moca.copy()[:self.nVars+1]
+        s = self.moca.copy('A')[:self.nVars+1]
         return s
 
 
@@ -865,7 +1143,7 @@ class Samplex:
         if a[0] == 0: 
             w = abs(a) > self.EPS
             w[0] = True
-            b = a.copy()
+            b = a.copy('A')
             #b[w] += self.SML * (2*random(len(w.nonzero())) - 1 )
             b[w] += self.with_noise * (random(len(w.nonzero())))
             return b
@@ -885,7 +1163,7 @@ class Samplex:
         self.nTemp += 1
         self.eq_count += 1
 
-        self.eq_list_no_noise.append([self._eq, a.copy()])
+        self.eq_list_no_noise.append([self._eq, a.copy('A')])
         self.eq_list.append([self._eq, a])
 
     def geq(self, a):
@@ -895,7 +1173,7 @@ class Samplex:
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
 
-        self.eq_list_no_noise.append([self._geq, a.copy()])
+        self.eq_list_no_noise.append([self._geq, a.copy('A')])
         if self.with_noise:
             a = self.add_noise(a)
 
@@ -917,7 +1195,7 @@ class Samplex:
             self.nRight = self.nVars
         assert len(a) == self.nVars+1
 
-        self.eq_list_no_noise.append([self._leq, a.copy()])
+        self.eq_list_no_noise.append([self._leq, a.copy('A')])
         if self.with_noise:
             a = self.add_noise(a)
 
@@ -938,7 +1216,7 @@ class Samplex:
         assert len(a) == self.nVars+1
 
         if a[0] < 0: 
-            a = a.copy() * -1
+            a = a.copy('A') * -1
 
         self.nLeft += 1
         self.nTemp += 1
@@ -954,7 +1232,7 @@ class Samplex:
 
         if a[0] < 0: 
             #a *= -1
-            a = a.copy() * -1
+            a = a.copy('A') * -1
             self._leq(a)
             self.leq_count -= 1
         else:
@@ -969,7 +1247,7 @@ class Samplex:
 
         if a[0] <= 0: 
             #a *= -1
-            a = a.copy() * -1
+            a = a.copy('A') * -1
             self._geq(a)
             self.geq_count -= 1
         else:

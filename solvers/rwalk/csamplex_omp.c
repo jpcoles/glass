@@ -183,7 +183,7 @@ PyObject *set_rnd_cseed(PyObject *self, PyObject *args);
 static PyMethodDef csamplex_methods[] = 
 {
     {"pivot", samplex_pivot, METH_O, "pivot"},
-    {"rwalk", samplex_rwalk, METH_O, "rwalk"},
+    {"rwalk", samplex_rwalk, METH_VARARGS, "rwalk"},
     {"set_rnd_cseed", set_rnd_cseed, METH_O, "set_rnd_cseed"},
     {NULL, NULL, 0, NULL}
 };
@@ -1023,22 +1023,33 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     PyObject *o = args;
     DBG(3) fprintf(stderr, "5> pivot()\n");
 
-          long redo = PyInt_AsLong(PyObject_GetAttrString(o, "redo"));
-    const long dim = PyInt_AsLong(PyObject_GetAttrString(o, "dim"));
-    const long dof = PyInt_AsLong(PyObject_GetAttrString(o, "dof"));
+    long accepted;
+    long rejected;
+    double twiddle;
 
-    const long  eq_count = PyInt_AsLong(PyObject_GetAttrString(o, "eq_count"));
-    const long geq_count = PyInt_AsLong(PyObject_GetAttrString(o, "geq_count"));
-    const long leq_count = PyInt_AsLong(PyObject_GetAttrString(o, "leq_count"));
+    PyObject *po_vec; // = PyObject_GetAttrString(self, "vec");
+    PyObject *po_np; // = PyObject_GetAttrString(self, "np");
+    PyObject *po_est_evec; // = PyObject_GetAttrString(self, "est_evec");
 
-    long accepted = PyInt_AsLong(PyObject_GetAttrString(o, "accepted"));
-    long rejected = PyInt_AsLong(PyObject_GetAttrString(o, "rejected"));
-    double twiddle = PyFloat_AsDouble(PyObject_GetAttrString(o, "twiddle"));
+    if (!PyArg_ParseTuple(args, "OOOOdll", &self, &po_vec, &po_np, &po_est_evec, &twiddle, &accepted, &rejected))
+        return NULL;
 
-    PyObject *po_vec = PyObject_GetAttrString(o, "vec");
-    PyObject *po_np = PyObject_GetAttrString(o, "np");
-    PyObject *po_est_evec = PyObject_GetAttrString(o, "est_evec");
-    PyObject *po_eqs = PyObject_GetAttrString(o, "eqs");
+          long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
+    const long dim = PyInt_AsLong(PyObject_GetAttrString(self, "dim"));
+    const long dof = PyInt_AsLong(PyObject_GetAttrString(self, "dof"));
+
+    const long  eq_count = PyInt_AsLong(PyObject_GetAttrString(self, "eq_count"));
+    const long geq_count = PyInt_AsLong(PyObject_GetAttrString(self, "geq_count"));
+    const long leq_count = PyInt_AsLong(PyObject_GetAttrString(self, "leq_count"));
+
+    //long accepted = PyInt_AsLong(PyObject_GetAttrString(self, "accepted"));
+    //long rejected = PyInt_AsLong(PyObject_GetAttrString(self, "rejected"));
+    //double twiddle = PyFloat_AsDouble(PyObject_GetAttrString(self, "twiddle"));
+    
+    PyObject *po_eqs = PyObject_GetAttrString(self, "eqs");
+
+
+
 
     dble_t * restrict vec = (dble_t * restrict)PyArray_DATA(po_vec), 
            * restrict np  = (dble_t * restrict)PyArray_DATA(po_np);
@@ -1061,6 +1072,13 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     //fprintf(stderr, "eq  %ld %ld\n", eq_offs, eq_count);
     //fprintf(stderr, "leq %ld %ld\n", leq_offs, leq_count);
     //fprintf(stderr, "geq %ld %ld\n", geq_offs, geq_count);
+    //fprintf(stderr, "redo %ld\n", redo);
+    fprintf(stderr, "accepted/rejected/twiddle %ld %ld %e\n", accepted,rejected,twiddle);
+
+    const float accept_frac = 0.25;
+    static float accept_twiddle = 3.0;
+
+    Py_BEGIN_ALLOW_THREADS
 
     int once_accepted = 0;
     while (redo-- > 0)
@@ -1089,18 +1107,21 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         {
             np[i] += vec[i];
             if (np[i] < 0) { accept = 0; break; }
+            //fprintf(stderr, "%.3f ", np[i]);
         }
+        //fprintf(stderr, "\n");
 
 
         /* Check if we are still in the simplex */
-        offs = 0;
         double s = 0;
         //#pragma omp parallel private(s,accept, offs)
         for (i=0; accept && i < eqs.rows; i++)
         {
-            offs = i * eqs.cols;
+            if (!accept) continue;
 
-            s = 0;
+            long offs = i * eqs.cols;
+
+            double s = 0;
             double c = eqs.data[offs++];
             for (j=0; j < dim; j++)
             {
@@ -1121,6 +1142,8 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             else /* eq */
             {
                 accept = fabs(s) < 1e-8;
+                if (!accept)
+                    fprintf(stderr, "EQ BROKEN! %e\n", fabs(s));
             }
         }
 
@@ -1137,13 +1160,26 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             rejected++;
             //fprintf(stderr, "REJECTED %e\n", s);
         }
+
+//      if (rejected != 0 && (accepted + rejected) > 100)
+//      {
+
+//          if (accepted / rejected > 1.2*accept_frac)
+//              accept_twiddle *= 1.1;
+//          else if (accepted / rejected < 0.8*accept_frac)
+//              accept_twiddle /= 1.1;
+//      }
+
     }
 
 //  if (once_accepted)
 //      fprintf(stderr, "ACCEPTED SOMETHING\n");
 
-    PyObject_SetAttrString(o, "accepted", PyInt_FromLong(accepted));
-    PyObject_SetAttrString(o, "rejected", PyInt_FromLong(rejected));
+    //PyObject_SetAttrString(self, "accepted", PyInt_FromLong(accepted));
+    //PyObject_SetAttrString(self, "rejected", PyInt_FromLong(rejected));
 
+    Py_END_ALLOW_THREADS
+
+    return Py_BuildValue("ll", accepted, rejected);
     return PyInt_FromLong(0);
 }

@@ -7,7 +7,6 @@ from handythread import parallel_map
 from log import log as Log, setup_log
 from scales import convert
 
-
 GlassEnvironment = Environment
 
 

@@ -416,9 +416,9 @@ def _data_plot(models, X,Y, x_label, y_label, **kwargs):
     hilite_model = kwargs.get('hilite_model', None)
     hilite_color = kwargs.get('hilite_color', 'y')
 
-    normal_kw   = {'zorder':0, 'drawstyle':'steps-post', 'alpha':0.5}
-    hilite_kw   = {'zorder':1000, 'drawstyle':'steps-post', 'alpha':1.0, 'lw':4}
-    accepted_kw = {'zorder':500,  'drawstyle':'steps-post', 'alpha':0.5}
+    normal_kw   = {'zorder':0, 'drawstyle':'steps-pre', 'alpha':0.5}
+    hilite_kw   = {'zorder':1000, 'drawstyle':'steps-pre', 'alpha':1.0, 'lw':4}
+    accepted_kw = {'zorder':500,  'drawstyle':'steps-pre', 'alpha':0.5}
 
     convert = (lambda x: x) if mark_images == 'arcsec' \
               else (lambda x: Arcsec_to_Kpc([obj,data], x))
@@ -502,9 +502,9 @@ def _data_plot2(models, X,Y, **kwargs):
     hilite_model = kwargs.get('hilite_model', None)
     hilite_color = kwargs.get('hilite_color', 'y')
 
-    normal_kw   = {'zorder':0,    'drawstyle':'steps-post', 'alpha':0.5}
-    hilite_kw   = {'zorder':-1000, 'drawstyle':'steps-post', 'alpha':1.0, 'lw':4}
-    accepted_kw = {'zorder':500,  'drawstyle':'steps-post', 'alpha':0.5}
+    normal_kw   = {'zorder':0,    'drawstyle':'steps-pre', 'alpha':0.5}
+    hilite_kw   = {'zorder':-1000, 'drawstyle':'steps-pre', 'alpha':1.0, 'lw':4}
+    accepted_kw = {'zorder':500,  'drawstyle':'steps-pre', 'alpha':0.5}
 
     normal = []
     hilite = []
@@ -723,7 +723,7 @@ def time_delays_plot(models=None, object=0, key='accepted'):
     for k,v in d.iteritems():
         print 'td plot', k, len(v)
         print v
-        hist(v, histtype='step', label='%s - %s' % (str(k+1),str(k+2)))
+        hist(v, bins=50, histtype='step', label='%s - %s' % (str(k+1),str(k+2)))
 
     legend()
 
