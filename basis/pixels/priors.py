@@ -16,6 +16,8 @@ exc_priors = []
 acc_objpriors = []
 acc_enspriors = []
 
+indent=11*' '
+
 def _make_prior(f, where):
     class P: 
         def __init__(self, f, where): 
@@ -79,8 +81,8 @@ def new_row(obj, n=1):
 
 @default_prior
 @object_prior
-def image_pos(o, leq, eq, geq):
-    Log( "Image Position" )
+def lens_eq(o, leq, eq, geq):
+    Log( indent + "Lens Equation" )
 
     b = o.basis
 
@@ -90,9 +92,9 @@ def image_pos(o, leq, eq, geq):
     ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i,src in enumerate(o.sources):
-        for img in src.images:
+        for j,img in enumerate(src.images):
             rows = new_row(o, 2)
-            Log( "\tposition %s" % img.pos ) #, b.cell_size
+            Log( 2*indent+"Source %i,Image %i: %s" % (i,j,img.pos) ) #, b.cell_size
             rows[0,0] = (img.pos.real + b.map_shift) * src.zcap
             rows[1,0] = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
@@ -117,9 +119,9 @@ def image_pos(o, leq, eq, geq):
             eq(rows[0])
             eq(rows[1])
 
-@object_prior_check(image_pos)
-def check_image_pos(o, sol):
-    Log( "Check Image Position (' ':-12  '.':-11  '-':-10  '*':-9)" )
+@object_prior_check(lens_eq)
+def check_lens_eq(o, sol):
+    Log( "Check Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12)" )
     b    = o.basis
     offs = b.array_offset
 
@@ -150,13 +152,13 @@ def check_image_pos(o, sol):
 
             #print img.pos, r0,r1, sol[srcpos:srcpos+2]
 
-            l0 = log10(abs(r0)) if r0 else -13
-            l1 = log10(abs(r1)) if r1 else -13
+            l0 = log10(abs(r0)) if r0 else -15
+            l1 = log10(abs(r1)) if r1 else -15
 
             res += '['
-            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
+            res += ' ' if l0 <= -15 else '.' if l0 <= -14 else '-' if l0 <= -13 else '*' if l0 <= -12 else '%-3i' % l0
             res += ' '
-            res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
+            res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
             res += ']'
             #res += '[%-4i %-4i]' % (r0, r1)
 
@@ -166,7 +168,7 @@ def check_image_pos(o, sol):
 @default_prior
 @object_prior
 def time_delay(o, leq, eq, geq):
-    Log( "Time Delay" )
+    Log( indent + "Time Delay" )
 
     b  = o.basis
     nu = 1+b.H0
@@ -400,7 +402,7 @@ def hubble_constant(o, leq, eq, geq):
         Log( "[DISABLED] Hubble Constant")
         return
 
-    Log( " "*11 + "Hubble Constant" + str(env().nu))
+    Log( indent + "Hubble Constant" + str(env().nu))
 
     nu = 1+o.basis.H0
 
@@ -473,7 +475,7 @@ def parity(o, leq, eq, geq):
 @default_prior
 @object_prior
 def J1parity(o, leq, eq, geq):
-    Log( "J1 Parity" )
+    Log( indent + "J1 Image Parity" )
 
     b = o.basis
 
@@ -489,8 +491,10 @@ def J1parity(o, leq, eq, geq):
 #   print '*' * 80
 
     for i,src in enumerate(o.sources):
-        for img in src.images:
+        for j,img in enumerate(src.images):
             parity = img.parity
+
+            Log( 2*indent + "Source %i,Image %i: %s" % (i,j,img.parity_name) )
 
             rows      = new_row(o,2)
             rows[0,0] = src.zcap
@@ -607,7 +611,7 @@ def annular_density(o, leq, eq, geq):
         Log( "[DISABLED] Annular density" )
         return
 
-    Log( ' '*11 + "Annular density %s" % theta )
+    Log( indent + "Annular density %s" % theta )
 
     if theta is not None and theta != 0:
         row = new_row(o)
@@ -645,7 +649,7 @@ def profile_steepness(o, leq, eq, geq):
         Log( "[DISABLED] Profile Steepness" )
         return
 
-    Log( " "*11 + "Profile Steepness %s" % steep )
+    Log( indent + "Profile Steepness %s" % steep )
 
     minsteep, maxsteep = steep
     assert maxsteep is None or maxsteep >= minsteep
@@ -721,7 +725,7 @@ def profile_steepness(o, leq, eq, geq):
 #   geq(row)
 #   c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
         
 #@default_prior
 #@object_prior
@@ -771,8 +775,8 @@ def gradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    Log( "\t# eqs = %i" % c )
-    Log( "\tsn=%g" % sn )
+    Log( 2*indent + "# eqs = %i" % c )
+    Log( 2*indent + "sn=%g" % sn )
 
 #@default_prior
 @object_prior
@@ -814,8 +818,8 @@ def Pgradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    Log( "\tgradient eqs = %i" % c )
-    Log( "\tsn=%g" % sn )
+    Log( 2*indent + "gradient eqs = %i" % c )
+    Log( 2*indent + "sn=%g" % sn )
 
 @default_prior
 @object_prior
@@ -835,7 +839,7 @@ def J2gradient(o, leq, eq, geq):
 
     assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
 
-    Log( " "*11 + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
+    Log( indent + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -873,8 +877,8 @@ def J2gradient(o, leq, eq, geq):
             geq(row)
             c += 1
 
-    Log( "\tgradient eqs = %i" % c )
-    Log( "\tsn=%g" % sn )
+    Log( 2*indent + "gradient eqs = %i" % c )
+    Log( 2*indent + "sn=%g" % sn )
 
 #@default_prior
 @object_prior
@@ -942,7 +946,7 @@ def PLsmoothness(o, leq, eq, geq):
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( " "*11 + "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+    Log( indent + "Smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,r,nbrs in o.basis.nbrs:
@@ -955,7 +959,7 @@ def PLsmoothness(o, leq, eq, geq):
         geq(row)
         c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
 
 @object_prior
 def JCsmoothness(o, leq, eq, geq):
@@ -983,7 +987,7 @@ def JCsmoothness(o, leq, eq, geq):
         geq(row)
         c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
 
 #@default_prior
 @object_prior
@@ -999,7 +1003,8 @@ def smoothness(o, leq, eq, geq):
     L                     = smth.get('L', Lmin)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( "Smoothness (factor=%.1f L=%.1f include_central_pixel=%s)" % (smoothness_factor, L, include_central_pixel) )
+    Log( indent + "Smoothness (factor=%.1f L=%.1f include_central_pixel=%s)" % (smoothness_factor, L, include_central_pixel) )
+    Log( indent + "Smoothness factor decreases with radius" )
 
     c=0
     for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
@@ -1014,7 +1019,7 @@ def smoothness(o, leq, eq, geq):
         geq(row)
         c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
 
 @default_prior
 @ensemble_prior
@@ -1033,7 +1038,7 @@ def shared_h(objs, nvars, leq, eq, geq):
     if not on: 
         Log( "[DISABLED] Shared h" )
     else:
-        Log( " "*11 + "Shared h" )
+        Log( indent + "Shared h" )
 
 
 @object_prior
@@ -1064,7 +1069,7 @@ def min_kappa_grid(o, leq, eq, geq):
         Log( "[DISABLED] Minimum Kappa Grid" )
         return
 
-    Log( " "*11 + "Minimum Kappa Grid" )
+    Log( indent + "Minimum Kappa Grid" )
 
     X,Y,M = g['grid']
     H0inv = g['H0inv']
@@ -1096,7 +1101,7 @@ def Xmin_kappa_grid(o, leq, eq, geq):
         Log( "[DISABLED] Minimum Kappa Grid" )
         return
 
-    Log( " "*11 + "Minimum Kappa Grid" )
+    Log( indent + "Minimum Kappa Grid" )
 
     X,Y,M = g['grid']
     H0inv = g['H0inv']
@@ -1154,7 +1159,7 @@ def smoothness2(o, leq, eq, geq):
             leq(row)
             c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
 
 @default_prior
 @object_prior
@@ -1164,7 +1169,7 @@ def symmetry(o, leq, eq, geq):
         Log( "[DISABLED] Symmetry" )
         return
 
-    Log( " "*11 + "Symmetry" )
+    Log( indent + "Symmetry" )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -1188,7 +1193,7 @@ def symmetry(o, leq, eq, geq):
         eq(row)
         c+=1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )
 
 
 #@default_prior
@@ -1218,7 +1223,7 @@ def smooth_symmetry(o, leq, eq, geq):
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( " "*11 + "Smooth Symmetry (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+    Log( indent + "Smooth Symmetry (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     for i,j in enumerate(o.basis.oppose):
@@ -1234,4 +1239,4 @@ def smooth_symmetry(o, leq, eq, geq):
         geq(row)
         c += 1
 
-    Log( "\t# eqs = %i" % c )
+    Log( 2*indent + "# eqs = %i" % c )

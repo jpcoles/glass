@@ -760,7 +760,7 @@ PyObject *samplex_pivot(PyObject *self, PyObject *args)
         fprintf(stderr, "\n");
 #endif
 
-    int32_t ret, n;
+    int32_t ret, n=0;
 
 
 
@@ -1073,7 +1073,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     //fprintf(stderr, "leq %ld %ld\n", leq_offs, leq_count);
     //fprintf(stderr, "geq %ld %ld\n", geq_offs, geq_count);
     //fprintf(stderr, "redo %ld\n", redo);
-    fprintf(stderr, "accepted/rejected/twiddle %ld %ld %e\n", accepted,rejected,twiddle);
+    //fprintf(stderr, "accepted/rejected/twiddle %ld %ld %e\n", accepted,rejected,twiddle);
 
     const float accept_frac = 0.25;
     static float accept_twiddle = 3.0;
@@ -1142,8 +1142,10 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             else /* eq */
             {
                 accept = fabs(s) < 1e-8;
+                /*
                 if (!accept)
                     fprintf(stderr, "EQ BROKEN! %e\n", fabs(s));
+                    */
             }
         }
 

@@ -500,11 +500,11 @@ def _data_plot2(models, X,Y, **kwargs):
     plotf = kwargs.get('plotf', semilogy)
     mark_images = kwargs.get('mark_images', True)
     hilite_model = kwargs.get('hilite_model', None)
-    hilite_color = kwargs.get('hilite_color', 'y')
+    hilite_color = kwargs.get('hilite_color', 'm')
 
-    normal_kw   = {'zorder':0,    'drawstyle':'steps-pre', 'alpha':0.5}
-    hilite_kw   = {'zorder':-1000, 'drawstyle':'steps-pre', 'alpha':1.0, 'lw':4}
-    accepted_kw = {'zorder':500,  'drawstyle':'steps-pre', 'alpha':0.5}
+    normal_kw   = {'zorder':0,    'drawstyle':'steps', 'alpha':1.0}
+    hilite_kw   = {'zorder':1000, 'drawstyle':'steps', 'alpha':1.0, 'lw':4, 'ls':'--'}
+    accepted_kw = {'zorder':500,  'drawstyle':'steps', 'alpha':0.5}
 
     normal = []
     hilite = []
@@ -522,6 +522,10 @@ def _data_plot2(models, X,Y, **kwargs):
 
                 x_label = xs.label
                 y_label = ys.label
+
+                xsl = [0.] + xs.tolist()
+                ysl = [ys[0]] + ys.tolist()
+
                 #xs, ys = xs.v, ys.v
 
             except KeyError as bad_key:
@@ -537,11 +541,11 @@ def _data_plot2(models, X,Y, **kwargs):
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
             if hilite_model == mi:
-                hilite += [xs, ys, hilite_color + s['ls']]
+                hilite += [xsl, ysl, hilite_color] # + s['ls']]
             elif si == 1:
-                accepted += [xs, ys, s['c'] + s['ls']]
+                accepted += [xsl, ysl, s['c']] # + s['ls']]
             else:
-                normal += [xs,ys, s['c'] + s['ls']]
+                normal += [xsl,ysl, s['c']] # + s['ls']]
 
             if mark_images:
                 for i,src in enumerate(obj.sources):
@@ -725,6 +729,7 @@ def time_delays_plot(models=None, object=0, key='accepted'):
         print v
         hist(v, bins=50, histtype='step', label='%s - %s' % (str(k+1),str(k+2)))
 
+    xlim(xmin=0)
     legend()
 
     xlabel(_time_delays_xlabel)

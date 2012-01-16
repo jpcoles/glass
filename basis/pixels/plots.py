@@ -127,9 +127,10 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
     rmin = 0 #abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmin))])
     rmax = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmax))])
 
-    plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
-
+    #plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
+    plist = arange(len(obj.basis.ploc))
     Nk = len(plist)
+
     kappas = empty((N, Nk))
 
     for i,model in enumerate(models):
@@ -202,7 +203,11 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
         plot(xs, ds, "k-", lw=4)
     else:
         axhline(1, linewidth=4, color='k')
-    
+
+    for r in obj.basis.rings:
+        R = r[0] #abs(obj.basis.ploc[r[0]])
+        axvline(R, ls=':', color='k')
+
     if label:
         text(0.1, 0.65, '%3i\\%% within  $1\sigma$\n%3i\\%% within $\infty\sigma$' % (within68, within100),
              family = 'monospace', fontsize=14,

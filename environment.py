@@ -101,10 +101,11 @@ class Source:
         assert B in self.images
         assert delay != (None,None), "Time delays can't have infinite range."
 
-        if isinstance(delay, (list, tuple)):
-            delay = tuple(delay)
-        else:
+        if not isinstance(delay, (list, tuple)):
             delay = [delay]
+
+        delay = [ convert('days to years', td) if td else td for td in delay ]
+
         self.time_delays.append((A,B,delay))
 
 

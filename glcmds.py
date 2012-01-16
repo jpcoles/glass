@@ -87,7 +87,6 @@ def source(zsrc, img0=None, img0parity=None, *imgs, **kwargs):
                                      prev.pos.real-img[0]) * 180/pi
             image = Image(img, parity)
             src.add_image(image)
-            if time_delay: time_delay = convert('days to years', time_delay)
             src.add_time_delay(prev,image, time_delay)
             prev = image
 
@@ -218,7 +217,7 @@ def model(nmodels, *args, **kwargs):
         Log( 'Model %i/%i complete.' % (i+1, nmodels) )
         models.append(m)
         solutions.append(m['sol'])
-        print '???', id(m['sol'])
+        #print 'glcmds.py:model ???', id(m['sol'])
 
     _post_process(models)
 

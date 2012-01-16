@@ -2,13 +2,13 @@ from __future__ import division
 import sys
 import numpy
 import gc
-from numpy import isfortran, asfortranarray, sign, logical_and, any
+from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, sqrt, arange, cov, empty_like
 from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply
 from numpy import histogram, logspace, flatnonzero, isinf
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
-from numpy.linalg import eigh, pinv, eig, norm
+from numpy.linalg import eigh, pinv, eig, norm, inv, det
 from numpy import dot
 import scipy.linalg.fblas
 from itertools import izip
@@ -32,6 +32,12 @@ except ImportError:
     Log = l
 
 import csamplex
+import lpsolve55 as lp
+from lpsolve55 import lpsolve, EQ,GE,LE
+from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
+
+from lpsolve55 import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
+from lpsolve55 import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 
 from copy import deepcopy
 
@@ -71,14 +77,16 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     accepted = 0
     rejected = 0
 
-    print ' '*39, 'STARTING rwalk_async THREAD'
+    nmodels = int(ceil(nmodels / max(1,samplex.nthreads-1)))
+
+    print ' '*39, 'STARTING rwalk_async THREAD [this thread makes %i models]' % nmodels
 
     store = store.copy('A')
 
     csamplex.set_rnd_cseed(id + samplex.random_seed)
 
     done = should_stop(id,stopq)
-    for i in xrange(int(nmodels / max(1,samplex.nthreads-1))):
+    for i in xrange(nmodels):
         #if ((i+1) % 20) == 0:
         if (n_stored % 20) == 0:
             print ' '*39, 'Computing eigenvalues...'
@@ -101,10 +109,22 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
             r = accepted / (accepted + rejected)
             #lock.acquire()
-            print ' '*39, '%.3f Acceptance rate  (%i Accepted  %i Rejected)' % (r, accepted, rejected)
+            print ' '*39, '%.3f Acceptance rate  (%i Accepted  %i Rejected  %e twiddle)' % (r, accepted, rejected, twiddle)
             #lock.release()
 
+            #-------------------------------------------------------------------
+            # If the actual acceptance rate was OK then leave this loop,
+            # otherwise change our step size twiddle factor to improve the rate.
+            # Even if the accepance rate was OK, we adjust the twiddle but only
+            # with a certain probability. This drives the acceptance rate to 
+            # the specified one even if we are within the tolerance but doesn't
+            # throw away the results if we are not so close. This allows for
+            # a larger tolerance.
+            #-------------------------------------------------------------------
             if abs(r - samplex.accept_rate) < samplex.accept_rate_tol:
+                if random() < abs(r - samplex.accept_rate)/samplex.accept_rate_tol:
+                    twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
+                    twiddle = max(1e-14,twiddle)
                 break
 
             twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
@@ -120,6 +140,8 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
         #print self.vec[self.vec < 0]
         #assert numpy.all(vec >= 0)
         #assert samplex.in_simplex(vec)
+        #if n_stored >= store.shape[1]: break
+
         store[:,n_stored] = vec
         n_stored += 1
         #print 'PUT', id, vec
@@ -150,12 +172,12 @@ class Samplex:
             self.nVars = ncols
             self.nRight = self.nVars
 
-        csamplex.set_rnd_cseed(rngseed)
+        #csamplex.set_rnd_cseed(rngseed)
 
         self.random_seed = rngseed
 
         self.nthreads = nthreads
-        Samplex.pivot = lambda s: csamplex.pivot(s)
+        #Samplex.pivot = lambda s: csamplex.pivot(s)
         #Samplex.rwalk = lambda *args: csamplex.rwalk(*args)
 
         self.data = None
@@ -164,7 +186,7 @@ class Samplex:
         self.n_equations = 0
         self.lhv = []
         self.rhv = []
-        self.nVars = None            # Number of variables + 1(constant column) [N]
+        #self.nVars = None            # Number of variables + 1(constant column) [N]
         self.nLeft = 0               # Number of left hand variables            [L]
         self.nSlack = 0              # Number of slack variables                [S]
         self.nTemp = 0               # Number of temporary variables            [Z]
@@ -175,6 +197,14 @@ class Samplex:
 
         self.eq_list = []
         self.eq_list_no_noise = []
+
+        self.ineqs = []
+        self.lp = lpsolve('make_lp', 0, ncols)
+        lpsolve('set_epsb', self.lp, 1e-14)
+        lpsolve('set_epsd', self.lp, 1e-14)
+        lpsolve('set_epsint', self.lp, 1e-14)
+        lpsolve('set_epsel', self.lp, 1e-8)
+        #lpsolve('set_verbose', self.lp, FULL)
 
         self.iteration = 0
         self.moca = None
@@ -199,6 +229,7 @@ class Samplex:
         Log( 'Simplex Random Walk' )
         Log( '=' * 80 )
 
+        Log( 'Using lpsolve %s' % lpsolve('lp_solve_version') )
         Log( "random seed = %s" % self.random_seed )
         Log( "threads = %s" % self.nthreads )
         Log( "with noise = %s" % self.with_noise )
@@ -206,7 +237,7 @@ class Samplex:
         Log( "acceptence rate = %s" % self.accept_rate )
         Log( "acceptence rate tolerance = %s" % self.accept_rate_tol )
 
-        Log( "N = %i" % self.nVars )
+        #Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
         Log( "R = %i" % self.nRight )
         Log( "S = %i" % self.nSlack )
@@ -219,17 +250,23 @@ class Samplex:
 
         # Tag the first element because we shouldn't be using it.
         #self.lhv = [numpy.nan]  # numpy on MacOSX doesn't like this
-        self.lhv = [999999]
-        self.rhv = range(self.nVars+1)
+        #self.lhv = [999999]
+        #self.rhv = range(self.nVars+1)
 
-        self.geq_count = 0
-        self.leq_count = 0
-        self.eq_count  = 0
+#       self.geq_count = 0
+#       self.leq_count = 0
+#       self.eq_count  = 0
+
+#       def eq_key(x):
+#           if x[0] == self._geq: return 2
+#           if x[0] == self._leq: return 1
+#           if x[0] == self._eq:  return 0
+#           assert False, 'Bad function %s' % str(x[0])
 
         def eq_key(x):
-            if x[0] == self._geq: return 2
-            if x[0] == self._leq: return 1
-            if x[0] == self._eq:  return 0
+            if x[0] == 'geq': return 2
+            if x[0] == 'leq': return 1
+            if x[0] == 'eq':  return 0
             assert False, 'Bad function %s' % str(x[0])
 
         self.eq_list.sort(key=eq_key)
@@ -257,22 +294,24 @@ class Samplex:
             Log( 'done.' )
 
 
-        Log( "Building matrix" )
-        for i,[f,a] in enumerate(self.eq_list):
-            f(a)
-            if i%500 == 0:
-                Log( "%i/%i" % (i,len(self.eq_list)) )
+#       Log( "Building matrix" )
+#       for i,[f,a] in enumerate(self.eq_list):
+#           f(a)
+#           if i%500 == 0:
+#               Log( "%i/%i" % (i,len(self.eq_list)) )
 
         #print self.data
 
         Log( "    %i equations" % len(self.eq_list) )
-        Log( "    N = %i" % self.nVars )
-        Log( "    L = %i" % self.nLeft )
-        Log( "    R = %i" % self.nRight )
-        Log( "    S = %i" % self.nSlack )
+#       Log( "    N = %i" % self.nVars )
+#       Log( "    L = %i" % self.nLeft )
+#       Log( "    R = %i" % self.nRight )
+#       Log( "    S = %i" % self.nSlack )
 
         Log( "%6s %6s %6s\n%6i %6i %6i" 
             % (">=", "<=", "=", self.geq_count, self.leq_count, self.eq_count) )
+
+        self.eqn_count = self.eq_count + self.geq_count + self.leq_count
 
         if 0:
             import numpy as np
@@ -293,13 +332,12 @@ class Samplex:
         # state is saved.
         #del self.eq_list
 
-        f2n = {self._eq: 'eq',
-               self._leq: 'leq',
-               self._geq: 'geq'}
-        for i in range(len(self.eq_list)):
-            self.eq_list[i][0] = f2n[self.eq_list[i][0]]
-            self.eq_list_no_noise[i][0] = f2n[self.eq_list_no_noise[i][0]]
-
+#       f2n = {self._eq: 'eq',
+#              self._leq: 'leq',
+#              self._geq: 'geq'}
+#       for i in range(len(self.eq_list)):
+#           self.eq_list[i][0] = f2n[self.eq_list[i][0]]
+#           self.eq_list_no_noise[i][0] = f2n[self.eq_list_no_noise[i][0]]
 
         #print self.lhv
         self.lhv = array(self.lhv, dtype=numpy.int32)
@@ -338,9 +376,10 @@ class Samplex:
         if self.iteration & 15 == 0:
             Log( "model %i]  iter % 5i  obj-val %.8g" % (self.n_solutions, self.iteration, self.data[0,0]) )
 
-    def in_simplex(self, np, tol=0, eq_tol=1e-8, verbose=False):
-        ok = True
+    def in_simplex(self, np, tol=0, eq_tol=1e-8, verbose=0):
+        ok = 0
 
+        a_min = inf
         for i,[c,e] in enumerate(self.eq_list_no_noise):
             a0 = dot(np, e[1:])
             a  = e[0] + a0
@@ -348,28 +387,52 @@ class Samplex:
             #print np.flags, e[1:].flags
             #assert 0
             if c == 'geq':
+                a_min = min(a_min, a)
                 if a < -tol: 
-                    print 'F>', i,a
-                    ok = False
+                    if verbose: print 'F>', i,a
+                    ok += 1
             elif c == 'leq':
+                a_min = min(a_min, a)
                 if a > tol: 
-                    print 'F<', i,a
-                    ok = False
+                    if verbose: print 'F<', i,a
+                    ok += 1
             elif c == 'eq':
                 if abs(a) > eq_tol: 
-                    print 'F=', i,a, (1 - abs(e[0]/a0))
-                    ok = False
+                    if verbose: print 'F=', i,a, (1 - abs(e[0]/a0))
+                    ok += 1
 
-            if verbose: print "TT", c, a
+            #if verbose > 1: print "TT", c, a
               
+        if verbose > 1:
+            print 'Smallest a was %e' % (a_min,)
+
         #print 'T '
-        return ok
+        return ok==0, ok
+
+    def sign_of_normal(self, pt, c, e):
+
+        b = e[0] + dot(pt, e[1:])
+
+        if c == 'geq':
+            if b >= 0:
+                return 1
+            else:
+                return -1
+        elif c == 'leq':
+            if b <= 0:
+                return 1
+            else:
+                return -1
+
+        return 0
 
     def distance_to_plane(self,pt,dir, eq_list=None):
+        ''' dir should be a normalized vector '''
+
         if eq_list is None: eq_list = self.eq_list_no_noise
 
         dist = inf
-        for c,e in self.eq_list_no_noise:
+        for c,e in eq_list:
             if c == 'eq':
                 continue
             elif c == 'leq':
@@ -380,14 +443,23 @@ class Samplex:
             a = dot(dir, p[1:])
             if a > 0:
                 dtmp = -(p[0] + dot(pt, p[1:])) / a
-                dist = min(dist, dtmp)
+                if dtmp > 0:
+                    dist = min(dist, dtmp)
+                elif dtmp > -1e-12:
+                    pass
+                else:
+                    assert dtmp >= 0, dtmp
 
         # check implicit >= 0 contraints
         for i in xrange(pt.size):
             a = dir[i] * -1
             if a > 0:
                 dtmp = -(0 + pt[i] * -1) / a
-                dist = min(dist, dtmp)
+                if dtmp >= 0:
+                    assert dtmp >= 0, dtmp
+                    if dtmp == 0:
+                        print 'ZERO dist was', dist
+                    dist = min(dist, dtmp)
 
 
         assert dist != inf
@@ -506,13 +578,13 @@ class Samplex:
         redo = max(100, dim ** 2)
         nmodels = nsolutions
 
-        store = zeros((dim, window_size+nmodels), order='Fortran', dtype=numpy.float64)
+        store = zeros((dim, window_size+nmodels+1), order='Fortran', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
         vec   = zeros(dim, order='C', dtype=numpy.float64)
         np   = zeros(dim, order='C', dtype=numpy.float64)
         est_evec = zeros((dim,dim), order='F', dtype=numpy.float64)
 
-        self.eqs = zeros((self.eq_count + self.geq_count + self.leq_count,dim+1), order='C', dtype=numpy.float64)
+        self.eqs = zeros((self.eqn_count,dim+1), order='C', dtype=numpy.float64)
         for i,[c,e] in enumerate(self.eq_list_no_noise):
             self.eqs[i,:] = e
 
@@ -532,6 +604,7 @@ class Samplex:
         # Create pseudo inverse matrix to reproject samples back into the
         # solution space.
         #-----------------------------------------------------------------------
+        P = numpy.eye(dim) 
         if self.eq_count > 0:
             self.A = zeros((self.eq_count, dim), order='C', dtype=numpy.float64)
             self.b = zeros(self.eq_count, order='C', dtype=numpy.float64)
@@ -539,23 +612,66 @@ class Samplex:
                 self.A[i] = e[1:]
                 self.b[i] = e[0]
             self.Apinv = pinv(self.A)
+            P -= dot(self.Apinv, self.A)
         else:
             self.A = None
             self.B = None
             self.Apinv = None
+
+        ev, evec = eigh(P)
+        print ev
+        print evec
+        print evec.shape
+        #assert 0
         #-----------------------------------------------------------------------
 
 
         Log( "Getting solutions" )
-        if not self.find_feasible(): return
+        #if not self.find_feasible(): return
+        #self.start_new_objective()
+
+        #o = random(lpsolve('get_Ncolumns', self.lp))# - 0.5
+        #lpsolve('set_obj_fn', self.lp, o.tolist())
+        #while self.next_solution(): pass
+
+        #v0 = self.package_solution()
+
+        if 1:
+            i=0
+            while True:
+                i += 1
+                #lpsolve('set_maxim', self.lp)
+                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
+                lpsolve('set_obj_fn', self.lp, o.tolist())
+                while self.next_solution(): pass
+
+                v1 = self.package_solution()
+                #print 'v0', v0.vertex[1:self.nVars+1]
+                #print 'v1', v1.vertex[1:self.nVars+1]
+
+                #np = (v1.vertex[1:self.nVars+1] + v0.vertex[1:self.nVars+1]) / 2
+                np += v1.vertex[1:self.nVars+1]
+                np2 = np.copy()
+                np2 /= i
+                self.project(np2)
+                #print np
+                ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
+
+                if ok: 
+                    np = np2
+                    ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
+                    break
+
+
+                print i
+                #v0 = v1
+
 
         Log( "------------------------------------" )
         Log( "Found feasible" )
         Log( "------------------------------------" )
 
 
-        self.curr_sol = self.package_solution()                
-        self.moca     = self.curr_sol.vertex.copy('A')
 
         #-----------------------------------------------------------------------
         # First we need to find a small sample within the solution space
@@ -565,7 +681,153 @@ class Samplex:
         self.n_solutions = 0
         self.stride = int(dim+1)
 
-        #self.start_new_objective()
+        if 0:
+            C = zeros((dof,dof), order='F', dtype=numpy.float64)
+
+            while True:
+                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
+                lpsolve('set_obj_fn', self.lp, o.tolist())
+
+                while self.next_solution(): pass
+                self.curr_sol = self.package_solution()
+                np[:] = self.curr_sol.vertex[1:self.nVars+1]
+                self.project(np)
+
+                print 'np',np
+                ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
+                print 'ok?', ok
+
+                nadded = 0
+                tol = 1e-10
+                Es = []
+                for i,[c,e] in enumerate(self.eq_list):
+                    #if nadded == dof: break
+
+                    a = e[0] + dot(np, e[1:])
+
+                    if i == self.eq_count:
+                        print '-'*80
+
+                    E = e[1:].copy()
+                    #E += np
+                    #self.project(E)
+                    #E -= np
+
+                    print abs(a)
+                    #---------------------------------------------------------------
+                    # When abs(a)<tol the point np is actually sitting on the
+                    # current contraint plane.
+                    #---------------------------------------------------------------
+                    if abs(a) < tol: 
+                        Es.append(E)
+                        nadded += 1
+
+                print 'nadded', nadded
+                if nadded == dof: break
+
+            print 'dof', dof
+            print C.shape
+            print len(Es)
+            print evec.shape
+
+            js = []
+            for j0 in range(evec.shape[1]):
+                if ev[j0] > 1e-12:
+                    js.append(j0)
+
+            for i,E in enumerate(Es):
+                for j in range(len(js)):
+                    C[i,j] = dot(evec[js[j]], E)
+
+            C = inv(C)
+            C = sum(C,axis=1)
+
+            assert len(js) == C.shape[0]
+
+            for i,j in enumerate(js):
+                vec += C[i] * evec[:,j]
+
+            vec /= norm(vec)
+            print vec
+
+            vec += np
+            self.project(vec)
+            vec -= np
+            #vec /= norm(vec)
+            #print 'vec',vec
+
+            vec *= -1
+            d1 = self.distance_to_plane(np, vec)
+            print d1
+
+
+            np += vec * (d1 / 2)
+            self.project(np)
+            print 'np', np
+
+            print 'Added %i normals of %i (dof=%i)' % (nadded, len(self.eq_list), dof)
+            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
+            print 'ok', ok
+            #assert 0
+
+        if 0:
+            #self.start_new_objective()
+            #while self.next_solution(): pass
+            np[:] = self.curr_sol.vertex[1:self.nVars+1]
+
+            #np[abs(np) < 1e-13] = 0
+            self.project(np)
+
+            print 'np',np
+            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
+            print 'ok?', ok
+
+            nadded = 0
+            tol = 1e-10
+            for i,[c,e] in enumerate(self.eq_list):
+                a = e[0] + dot(np, e[1:])
+
+                if i == self.eq_count:
+                    print '-'*80
+
+                E = e[1:].copy()
+                E += np
+                self.project(E)
+                E -= np
+
+                print abs(a)
+                #---------------------------------------------------------------
+                # When abs(a)<tol the point np is actually sitting on the
+                # current contraint plane.
+                #---------------------------------------------------------------
+                if abs(a) < tol: 
+                    if c == 'geq':
+                        vec += E / norm(E)
+                        nadded += 1
+                    elif c == 'leq':
+                        vec -= E / norm(E)
+                        nadded += 1
+
+                    #vec[s0] += self.sign_of_normal(np+e[1:], c, e) * e[s1]
+
+            vec += np
+            self.project(vec)
+            vec -= np
+            vec /= norm(vec)
+            #print 'vec',vec
+
+            d1 = self.distance_to_plane(np, vec, eq_list=self.eq_list)
+
+            d2 = d1 #self.distance_to_plane(np, vec, eq_list=self.eq_list_no_noise)
+            print d1, d2
+
+
+            np += vec * (d1 / 2)
+            self.project(np)
+            print 'np', np
+
+            print 'Added %i normals of %i (dof=%i)' % (nadded, len(self.eq_list), dof)
+            assert 0
 
         if 1:
 #           j=0
@@ -582,36 +844,55 @@ class Samplex:
 #               if self.in_simplex( np, tol=1e-10, eq_tol=1e-12):
 #                   break
 
-            vec[:] = self.curr_sol.vertex[1:self.nVars+1]
+            #vec[:] = self.curr_sol.vertex[1:self.nVars+1]
 
-            if 1:
+            if 0:
                 self.project(vec)
                 N = 0
-                while True:
-                    print 'Finding solution', N
-                    self.start_new_objective()
-                    while self.next_solution():
-                        pass
+                ok = False
+                fail_count = self.eqn_count
+                #self.start_new_objective()
+                while not ok:
+                    print 'Step %i] Still need to satisfy %i equations' % (N,fail_count)
+
+                    if 1:
+                        self.start_new_objective()
+                        while self.next_solution():
+                            pass
+                    else:
+                        for i in xrange(2*dim):
+                            if not self.next_solution():
+                                self.start_new_objective()
 
                     #vec[:] = self.curr_sol.vertex[1:self.nVars+1]
                     self.curr_sol = self.package_solution()                
                     v = self.curr_sol.vertex[1:self.nVars+1].copy('A')
-                    self.project(v)
+                    #v = self.interior_point(self.curr_sol)[1:]
+                    #self.project(v)
                     vec += v
+
+                    q = vec.copy('A') / (N+1)
+                    self.project(q)
+
                     N += 1
-                    if self.in_simplex(vec/(N+1), eq_tol=1e-12): break
+                    ok,fail_count = self.in_simplex(q, eq_tol=1e-12, tol=1e-14, verbose=1)
 
                 vec /= N+1
+                self.project(vec)
 
+
+            #self.project(np)
+            #ok,fail_count = self.in_simplex(np, eq_tol=0, tol=1e-14, verbose=1)
+            #ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-12, verbose=1)
+            #ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-12, verbose=1)
+            print np.shape
+            #print 'lpsolve says', lpsolve('is_feasible', self.lp, np, 1e-12)
+            #print 'lpsolve says', lpsolve('is_feasible', self.lp, np.tolist(), 1e-12)
+            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
+            assert ok
 
             #p = self.curr_sol.vertex[:self.nVars+1]
 
-            P = numpy.eye(dim) 
-            if self.eq_count > 0:
-                P -= dot(self.Apinv, self.A)
-
-            #print P
-            ev, evec = eigh(P)
 
 
             #ev[abs(ev) < 1e-12] = 0
@@ -621,26 +902,20 @@ class Samplex:
             #vec[abs(vec) < 1e-12] = 0
 
             #print vec
-            #print evec
 
             print 'Estimating middle point'
-            for i in range(2):
+            for i in range(4):
                 for r in range(eval.size):
                     if ev[r] >= 1e-12:
                         direction = evec[:,r]
-                        tmax1 = -self.distance_to_plane(vec, -direction, eq_list = self.eq_list)
-                        tmax2 = +self.distance_to_plane(vec, +direction, eq_list = self.eq_list)
-                        assert tmax1 < tmax2
-                        print 'tmax', tmax1, tmax2
-                        vec += direction * ((tmax1+tmax2) / 2)
+                        tmax1 = -self.distance_to_plane(np, -direction)
+                        tmax2 = +self.distance_to_plane(np, +direction)
+                        assert tmax1 < tmax2, 'tmax %e %e  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
+                        np += direction * ((tmax1+tmax2) / 2)
 
-            print vec
-            assert self.in_simplex(vec)
-
-            #assert 0
+            assert self.in_simplex(np)
 
             print 'Estimating eigenvectors'
-            print vec
             nzero = 0
             n_stored = 0
             for r in range(eval.size):
@@ -649,12 +924,13 @@ class Samplex:
                     nzero += 1
                 else:
                     direction = evec[:,r]
-                    tmax1 = -self.distance_to_plane(vec, -direction)
-                    tmax2 = +self.distance_to_plane(vec, +direction)
+                    tmax1 = -self.distance_to_plane(np, -direction)
+                    tmax2 = +self.distance_to_plane(np, +direction)
                     eval[r] = (tmax2 - tmax1) / sqrt(12)
-                    print 'tmax', tmax1, tmax2, eval[r]
-                    store[:,n_stored+0] = vec + direction * tmax1
-                    store[:,n_stored+1] = vec + direction * tmax2
+                    #print 'tmax', tmax1, tmax2, eval[r]
+                    assert tmax1 < tmax2, 'tmax %i %i  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
+                    store[:,n_stored+0] = np + direction * tmax1
+                    store[:,n_stored+1] = np + direction * tmax2
                     n_stored += 2
 
             assert nzero == self.eq_count, '%i != %i' % (nzero, self.eq_count)
@@ -664,7 +940,7 @@ class Samplex:
             print 'est_evec', est_evec#[:,:self.eq_count]
             #assert 0
 
-            store[:,n_stored] = vec
+            store[:,n_stored] = np
             n_stored += 1
 
             print store[:, :n_stored]
@@ -714,7 +990,7 @@ class Samplex:
                         self.start_new_objective()
                         self.iteration=0
                         self.n_solutions += 1
-                
+
                 self.curr_sol = self.package_solution()                
                 #p = self.interior_point(self.curr_sol)
                 p = self.curr_sol.vertex[:self.nVars+1]
@@ -750,7 +1026,7 @@ class Samplex:
         #vec = store[:,:n_stored].mean(axis=1)
         #vec = compute_midpoint()
         #self.project(vec)
-        assert self.in_simplex(vec, tol=1e-10, eq_tol=1e-12)
+        assert self.in_simplex(np, tol=1e-10, eq_tol=1e-12)
         #assert in_simplex(vec, tol=1e-10, eq_tol=1e-4)
         #assert in_simplex(vec, tol=0, eq_tol=1e-4)
         print '**********'
@@ -758,21 +1034,22 @@ class Samplex:
 
         print 'window_size', window_size
         print 'redo', redo
-        print 'vec', vec
+        #print 'vec', np
 
         self.twiddle = 2.4
+        self.twiddle = 8.2
 
-        accept_rate = self.accept_rate
+        accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
-        q = Queue()
+        q     = Queue()
         stopq = Queue()
-        lock = Lock()
+        lock  = Lock()
 
         nthreads = self.nthreads
         threads = []
         for i in range(nthreads):
-            thr = Process(target=rwalk_async, args=(i, nmodels, self, store,n_stored, q,stopq, vec,self.twiddle, window_size, lock, est_evec.copy('A')))
+            thr = Process(target=rwalk_async, args=(i, nmodels, self, store,n_stored, q,stopq, np,self.twiddle, window_size, lock, est_evec.copy('A')))
             #thr = Process(target=rwalk_async, args=(i, nmodels, self, store,n_stored, q,stopq, vec,self.twiddle, window_size, lock))
             threads.append(thr)
 
@@ -889,47 +1166,92 @@ class Samplex:
             print '%i Acceptance  %i Rejected' % (self.accepted, self.rejected)
             print '%.3f Acceptance rate' % (self.accepted / (self.accepted + self.rejected))
 
+#   def next_solution(self):
+
+#       result = self.pivot()
+#       if   result == self.FOUND_PIVOT:   
+#           return True
+#       elif result == self.NOPIVOT:  
+#           return False
+#       elif result == self.FEASIBLE:  assert 0
+#       elif result == self.UNBOUNDED: raise SamplexUnboundedError()
+#       else:
+#           Log( result )
+#           raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+
+#       #self.status()
+#       self.iteration += 1
+
+#       return True
+
     def next_solution(self):
 
-        result = self.pivot()
-        if   result == self.FOUND_PIVOT:   
-            return True
-        elif result == self.NOPIVOT:  
-            return False
-        elif result == self.FEASIBLE:  assert 0
-        elif result == self.UNBOUNDED: raise SamplexUnboundedError()
-        else:
-            Log( result )
-            raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+        while True:
 
-        #self.status()
-        self.iteration += 1
+            #r = self.start_new_objective()
 
-        return True
+            result = lpsolve('solve', self.lp)
+            if   result in [OPTIMAL, TIMEOUT]:   break
+            elif result == SUBOPTIMAL: continue
+            elif result == INFEASIBLE: raise SamplexNoSolutionError()
+            elif result == UNBOUNDED: raise SamplexUnboundedError()
+            else:
+                Log( result )
+                raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+
+        print 'Solution after %i steps.' % lpsolve('get_total_iter', self.lp)
+        return False
+
+#   def package_solution(self):
+#       s = SamplexSolution()
+#       #print "***", self.nVars+self.nSlack+1
+#       s.vertex = zeros(self.nVars+self.nSlack+1)
+
+#       assert self.lhv.size == self.nLeft+1, '%i %i' % (self.lhv.size, self.nLeft+1)
+#       s.lhv = self.lhv.copy()
+#       s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
+#       s.vertex[0] = self.data[0,0]
+
+#       #print 'Testing solution is negative...'
+#       assert all(s.vertex[1:] >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+#       #print 'Nope.'
+
+#       #assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
+#       #s.vertex[0] = self.data[0,0]
+
+#       return s
 
     def package_solution(self):
+        objv  = array(lpsolve('get_objective', self.lp))
+        vars  = array(lpsolve('get_variables', self.lp)[0])
+        slack = array(lpsolve('get_constraints', self.lp)[0]) - array(lpsolve('get_rh', self.lp)[1:])
+
+        slack[abs(slack) < 1e-5] = 0
+
+        nvars = len(vars)
+        nslack = len(slack)
+
         s = SamplexSolution()
-        #print "***", self.nVars+self.nSlack+1
-        s.vertex = zeros(self.nVars+self.nSlack+1)
+        s.sol = empty(nvars + 1)
+        s.sol[1:] = vars
+        s.sol[0] = objv
 
-        assert self.lhv.size == self.nLeft+1, '%i %i' % (self.lhv.size, self.nLeft+1)
-        s.lhv = self.lhv.copy()
-        s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
-        s.vertex[0] = self.data[0,0]
+        s.vertex = empty(nvars + nslack + 1)
+        s.vertex[1:nvars+1] = vars
+        s.vertex[1+nvars:1+nvars+nslack] = slack
+        s.vertex[0] = objv
 
-        #print 'Testing solution is negative...'
-        assert all(s.vertex[1:] >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        #print 'Nope.'
-
-        #assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        #s.vertex[0] = self.data[0,0]
+        assert all(s.vertex[1:] >= 0), s.vertex[s.vertex < 0]
 
         return s
 
-    def start_new_objective(self):
+#   def start_new_objective(self):
+#       self.obj = 2*random(1+self.nVars+self.nSlack) - 1.0
+#       self.set_objective(self.obj)
 
-        self.obj = 2*random(1+self.nVars+self.nSlack) - 1.0
-        self.set_objective(self.obj)
+    def start_new_objective(self):
+        lpsolve('set_obj_fn', self.lp, (random(lpsolve('get_Ncolumns', self.lp)) - 0.5).tolist())
+
 
     def set_objective(self, obj):
         #print "obj", obj
@@ -1152,113 +1474,145 @@ class Samplex:
     #=========================================================================
 
     def eq(self, a):
-        #print a
-        #print self.nVars
-        assert len(a)
-        if self.nVars is None: 
-            self.nVars = len(a)-1
-            self.nRight = self.nVars
-        assert len(a) == self.nVars+1, '%i != %i' % (len(a), self.nVars+1)
-        self.nLeft += 1
-        self.nTemp += 1
+        lpsolve('add_constraint', self.lp, (a[1:]).tolist(), EQ, -a[0])
         self.eq_count += 1
-
-        self.eq_list_no_noise.append([self._eq, a.copy('A')])
-        self.eq_list.append([self._eq, a])
+        self.eq_list.append(['eq', a])
+        self.eq_list_no_noise.append(['eq', a])
 
     def geq(self, a):
-        assert len(a)
-        if self.nVars is None: 
-            self.nVars = len(a)-1
-            self.nRight = self.nVars
-        assert len(a) == self.nVars+1
-
-        self.eq_list_no_noise.append([self._geq, a.copy('A')])
-        if self.with_noise:
-            a = self.add_noise(a)
-
-        if a[0] < 0: 
-            self.nLeft  += 1
-            self.nSlack += 1
-            self.nTemp  += 1
-            self.nRight += 1
-        else:
-            self.nLeft  += 1
-            self.nSlack += 1
-        self.geq_count  += 1
-        self.eq_list.append([self._geq, a])
+        lpsolve('add_constraint', self.lp, (a[1:]).tolist(), GE, -a[0])
+        self.geq_count += 1
+        self.ineqs.append([a[1:], GE, -a[0]])
+        self.eq_list_no_noise.append(['geq', a])
+        self.eq_list.append(['geq', a])
 
     def leq(self, a):
-        assert len(a)
-        if self.nVars is None: 
-            self.nVars = len(a)-1
-            self.nRight = self.nVars
-        assert len(a) == self.nVars+1
-
-        self.eq_list_no_noise.append([self._leq, a.copy('A')])
-        if self.with_noise:
-            a = self.add_noise(a)
-
-        if a[0] <= 0: 
-            self.nLeft  += 1
-            self.nSlack += 1
-            #print "called geq "
-        else:
-            self.nLeft  += 1
-            self.nSlack += 1
-            self.nTemp  += 1
-            self.nRight += 1
-            #print "set -Z"
-        self.leq_count += 1
-        self.eq_list.append([self._leq, a])
-
-    def _eq(self, a): 
-        assert len(a) == self.nVars+1
-
-        if a[0] < 0: 
-            a = a.copy('A') * -1
-
-        self.nLeft += 1
-        self.nTemp += 1
-
-        self.eq_count += 1
-        self.lhv.append(-self.nTemp)
-        #a[abs(a) < self.EPS] = 0
-        self.data[self.nLeft, 0:1+self.nVars] = a
-
-    def _geq(self, a): 
-        assert len(a) == self.nVars+1
-        self.geq_count += 1
-
-        if a[0] < 0: 
-            #a *= -1
-            a = a.copy('A') * -1
-            self._leq(a)
-            self.leq_count -= 1
-        else:
-            self.nLeft  += 1
-            self.nSlack += 1
-            self.lhv.append(self.nVars+self.nSlack)
-            self.data[self.nLeft, 0:1+self.nVars] = a
-
-    def _leq(self, a): 
-        assert len(a) == self.nVars+1
+        #-----------------------------------------------------------------------
+        # We convert <= constraints to >= so that in package_solution we can
+        # simply subtract the current contraint value in the tableau from the
+        # original right hand side values given here to derive the amount of
+        # slack on each constraint. This is important to have in
+        # interior_point().
+        #-----------------------------------------------------------------------
+        lpsolve('add_constraint', self.lp, (-a[1:]).tolist(), GE, a[0])
         self.leq_count += 1
 
-        if a[0] <= 0: 
-            #a *= -1
-            a = a.copy('A') * -1
-            self._geq(a)
-            self.geq_count -= 1
-        else:
-            self.nLeft  += 1
-            self.nSlack += 1
-            self.nTemp  += 1
-            self.nRight += 1
+        self.ineqs.append([-a[1:], GE, a[0]])
+        self.eq_list_no_noise.append(['leq', a])
+        self.eq_list.append(['leq', a])
 
-            self.lhv.append(-self.nTemp)
-            self.rhv.append(self.nVars+self.nSlack)
+#   def eq(self, a):
+#       #print a
+#       #print self.nVars
+#       assert len(a)
+#       if self.nVars is None: 
+#           self.nVars = len(a)-1
+#           self.nRight = self.nVars
+#       assert len(a) == self.nVars+1, '%i != %i' % (len(a), self.nVars+1)
+#       self.nLeft += 1
+#       self.nTemp += 1
+#       self.eq_count += 1
 
-            self.data[self.nLeft, 0:1+self.nVars] = a
-            self.data[self.nLeft, self.nRight] = 1.0
+#       self.eq_list_no_noise.append([self._eq, a.copy('A')])
+#       self.eq_list.append([self._eq, a])
+
+#   def geq(self, a):
+#       assert len(a)
+#       if self.nVars is None: 
+#           self.nVars = len(a)-1
+#           self.nRight = self.nVars
+#       assert len(a) == self.nVars+1
+
+#       self.eq_list_no_noise.append([self._geq, a.copy('A')])
+#       #a[1:] -= norm(a[1:]) * 1e-5
+#       if self.with_noise:
+#           a = self.add_noise(a)
+
+
+#       if a[0] < 0: 
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#           self.nTemp  += 1
+#           self.nRight += 1
+#       else:
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#       self.geq_count  += 1
+#       self.eq_list.append([self._geq, a])
+
+#   def leq(self, a):
+#       assert len(a)
+#       if self.nVars is None: 
+#           self.nVars = len(a)-1
+#           self.nRight = self.nVars
+#       assert len(a) == self.nVars+1
+
+#       self.eq_list_no_noise.append([self._leq, a.copy('A')])
+#       #a[1:] += norm(a[1:]) * 1e-5
+#       if self.with_noise:
+#           a = self.add_noise(a)
+
+
+#       if a[0] <= 0: 
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#           #print "called geq "
+#       else:
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#           self.nTemp  += 1
+#           self.nRight += 1
+#           #print "set -Z"
+#       self.leq_count += 1
+#       self.eq_list.append([self._leq, a])
+
+#   def _eq(self, a): 
+#       assert len(a) == self.nVars+1
+
+#       if a[0] < 0: 
+#           a = a.copy('A') * -1
+
+#       self.nLeft += 1
+#       self.nTemp += 1
+
+#       self.eq_count += 1
+#       self.lhv.append(-self.nTemp)
+#       #a[abs(a) < self.EPS] = 0
+#       self.data[self.nLeft, 0:1+self.nVars] = a
+
+#   def _geq(self, a): 
+#       assert len(a) == self.nVars+1
+#       self.geq_count += 1
+
+#       if a[0] < 0: 
+#           #a *= -1
+#           a = a.copy('A') * -1
+#           self._leq(a)
+#           self.leq_count -= 1
+#       else:
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#           self.lhv.append(self.nVars+self.nSlack)
+#           self.data[self.nLeft, 0:1+self.nVars] = a
+
+#   def _leq(self, a): 
+#       assert len(a) == self.nVars+1
+#       self.leq_count += 1
+
+#       if a[0] <= 0: 
+#           #a *= -1
+#           a = a.copy('A') * -1
+#           self._geq(a)
+#           self.geq_count -= 1
+#       else:
+#           self.nLeft  += 1
+#           self.nSlack += 1
+#           self.nTemp  += 1
+#           self.nRight += 1
+
+#           self.lhv.append(-self.nTemp)
+#           self.rhv.append(self.nVars+self.nSlack)
+
+#           self.data[self.nLeft, 0:1+self.nVars] = a
+#           self.data[self.nLeft, self.nRight] = 1.0
 
