@@ -49,7 +49,6 @@ def zlens(z):
     assert o.z is None, 'zlens() can only be called once per object.'
     o.z = z
     o.dL = cosmo.angdist(0,o.z)
-    o.scales = cosmo.scales(o.z, 0)
 
 @command
 def omega(om, ol):

@@ -2,7 +2,7 @@ from __future__ import division
 import sys
 import numpy
 import gc
-from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil
+from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil, amax
 from numpy import set_printoptions
 from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, sqrt, arange, cov, empty_like
 from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply
@@ -12,6 +12,7 @@ from numpy.linalg import eigh, pinv, eig, norm, inv, det
 from numpy import dot
 import scipy.linalg.fblas
 from itertools import izip
+import time
 
 from multiprocessing import Process, Queue, Value, Lock
 from Queue import Empty as QueueEmpty
@@ -76,6 +77,8 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
     accepted = 0
     rejected = 0
+    time_begin = 0
+    time_end = 0
 
     nmodels = int(ceil(nmodels / max(1,samplex.nthreads-1)))
 
@@ -86,6 +89,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     csamplex.set_rnd_cseed(id + samplex.random_seed)
 
     done = should_stop(id,stopq)
+    time_begin = time.clock()
     for i in xrange(nmodels):
         #if ((i+1) % 20) == 0:
         if (n_stored % 20) == 0:
@@ -149,7 +153,9 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
         #lock.acquire()
         #lock.release()
 
-    print ' '*39, 'RWALK THREAD %i LEAVING  n_stored=%i' % (id,i)
+    time_end = time.clock()
+    q.put(['TIME', time_end-time_begin])
+    print ' '*39, 'RWALK THREAD %i LEAVING  n_stored=%i  time=%.4fs' % (id,i,time_end-time_begin)
 
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
@@ -557,6 +563,8 @@ class Samplex:
 
     def next(self, nsolutions=None):
 
+        time_begin_next = time.clock()
+
         if nsolutions == 0: return
 
         assert nsolutions is not None
@@ -636,12 +644,23 @@ class Samplex:
 
         #v0 = self.package_solution()
 
+        time_begin_inner_point = time.clock()
         if 1:
             i=0
             while True:
                 i += 1
                 #lpsolve('set_maxim', self.lp)
-                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
+                if i%2 == 1:
+                    o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
+                    lpsolve('set_sense', self.lp, False)
+                else:
+                    lpsolve('set_sense', self.lp, True)
+                    #o *= -1
+
+                #if i > 10:
+                #    np *= 0
+                #    i = 1
+
                 lpsolve('set_obj_fn', self.lp, o.tolist())
                 while self.next_solution(): pass
 
@@ -655,16 +674,17 @@ class Samplex:
                 np2 /= i
                 self.project(np2)
                 #print np
-                ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
+                ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=2)
 
                 if ok: 
                     np = np2
-                    ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
+                    #ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
                     break
 
 
                 print i
                 #v0 = v1
+        time_end_inner_point = time.clock()
 
 
         Log( "------------------------------------" )
@@ -903,6 +923,7 @@ class Samplex:
 
             #print vec
 
+            time_begin_middle_point = time.clock()
             print 'Estimating middle point'
             for i in range(4):
                 for r in range(eval.size):
@@ -912,9 +933,11 @@ class Samplex:
                         tmax2 = +self.distance_to_plane(np, +direction)
                         assert tmax1 < tmax2, 'tmax %e %e  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
                         np += direction * ((tmax1+tmax2) / 2)
+            time_end_middle_point = time.clock()
 
             assert self.in_simplex(np)
 
+            time_begin_est_eigenvectors = time.clock()
             print 'Estimating eigenvectors'
             nzero = 0
             n_stored = 0
@@ -945,7 +968,9 @@ class Samplex:
 
             print store[:, :n_stored]
             self.compute_eval(store, eval, est_evec, n_stored, window_size)
+            time_end_est_eigenvectors = time.clock()
             print 'est_evec', est_evec
+
             #assert 0
 
 #           twiddle = 2.4
@@ -1056,12 +1081,17 @@ class Samplex:
         for thr in threads:
             thr.start()
 
+        time_begin_get_models = time.clock()
+        time_threads = []
         for i in xrange(nmodels):
             if q.qsize() + i >= nmodels:
                 for j,thr in enumerate(threads):
                     stopq.put('STOP')
 
             k,vec = q.get()
+            if k == 'TIME':
+                time_threads.append(vec)
+                continue
             #lock.acquire()
             #print 'GET', k, id(vec), vec
             #lock.release()
@@ -1071,6 +1101,7 @@ class Samplex:
             t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
             t[1:] = vec
             yield t
+        time_end_get_models = time.clock()
 
         for i,thr in enumerate(threads):
             stopq.put('STOP')
@@ -1165,6 +1196,20 @@ class Samplex:
 
             print '%i Acceptance  %i Rejected' % (self.accepted, self.rejected)
             print '%.3f Acceptance rate' % (self.accepted / (self.accepted + self.rejected))
+
+        time_end_next = time.clock()
+        time_threads = amax(time_threads) if time_threads else 0
+        time_end_next += time_threads
+        print '-'*80
+        print 'SAMPLEX TIMINGS'
+        print '-'*80
+        print 'Initial inner point    %fs' % (time_end_inner_point - time_begin_inner_point)
+        print 'Estimate middle point  %fs' % (time_end_middle_point - time_begin_middle_point)
+        print 'Estimate eigenvectors  %fs' % (time_end_est_eigenvectors - time_begin_est_eigenvectors)
+        print 'Modeling               %fs' % (time_end_get_models - time_begin_get_models)
+        print 'Max thread time        %fs' % (time_threads)
+        print 'Total time             %fs' % (time_end_next - time_begin_next);
+
 
 #   def next_solution(self):
 

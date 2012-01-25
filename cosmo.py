@@ -9,7 +9,7 @@ def age_factor():
     L = env().omega_lambda
     K = 1 - (M+L)
     f = lambda a: a / sqrt(a*M + a**4 * L + a**2 * K)
-    q =  quad(f, 0, 1)[0]
+    q = quad(f, 0, 1)[0]
     return q
 
 def angdist(zi, zf):
@@ -54,7 +54,7 @@ def _angdist(zi, zf, M,L, filled_beam, tol=1e-4):
 
     return dist
 
-def scales(zl,zs):
+def XXXscales(zl,zs):
     """Returns the following scaling factors as a dictionary:
         time:  time scale              (g days/arcsec^2)
         angdist: angular distance        (g kpc/arcs)

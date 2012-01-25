@@ -52,10 +52,8 @@ def poten_dx(r, a):
     ym2 = ym**2
     yp2 = yp**2
 
-    v = (xm*arctan(ym/xm)    + xp*arctan(yp/xp)
-       - xm*arctan(yp/xm)    - xp*arctan(ym/xp)
-       + ym*log(xm2 + ym2)/2 + yp*log(xp2 + yp2)/2
-       - ym*log(xp2 + ym2)/2 - yp*log(xm2 + yp2)/2)
+    v = ( (xm*arctan(ym/xm)  + xp*arctan(yp/xp)) + (ym*log(xm2 + ym2) + yp*log(xp2 + yp2)) / 2
+      -   (xm*arctan(yp/xm)  + xp*arctan(ym/xp)) - (ym*log(xp2 + ym2) + yp*log(xm2 + yp2)) / 2 )
     return v / pi
 
 #@vectorize

@@ -4,6 +4,8 @@ ROOT="$HOME/GLASS/glass"
 #ROOT="$HOME/GLASS/glass-DEV"
 #ROOT="$HOME/GAGL/glass"
 
+export LD_LIBRARY_PATH=$HOME/GLASS/glass/solvers/lpsolve/lp_solve_5.5/extra/Python/build/lib.linux-x86_64-2.6:$LD_LIBRARY_PATH
+export PYTHONPATH=/home/itp/jonathan/pynbody/build/lib.linux-x86_64-2.6:$HOME/GLASS/glass/solvers/lpsolve/lp_solve_5.5/extra/Python/build/lib.linux-x86_64-2.6:$PYTHONPATH
 PYTHON=python
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"

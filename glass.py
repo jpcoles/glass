@@ -6,6 +6,7 @@ import cosmo
 from handythread import parallel_map
 from log import log as Log, setup_log
 from scales import convert
+from numpy import abs
 
 GlassEnvironment = Environment
 
@@ -93,8 +94,11 @@ def report():
             Log( pp('        Distance (Lens->Src) = %.4f' % cosmo.angdist(o.z,src.z), '[arcsec]') )
             Log( pp('        Dos/Dls              = %.4f' % src.zcap, '') )
             for img in src.images: 
-                Log( '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' 
-                    % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2]) )
+                Log( '        Image at (% .3f,% .3f) : |*|=% 5.3f angle=% 8.3f parity=%s ' 
+                    % (img.pos.real, img.pos.imag, abs(img.pos), img.angle, img.parity_name) )
+            #for img in src.images: 
+            #    Log( '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' 
+            #        % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2]) )
 
     Log(  )
     Log( '=' * 80 )

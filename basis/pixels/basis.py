@@ -267,7 +267,9 @@ class PixelBasis(object):
         self.maprad = obj.maprad
         if self.maprad is None:
             self.maprad = rmax * 1.1 
-            #self.maprad = rmax * 1.5
+            self.maprad = rmax * 1.5
+            self.maprad = rmax / (L-1) * L
+            Log( 'Adjusting maprad to allow one ring outside images.' )
             #self.maprad = rmax+rmin
             #self.maprad = min([rmax+rmin, 2*rmax-rmin])
 
@@ -474,7 +476,6 @@ class PixelBasis(object):
     def solution_to_dict(self, sol):
         obj    = self.myobject
         o      = self.array_offset
-        scales = self.myobject.scales
 
         ps = {}
 
@@ -492,14 +493,9 @@ class PixelBasis(object):
                         for j,i in enumerate(xrange(self.srcpos_start, self.srcpos_end,2))]
         ps['src'] = array(ps['src'])
  
-        Gyr = 1e9 * 365.25*60*60*24
-        km = 1000
-        Mpc = 3.086e22
-
-        H0inv = convert('nu to H0^-1 in Gyr', sol[o+self.H0])
-        ps['H0']     = sol[o+self.H0] * (Mpc/km/Gyr)
         ps['nu']     = sol[o+self.H0]
-        ps['1/H0']   = H0inv
+        ps['H0']     = convert('nu to H0 in km/s/Mpc', ps['nu'])
+        ps['1/H0']   = convert('nu to H0^-1 in Gyr',   ps['nu'])
 
 
         #---------------------------------------------------------------------
@@ -567,6 +563,11 @@ class PixelBasis(object):
         grid[self.insideL] = reorder
         grid = grid.reshape((2*L+1,2*L+1))
         return grid
+
+    def from_grid(self, a):
+        print self.insideL
+        print self.pmap
+        return a.ravel()[self.insideL].take(self.pmap)
 
     def mass_grid(self, data):
         Log( "WARNING: use of mass_grid is deprecated. Use kappa_grid instead." )

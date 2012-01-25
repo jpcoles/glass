@@ -162,3 +162,11 @@ def savestate_misc(fname):
             for d in m['sol'][1:]:
                 print >>f, '%.15g' % d,
             print >>f
+
+@command
+def leier_grid(fname, size, units='arcsec'):
+    o = env().current_object()
+    o.prior_options['minkappa Leier grid']['filename'] = fname
+    o.prior_options['minkappa Leier grid']['grid radius'] = size
+    o.prior_options['minkappa Leier grid']['grid radius units'] = units
+

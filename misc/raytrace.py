@@ -5,7 +5,6 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
-from scales import time_to_physical
 from potential import poten, poten_dx, poten_dy
 from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
@@ -338,7 +337,7 @@ def observables(model, obj_index, src_index, seq):
 
     _,prev,_,_ = seq[0]
     for img,t,_,parity in seq[1:]:
-        print parity, t-prev
+        print parity, t-prev, ps['nu'], obj.z
         t0 = convert('arcsec^2 to days', t-prev, obj.z, ps['nu'])
         imglist.append([img, parity,t0])
         prev = t

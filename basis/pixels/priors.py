@@ -1,13 +1,17 @@
 from __future__ import division
-from environment import env, command
-import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all, dot, sum
-from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
-from itertools import izip
-from log import log as Log
-from scales import convert
+if __name__ != '__main__':
+    from environment import env, command
+    from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
+    from itertools import izip
+    from log import log as Log
+    from scales import convert
+    from basis import neighbors
+else:
+    def command(x): pass
 
-from basis import neighbors
+import numpy
+from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all, dot, sum, loadtxt, amax, flipud
+
 
 all_priors = []
 def_priors = []
@@ -178,9 +182,7 @@ def time_delay(o, leq, eq, geq):
     shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
-    tscale = o.scales['time']
-
-    zLp1 = o.z + 1
+    zLp1 = (1 + o.z) * o.dL
 
     shft = [b.map_shift, b.map_shift]
 
@@ -237,11 +239,14 @@ def time_delay(o, leq, eq, geq):
             #print 'row:', len(row), row
 
             #print row
+            #assert 0
 
 @object_prior_check(time_delay)
 def check_time_delay(o, sol):
 
     Log( "Check Time Delay (' ':-12  '.':-11  '-':-10  '*':-9)" )
+
+    return
 
 ##  ls = []
 ##  f = lambda x: ls.append(x)
@@ -520,6 +525,61 @@ def J1parity(o, leq, eq, geq):
             # Parity contraint only valid if Hessian is diagonal
 
 
+#@default_prior
+@object_prior
+def L1parity(o, leq, eq, geq):
+    Log( "L1 Parity with saddle constraint" )
+
+    b = o.basis
+
+    MINIMUM, SADDLE, MAXIMUM = 0,1,2
+
+    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
+    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+
+#   print '*' * 80
+#   print 'TURNED OFF PARITY MAXIMUM CONDITION'
+#   print '*' * 80
+
+    for i,src in enumerate(o.sources):
+        for img in src.images:
+            parity = img.parity
+
+            rows      = new_row(o,2)
+
+            x, y = img.pos.real, img.pos.imag
+
+            rows[0,0] = src.zcap * (x**2 + y**2)
+            rows[1,0] = src.zcap * (y**2 + x**2)
+
+            positions = img.pos - b.ploc
+            #radial
+            rows[0,pix_start:pix_end] = - ( x**2 * poten_dxdx(positions, o.basis.cell_size) \
+                                      + 2 * x**2 * poten_dxdy(positions, o.basis.cell_size) \
+                                          + y**2 * poten_dydy(positions, o.basis.cell_size) )
+            #tangential
+            rows[1,pix_start:pix_end] = - ( y**2 * poten_dxdx(positions, o.basis.cell_size) \
+                                      - 2 * x**2 * poten_dxdy(positions, o.basis.cell_size) \
+                                          + x**2 * poten_dydy(positions, o.basis.cell_size) )
+
+            if o.shear:
+                rows[0,shear_start:shear_end] = [ 2, 0]
+                rows[1,shear_start:shear_end] = [-2, 0]
+
+            if parity == MINIMUM:
+                geq(rows[0])
+                geq(rows[1])
+
+            if parity == MAXIMUM:
+                leq(rows[0])
+                leq(rows[1])
+
+            if parity == SADDLE:
+                geq(rows[0])
+                leq(rows[1])
+
 #@object_prior
 def magnification(o, leq, eq, geq):
 
@@ -640,6 +700,67 @@ def external_shear(o, leq, eq, geq):
 
 ##############################################################################
 
+#@default_prior
+@object_prior
+def profile_steepness2(o, leq, eq, geq):
+    steep = o.prior_options.get('steepness', None)
+
+    if steep is None: 
+        Log( "[DISABLED] Profile Steepness" )
+        return
+
+    Log( indent + "Profile Steepness %s" % steep )
+
+    minsteep, maxsteep = steep
+    assert maxsteep is None or maxsteep >= minsteep
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    nrings = len(o.basis.rings)
+    row = new_row(o)
+
+    #---------------------------------------------------------------------------
+    # First handle the central pixel
+    #---------------------------------------------------------------------------
+#   r0,r1 = o.basis.rings[0:2]
+#   lc = (0.5) ** minsteep
+#   lpc = (1.5) ** minsteep
+#   row[pix_start+r0] = lc / len(r0)
+#   row[pix_start+r1] = -lpc / len(r1)
+#   #print r0,r1
+#   #print row
+#   c=1
+#   geq(row)
+
+    c = 0
+
+    #---------------------------------------------------------------------------
+    # Now the rest of the rings.
+    #---------------------------------------------------------------------------
+    for l in xrange(0,nrings-1):
+        r0 = o.basis.rings[l]
+
+        r0 = o.basis.rings[0]
+        r1 = o.basis.rings[l+1]
+
+        row = new_row(o)
+        #lc  = (l+0.5) ** minsteep
+        #lpc = (l+1.5) ** minsteep
+        row[pix_start+r0] =  1  / len(r0)
+        row[pix_start+r1] = -minsteep / len(r1)
+
+        if minsteep == maxsteep:
+            eq(row)
+        else:
+            geq(row)
+            if maxsteep is not None:
+                row = new_row(o)
+                #lc  = (l+0.5) ** maxsteep
+                #lpc = (l+1.5) ** maxsteep
+                row[pix_start+r0] =  1  / len(r0)
+                row[pix_start+r1] = -maxsteep / len(r1)
+                leq(row)
+
 @default_prior
 @object_prior
 def profile_steepness(o, leq, eq, geq):
@@ -679,6 +800,8 @@ def profile_steepness(o, leq, eq, geq):
     #---------------------------------------------------------------------------
     for l in xrange(0,nrings-1):
         r0 = o.basis.rings[l]
+
+        r0 = o.basis.rings[0]
         r1 = o.basis.rings[l+1]
 
         row = new_row(o)
@@ -694,12 +817,11 @@ def profile_steepness(o, leq, eq, geq):
 
 #           if maxsteep is not None:
 #               row = new_row(o)
-#               lc  = l ** maxsteep
-#               lpc = (l+1) ** maxsteep
+#               lc  = (l+0.5) ** maxsteep
+#               lpc = (l+1.5) ** maxsteep
 #               row[pix_start+r0] =  lc  / len(r0)
 #               row[pix_start+r1] = -lpc / len(r1)
 #               leq(row)
-#               c += 1
 
 
 #   print "\tmaxsteep=", maxsteep, "minsteep=",minsteep
@@ -1209,10 +1331,10 @@ def max_kappa(o, leq, eq, geq):
         row[ [0,j] ] = 100, -1
         leq(row)
 
-@default_prior
+#@default_prior
 @object_prior
 def smooth_symmetry(o, leq, eq, geq):
-    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+    """A pixel cannot be more that twice the average of the neighbours of the opposing pixel."""
 
     smth = o.prior_options.get('smoothness', {'factor': 3})
     if not smth:
@@ -1240,3 +1362,182 @@ def smooth_symmetry(o, leq, eq, geq):
         c += 1
 
     Log( 2*indent + "# eqs = %i" % c )
+
+def intersect(A,B):
+    if B[0] < A[1] or B[1] > A[0] or B[2] > A[3] or B[3] < A[2]: return [0,0,0,0]
+    v = [A[0],A[1], B[0],B[1]]
+    h = [A[2],A[3], B[2],B[3]]
+    v.sort()
+    h.sort()
+    #print v,h
+    b,t = max(v[0],v[1]), min(v[2],v[3])
+    l,r = max(h[0],h[1]), min(h[2],h[3])
+    #print t,b,l,r
+    #print r-l, t-b
+    return [t,b,l,r]
+
+def intersect_frac(A,B):
+    t,b,l,r = intersect(A,B) 
+    areaB = (B[0]-B[1]) * (B[3]-B[2])
+    return (max(r-l,0) * max(t-b,0)) / areaB
+
+    areaA = (A[0]-A[1]) * (A[3]-A[2])
+    areaB = (B[0]-B[1]) * (B[3]-B[2])
+    v = [A[0],A[1], B[0],B[1]]
+    h = [A[2],A[3], B[2],B[3]]
+    v.sort()
+    h.sort()
+    #print v,h
+    b,t = max(v[0],v[1]), min(v[2],v[3])
+    l,r = max(h[0],h[1]), min(h[2],h[3])
+    #print t,b,l,r
+    #print r-l, t-b
+    return (max(r-l,0) * max(t-b,0)) / areaB
+
+@object_prior
+def min_kappa_leier_grid(o, leq, eq, geq):
+
+    g = o.prior_options.get('minkappa Leier grid')
+
+    if not g: 
+        Log( "[DISABLED] Minimum Kappa Leier Grid" )
+        return
+
+    Log( indent + "Minimum Kappa Leier Grid" )
+
+
+    fname = g['filename']
+    grid_size = 2 * g['grid radius']
+    units = g['grid size units']
+    max_nu = env().nu[-1]
+
+    if units != 'arcsec':
+        grid_size = convert('%s to arcsec' % units, grid_size, o.dL, max_nu)
+
+    data = loadtxt(fname, unpack=True)
+    r,c = amax(data[0])+1, amax(data[1])+1
+    assert r==c
+    grid = empty(r*c)
+    grid[:] = data[5] * 1e10
+    grid = grid.reshape((r,c)).T        # Data is stored in column-major order!
+    grid = flipud(grid)
+    L = o.basis.pixrad
+    J = r // 2
+    #grid = congrid(grid, (2*L+1, 2*L+1), minusone=True)
+
+    grid_cell_size = grid_size / r
+    cell_size      = o.basis.top_level_cell_size
+
+    #cell_size = grid_cell_size
+
+    grid *= grid_cell_size**2
+
+    pg = zeros((2*L+1, 2*L+1))
+    for y in xrange(2*L+1):
+        for x in xrange(2*L+1):
+            rt = (L-y+0.5) * cell_size
+            rb = (L-y-0.5) * cell_size
+            cl = (x-L-0.5) * cell_size
+            cr = (x-L+0.5) * cell_size
+            for i in xrange(2*J+1):
+                for j in xrange(2*J+1):
+                    it = (J-i+0.5) * grid_cell_size
+                    ib = (J-i-0.5) * grid_cell_size
+                    jl = (j-J-0.5) * grid_cell_size
+                    jr = (j-J+0.5) * grid_cell_size
+                    frac = intersect_frac([rt,rb,cl,cr], [it,ib,jl,jr])
+                    pg[y,x] += frac * grid[i,j]
+#                   if frac > 0:
+#                       print [rt,rb,cl,cr], [it,ib,jl,jr]
+#                       print frac, i,j, L,J, cell_size, grid_cell_size
+                        #assert 0
+
+            #break
+        #break
+
+    #pg *= 2
+    pg /= cell_size**2
+    pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, max_nu)
+
+
+#   print data[11] / data[12]
+#   from numpy import cos,sin,arctan2, arctan, angle
+#   xs = cos(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
+#   ys = sin(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
+
+    import pylab as pl
+#   pl.scatter(xs,ys)
+#   #pl.show()
+#   #assert 0
+#   
+
+    #pl.matshow(log10(pg))
+    #pl.colorbar()
+
+    a = o.basis.from_grid(pg)
+    print a
+    ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
+    m  = package_solution(ps, [o])
+
+    from funcs import default_post_process
+    default_post_process(m['obj,data'][0])
+    kappa_plot(m,0) #{'obj,data': [[o,m]]},0)
+    pl.figure(); glplot([m], 'kappa(R)', ['R', 'arcsec'], mark_images=True)
+    pl.show()
+    #pl.show()
+    #assert 0
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    for i,j in enumerate(xrange(pix_start, pix_end)):
+        row = new_row(o)
+        row[ [0,j] ] = -a[i], 1
+        geq(row)
+
+
+if __name__ == '__main__':
+    import pylab as pl
+    import matplotlib as mpl
+    fig=pl.figure()
+    ax = fig.add_subplot(111)
+    def rect(R, fc='none'):
+        t,b,l,r = R
+        return mpl.patches.Rectangle( (l,b), width=r-l, height=t-b, fc=fc)
+
+    B = [10,0,0,10]
+    A = [1,0.5,0.5,1.5]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(B))
+    ax.add_artist(rect(intersect(A,B), fc=None))
+
+    B = [8,5,4,8]
+    A = [7,6,6,9]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(B))
+    ax.add_artist(rect(intersect(A,B), fc='r'))
+
+    B = [4,3,3,4]
+    A = [3.5,2,3.5,6]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(B))
+    ax.add_artist(rect(intersect(A,B), fc='r'))
+
+    A = [3.5,2,1,3.2]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(intersect(A,B), fc='r'))
+
+    A = [4.2,3.8,1,3.2]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(intersect(A,B), fc='r'))
+
+    A = [4.2,3.8,3.5,6]
+    ax.add_artist(rect(A))
+    ax.add_artist(rect(intersect(A,B), fc='r'))
+
+    pl.xlim(-1,11)
+    pl.ylim(-1,11)
+    pl.show()
+
+
+
+

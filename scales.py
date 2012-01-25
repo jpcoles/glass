@@ -1,15 +1,15 @@
 from __future__ import division
 from environment import command
-from cosmo import scales
+#from cosmo import scales
 
 N = 206265
 Munit = 11.988 # Msun
 
-def get_args(args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return obj,v,H0inv
+#def get_args(args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return obj,v,H0inv
 
 @command
 def convert(type, v, *args):
@@ -18,9 +18,9 @@ def convert(type, v, *args):
     if s.strip() == d.strip(): return v
     
     if 'ly to rad' == type:
-        dL, nu = args; return nu * v / dL / N**2
+        dL, nu = args; return v * nu / dL / N**2
     elif 'rad to ly' == type:
-        dL, nu = args; return nu / v * dL * N**2
+        dL, nu = args; return v / nu * dL * N**2
 
     elif 'ly to arcsec' == type:
         dL, nu = args; return v * nu / dL / N
@@ -28,8 +28,8 @@ def convert(type, v, *args):
         dL, nu = args; return v / nu * dL * N
 
     elif 'arcsec^2 to days' == type:
-        zL, nu = args; 
-        return convert('years to days', v / nu * (1+zL))
+        dL, zL, nu = args; 
+        return convert('years to days', v / nu * dL*(1+zL))
 
     elif 'kpc to ly' == type:
         return v * 3.26e3
@@ -54,7 +54,10 @@ def convert(type, v, *args):
         return (N**2 / 1e9) / v * age_factor
 
     elif 'H0 in km/s/Mpc to nu' == type:
-        return N**2 * v / 1e12
+        return v * N**2 / 9.778140e+11
+
+    elif 'nu to H0 in km/s/Mpc' == type:
+        return v / N**2 * 9.778140e+11
 
     elif 'H0^-1 in Gyr to nu' == type:
         return (N**2 / 1e9) / v
@@ -72,6 +75,9 @@ def convert(type, v, *args):
 
     elif 'Msun/kpc^2 to kappa' == type:
         return convert('Msun/ly^2 to kappa', v, *args) / convert('kpc to ly', 1.)**2 
+
+    elif 'Msun/arcsec^2 to kappa' == type:
+        return convert('Msun/ly^2 to kappa', v, *args) / convert('arcsec to ly', 1., *args)**2 
 
     elif 'kappa to Msun/kpc^2' == type:
         return convert('kappa to Msun/ly^2', v, *args) / convert('ly to kpc', 1.)**2
@@ -92,95 +98,95 @@ def convert(type, v, *args):
 # Density conversions
 #-------------------------------------------------------------------------------
 
-def density_to_internal(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v / obj.scales['critden'] / H0inv
-
-def density_to_physical(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v * obj.scales['critden'] * H0inv
-
-def MsunKpc2_to_MsunArcsec2(*args):
-    pass
-
-def MsunKpc2_to_KappaKpc2(*args):
-    pass
-
-def get_args(args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return obj,v,H0inv
-
-def MsunKpc2_to_Kappa(*args):
-    obj,v,H0inv = get_args(args)
-    return v * (obj.scales['angdist'] * H0inv)**2 \
-             / (obj.scales['critden'] * H0inv)
-
-def Kappa_to_MsunKpc2(*args):
-    obj,v,H0inv = get_args(args)
-    return v *  obj.scales['critden'] \
-             / (obj.scales['angdist']**2 * H0inv)
-
-#   return v / (obj.scales['angdist'] * H0inv)**2 \
-#            * (obj.scales['critden'] * H0inv)
-
-def Kappa_to_MsunArcsec2(*args):
-    obj,v,H0inv = get_args(args)
-    return v * (obj.scales['critden'] * H0inv)
-
-#-------------------------------------------------------------------------------
-# Distance conversions
-#-------------------------------------------------------------------------------
-
-def distance_to_internal(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v / obj.scales['angdist'] / H0inv
-
-def distance_to_physical(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v * obj.scales['angdist'] * H0inv
-
-def Kpc_to_Arcsec(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v / obj.scales['angdist'] / H0inv
-
-def Arcsec_to_Kpc(*args):
-    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
-    else:              obj,v,H0inv    = args
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v * obj.scales['angdist'] * H0inv
-
-#-------------------------------------------------------------------------------
-# Time conversions
-#-------------------------------------------------------------------------------
-
-def time_to_physical(obj, v):
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return v / obj.scales['time']
-    #return 1 / v / obj.scales['time']
-
-def time_to_internal(obj, v):
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return 1 / v / obj.scales['time']
-
-def Days_to_Expansion(obj, v):
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return 1 / v / obj.scales['time']
-
-def Expansion_to_Days(obj, v):
-    assert obj.scales, "Scaling requires that zlens() be set first."
-    return 1 / v / obj.scales['time']
+#def density_to_internal(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v / obj.scales['critden'] / H0inv
+#
+#def density_to_physical(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v * obj.scales['critden'] * H0inv
+#
+#def MsunKpc2_to_MsunArcsec2(*args):
+#    pass
+#
+#def MsunKpc2_to_KappaKpc2(*args):
+#    pass
+#
+#def get_args(args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return obj,v,H0inv
+#
+#def MsunKpc2_to_Kappa(*args):
+#    obj,v,H0inv = get_args(args)
+#    return v * (obj.scales['angdist'] * H0inv)**2 \
+#             / (obj.scales['critden'] * H0inv)
+#
+#def Kappa_to_MsunKpc2(*args):
+#    obj,v,H0inv = get_args(args)
+#    return v *  obj.scales['critden'] \
+#             / (obj.scales['angdist']**2 * H0inv)
+#
+##   return v / (obj.scales['angdist'] * H0inv)**2 \
+##            * (obj.scales['critden'] * H0inv)
+#
+#def Kappa_to_MsunArcsec2(*args):
+#    obj,v,H0inv = get_args(args)
+#    return v * (obj.scales['critden'] * H0inv)
+#
+##-------------------------------------------------------------------------------
+## Distance conversions
+##-------------------------------------------------------------------------------
+#
+#def distance_to_internal(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v / obj.scales['angdist'] / H0inv
+#
+#def distance_to_physical(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v * obj.scales['angdist'] * H0inv
+#
+#def Kpc_to_Arcsec(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v / obj.scales['angdist'] / H0inv
+#
+#def Arcsec_to_Kpc(*args):
+#    if len(args) == 2: [obj, data], v = args; H0inv = data['1/H0']
+#    else:              obj,v,H0inv    = args
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v * obj.scales['angdist'] * H0inv
+#
+##-------------------------------------------------------------------------------
+## Time conversions
+##-------------------------------------------------------------------------------
+#
+#def time_to_physical(obj, v):
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return v / obj.scales['time']
+#    #return 1 / v / obj.scales['time']
+#
+#def time_to_internal(obj, v):
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return 1 / v / obj.scales['time']
+#
+#def Days_to_Expansion(obj, v):
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return 1 / v / obj.scales['time']
+#
+#def Expansion_to_Days(obj, v):
+#    assert obj.scales, "Scaling requires that zlens() be set first."
+#    return 1 / v / obj.scales['time']
 
 
 if __name__ == '__main__':

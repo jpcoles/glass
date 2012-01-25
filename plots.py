@@ -14,7 +14,6 @@ from matplotlib import rc
 from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle, Ellipse
 from matplotlib.lines import Line2D
-from scales import density_to_physical, distance_to_physical, Arcsec_to_Kpc, convert
 import math
 from collections import defaultdict
 
@@ -39,6 +38,18 @@ _source_colors = 'c'
 
 def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
+
+def default_kw(R, cmap=cm.gist_stern, vmin=-2, vmax=0):
+    kw = {}
+    kw['extent'] = [-R,R,-R,R]
+    kw['interpolation'] = 'nearest'
+    kw['aspect'] = 'equal'
+    kw['origin'] = 'upper'
+    kw['fignum'] = False
+    kw['cmap'] = cmap
+    if vmin is not None: kw['vmin'] = vmin
+    if vmax is not None: kw['vmax'] = vmax
+    return kw
 
 @command
 def show_plots():
@@ -188,14 +199,7 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
 
     #grid[grid >= 1] = 0
 
-    kw = {'extent': [-R,R,-R,R],
-          'interpolation': 'nearest',
-          'aspect': 'equal',
-          'origin': 'upper',
-          'cmap': cm.bone,
-          'fignum': False,
-          'vmin': -2,
-          'vmax': 0}
+    kw = default_kw(R)
 
     if not only_contours:
         #matshow(log10(grid), **kw)
@@ -255,14 +259,7 @@ def arrival_plot(model, obj_index, src_index, only_contours=False, clevels=30, w
     lev = obj.basis.arrival_contour_levels(data)
     if lev: lev = lev[src_index]
 
-    kw = {'extent': [-R,R,-R,R],
-          'interpolation': 'nearest',
-          'aspect': 'equal',
-          'origin': 'upper',
-          'cmap': cm.bone,
-          'fignum': False,
-          'vmin': -4,
-          'vmax': 0}
+    kw = default_kw(R)
 
     if not only_contours:
         matshow(g, **kw)
@@ -295,14 +292,7 @@ def srcdiff_plot(model, obj_index, src_index, with_colorbar=False):
     g = obj.basis.srcdiff_grid(data)[src_index]
     vmin = log10(amin(g[g>0]))
     g = g.copy() + 1e-10
-    kw = {'extent': [-R,R,-R,R],
-          'interpolation': 'nearest',
-          'aspect': 'equal',
-          'origin': 'upper',
-          'cmap': cm.gray,
-          'fignum': False,
-          'vmin': vmin,
-          'vmax': vmin+2}
+    kw = default_kw(R, vmin=vmin, vmax=vmin+2)
 
     #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
     matshow(log10(g), **kw)
@@ -325,12 +315,7 @@ def deflect_plot(model, obj_index, which, src_index):
 
     vmin = log10(amin(g[g>0]))
     g = g.copy() + 1e-10
-    kw = {'extent': [-R,R,-R,R],
-          'interpolation': 'nearest',
-          'aspect': 'equal',
-          'origin': 'upper',
-          'cmap': cm.bone,
-          'fignum': False}
+    kw = default_kw(R, vmin=None, vmax=None)
 
     matshow(g, **kw)
     #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
@@ -656,8 +641,61 @@ def encmass_plot(models, **kwargs):
     _data_plot(models, xaxis, 'encmass', xlabel, _encmass_ylabel, **kwargs)
     #_data_plot(models, 'R_kpc', 'encmass', _encmass_xlabel, _encmass_ylabel, plotf=plot, **kwargs)
 
+_H0inv_xlabel = r'$H_0^{-1}$ (Gyr)'
+@command
+def H0inv_plot(models=None, objects=None, key='accepted'):
+    if models is None: models = env().models
 
-_H0_xlabel = r'$H_0^{-1}$ (Gyr)'
+    # select a list to append to based on the 'accepted' property.
+    l = [[], [], []]
+    for m in models:
+        obj, data = m['obj,data'][0] # For H0inv we only have to look at one model because the others are the same
+        l[m.get(key,2)].append(data['1/H0'])
+        #l[2].append(data['kappa'][1])
+
+    #print amin(l[2]), amax(l[2])
+
+    not_accepted, accepted, notag = l
+
+    #print 'H0inv_plot',H0s
+
+    for d,s in zip(l, _styles):
+        if d:
+            print len(d), d
+            #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+
+    if not_accepted or accepted:
+        legend()
+
+    axvline(13.7, c='k', ls=':', zorder = 2)
+
+    xlabel(_H0inv_xlabel)
+    ylabel(r'$\mathrm{Number}$')
+
+    if accepted or not not_accepted:
+        if accepted:
+            h = array(accepted)
+        else:
+            h = array(accepted + notag)
+
+        hs = sort(h)
+        l = len(hs)
+
+        m = hs[l * 0.50]
+        u = hs[l * 0.68]
+        l = hs[l * 0.32]
+
+        axvline(m, c='r', ls='-', zorder = 2)
+        axvline(u, c='g', ls='-', zorder = 2)
+        axvline(l, c='g', ls='-', zorder = 2)
+
+        print 'H0inv_plot: ', m, u, l
+        print 'H0inv_plot: ', m, (u-m), (m-l)
+    else:
+        print "H0inv_plot: No H0inv values accepted"
+
+_H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command
 def H0_plot(models=None, objects=None, key='accepted'):
     if models is None: models = env().models
@@ -666,7 +704,8 @@ def H0_plot(models=None, objects=None, key='accepted'):
     l = [[], [], []]
     for m in models:
         obj, data = m['obj,data'][0] # For H0 we only have to look at one model because the others are the same
-        l[m.get(key,2)].append(data['1/H0'])
+        l[m.get(key,2)].append(data['H0'])
+        #print 'nu', data['nu']
         #l[2].append(data['kappa'][1])
 
     #print amin(l[2]), amax(l[2])
@@ -684,7 +723,7 @@ def H0_plot(models=None, objects=None, key='accepted'):
     if not_accepted or accepted:
         legend()
 
-    axvline(13.7, c='k', ls=':', zorder = 2)
+    #axvline(72, c='k', ls=':', zorder = 2)
 
     xlabel(_H0_xlabel)
     ylabel(r'$\mathrm{Number}$')
@@ -721,15 +760,16 @@ def time_delays_plot(models=None, object=0, key='accepted'):
         obj,data = m['obj,data'][object]
         t0 = data['arrival times'][object][0]
         for i,t in enumerate(data['arrival times'][object][1:]):
-            d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.z, data['nu'])) )
+            d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
             t0 = t
 
     for k,v in d.iteritems():
-        print 'td plot', k, len(v)
-        print v
+        #print 'td plot', k, len(v)
+        #print v
         hist(v, bins=50, histtype='step', label='%s - %s' % (str(k+1),str(k+2)))
 
     xlim(xmin=0)
+    ylim(ymin=0)
     legend()
 
     xlabel(_time_delays_xlabel)
