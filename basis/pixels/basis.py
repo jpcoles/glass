@@ -720,8 +720,10 @@ class PixelBasis(object):
         obj = self.myobject
         kappa = data['kappa']
         dist  = theta - self.ploc
-        s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
-                    dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
+        #s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
+        #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
+        s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
+                    dot(kappa, (poten_dy(dist,self.cell_size))))
         if obj.shear:
             s1,s2 = data['shear']
             s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
