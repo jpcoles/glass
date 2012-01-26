@@ -23,3 +23,6 @@ def samplex_acceptance(rate=0.25, tol=0.05):
 def samplex_redo_factor(f):
     env().model_gen_options['redo factor'] = f
 
+@command
+def samplex_start_twiddle(t):
+    env().model_gen_options['twiddle'] = t

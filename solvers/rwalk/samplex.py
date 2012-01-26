@@ -172,6 +172,7 @@ class Samplex:
         self.accept_rate = kw.get('acceptance rate', 0.25)
         self.accept_rate_tol = kw.get('acceptance tol', 0.05)
         self.redo_factor = kw.get('redo factor', 1)
+        self.twiddle = kw.get('twiddle', 2.4)
 
         Log( "Samplex created" )
         Log( "    ncols = %s" % ncols )
@@ -244,6 +245,7 @@ class Samplex:
         Log( "acceptence rate = %s" % self.accept_rate )
         Log( "acceptence rate tolerance = %s" % self.accept_rate_tol )
         Log( "redo factor = %s" % self.redo_factor )
+        Log( "starting twiddle = %s" % self.twiddle )
 
         #Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -1068,8 +1070,8 @@ class Samplex:
         print 'redo', redo
         #print 'vec', np
 
-        self.twiddle = 2.4
-        self.twiddle = 8.2
+        #self.twiddle = 2.4
+        #self.twiddle = 8.2
 
         accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
