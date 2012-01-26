@@ -269,9 +269,9 @@ class PixelBasis(object):
             self.maprad = rmax * 1.1 
             self.maprad = rmax * 1.5
             self.maprad = rmax / (L-1) * L
-            Log( 'Adjusting maprad to allow one ring outside images.' )
+            #Log( 'Adjusting maprad to allow one ring outside images.' )
             #self.maprad = rmax+rmin
-            #self.maprad = min([rmax+rmin, 2*rmax-rmin])
+            #self.maprad = amin([rmax+rmin, 2*rmax-rmin])
 
         self.map_shift = self.maprad        # [arcsec]
 

@@ -1080,12 +1080,17 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 
     Py_BEGIN_ALLOW_THREADS
 
+    double random_time = 0;
+
     int once_accepted = 0;
+    double redo_stime = CPUTIME;
     while (redo-- > 0)
     {
         memset(np, 0, sizeof(*np) * dim);
 
         /* Make a random direction */
+        double stime = CPUTIME;
+
         long offs = 0;
         double r,r1;
         for (i=0; i < dim; i++)
@@ -1099,6 +1104,9 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             for (j=0; j < dim; j++)
                 np[j] += q * est_evec.data[offs++];
         }
+        double etime = CPUTIME;
+
+        random_time += etime-stime;
 
         int accept = 1;
 
@@ -1162,6 +1170,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             //fprintf(stderr, "REJECTED %e\n", s);
         }
 
+
 //      if (rejected != 0 && (accepted + rejected) > 100)
 //      {
 
@@ -1172,6 +1181,10 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 //      }
 
     }
+    double redo_etime = CPUTIME;
+
+    fprintf(stderr, "RANDOM TOOK %fs\n", random_time);
+    fprintf(stderr, "TOTAL TOOK %fs\n", redo_etime-redo_stime);
 
 //  if (once_accepted)
 //      fprintf(stderr, "ACCEPTED SOMETHING\n");

@@ -1408,7 +1408,7 @@ def min_kappa_leier_grid(o, leq, eq, geq):
 
     fname = g['filename']
     grid_size = 2 * g['grid radius']
-    units = g['grid size units']
+    units = g['grid radius units']
     max_nu = env().nu[-1]
 
     if units != 'arcsec':

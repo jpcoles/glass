@@ -171,6 +171,7 @@ class Samplex:
         self.stride = kw.get('stride', 1)
         self.accept_rate = kw.get('acceptance rate', 0.25)
         self.accept_rate_tol = kw.get('acceptance tol', 0.05)
+        self.redo_factor = kw.get('redo factor', 1)
 
         Log( "Samplex created" )
         Log( "    ncols = %s" % ncols )
@@ -242,6 +243,7 @@ class Samplex:
         Log( "stride = %s" % self.stride )
         Log( "acceptence rate = %s" % self.accept_rate )
         Log( "acceptence rate tolerance = %s" % self.accept_rate_tol )
+        Log( "redo factor = %s" % self.redo_factor )
 
         #Log( "N = %i" % self.nVars )
         Log( "L = %i" % self.nLeft )
@@ -583,7 +585,7 @@ class Samplex:
         dim = self.nVars
         dof = dim - self.eq_count
         window_size = 2*dim #max(10, int(1.5 * dim))
-        redo = max(100, dim ** 2)
+        redo = max(100, int((dim ** 2) * self.redo_factor))
         nmodels = nsolutions
 
         store = zeros((dim, window_size+nmodels+1), order='Fortran', dtype=numpy.float64)
