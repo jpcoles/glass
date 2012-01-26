@@ -1111,13 +1111,12 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         }
         //fprintf(stderr, "\n");
 
-
         /* Check if we are still in the simplex */
         double s = 0;
         //#pragma omp parallel private(s,accept, offs)
         for (i=0; accept && i < eqs.rows; i++)
         {
-            if (!accept) continue;
+            //if (!accept) continue;
 
             long offs = i * eqs.cols;
 
@@ -1129,7 +1128,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             }
             s += c;
 
-            if (!accept) break;
+            //if (!accept) break;
 
             if (i >= geq_offs)
             {

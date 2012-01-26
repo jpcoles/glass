@@ -662,7 +662,12 @@ class Samplex:
                 #    i = 1
 
                 lpsolve('set_obj_fn', self.lp, o.tolist())
+                lpsolve('set_presolve', self.lp, 1 + 4)
+                print 'BEFORE', lpsolve('get_Nrows', self.lp)
                 while self.next_solution(): pass
+                print 'AFTER', lpsolve('get_Nrows', self.lp)
+                #assert 0
+
 
                 v1 = self.package_solution()
                 #print 'v0', v0.vertex[1:self.nVars+1]
