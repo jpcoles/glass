@@ -113,12 +113,17 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     done = should_stop(id,stopq)
     time_begin = time.clock()
     print 'Loop begins'
+    models_since_last_eval = 0
     for i in xrange(nmodels):
 
-        if (n_stored % 20) == 0:
+        if (models_since_last_eval / n_stored) > 0.25:
+        #if (n_stored % 20) == 0:
             print ' '*39, 'Computing eigenvalues...'
             samplex.compute_eval(store, eval, evec, n_stored, window_size)
             eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
+            models_since_last_eval = 0
+
+        models_since_last_eval += 1
 
         vec[:] = dot(evec.T, vec)
         #print vec
