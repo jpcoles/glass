@@ -137,6 +137,8 @@ def clear():
 @command
 def savestate(fname):
 
+    Log('Saving state to %s' % fname)
+
     header = '''\
 GLASS version 0.1
 CREATED ON: %s'''

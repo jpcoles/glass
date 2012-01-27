@@ -1479,11 +1479,11 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
     m  = package_solution(ps, [o])
 
-    from funcs import default_post_process
-    default_post_process(m['obj,data'][0])
-    kappa_plot(m,0) #{'obj,data': [[o,m]]},0)
-    pl.figure(); glplot([m], 'kappa(R)', ['R', 'arcsec'], mark_images=True)
-    pl.show()
+#   from funcs import default_post_process
+#   default_post_process(m['obj,data'][0])
+#   kappa_plot(m,0) #{'obj,data': [[o,m]]},0)
+#   pl.figure(); glplot([m], 'kappa(R)', ['R', 'arcsec'], mark_images=True)
+#   pl.show()
     #pl.show()
     #assert 0
 

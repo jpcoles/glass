@@ -639,60 +639,43 @@ class Samplex:
 
 
         Log( "Getting solutions" )
-        #if not self.find_feasible(): return
-        #self.start_new_objective()
-
-        #o = random(lpsolve('get_Ncolumns', self.lp))# - 0.5
-        #lpsolve('set_obj_fn', self.lp, o.tolist())
-        #while self.next_solution(): pass
-
-        #v0 = self.package_solution()
 
         time_begin_inner_point = time.clock()
-        if 1:
-            i=0
-            while True:
-                i += 1
-                #lpsolve('set_maxim', self.lp)
-                if i%2 == 1:
-                    o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
-                    lpsolve('set_sense', self.lp, False)
-                else:
-                    lpsolve('set_sense', self.lp, True)
-                    #o *= -1
+        i=0
+        new_objv = True
+        while True:
+            i += 1
+            #lpsolve('set_maxim', self.lp)
+            if i%2 == 1 or new_objf:
+                new_objf = False
+                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
+                lpsolve('set_sense', self.lp, False)
+            else:
+                lpsolve('set_sense', self.lp, True)
 
-                #if i > 10:
-                #    np *= 0
-                #    i = 1
+            lpsolve('set_obj_fn', self.lp, o.tolist())
+            #lpsolve('set_presolve', self.lp, 1 + 4)
+            print 'BEFORE', lpsolve('get_Nrows', self.lp)
+            while self.next_solution(): pass
+            print 'AFTER', lpsolve('get_Nrows', self.lp)
+            if lpsolve('get_Ncolumns', self.lp) != lpsolve('get_Norig_columns', self.lp):
+                new_objf = True
 
-                lpsolve('set_obj_fn', self.lp, o.tolist())
-                lpsolve('set_presolve', self.lp, 1 + 4)
-                print 'BEFORE', lpsolve('get_Nrows', self.lp)
-                while self.next_solution(): pass
-                print 'AFTER', lpsolve('get_Nrows', self.lp)
-                #assert 0
+            v1 = self.package_solution()
 
+            np += v1.vertex[1:self.nVars+1]
+            np2 = np.copy()
+            np2 /= i
+            self.project(np2)
+            ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=2)
 
-                v1 = self.package_solution()
-                #print 'v0', v0.vertex[1:self.nVars+1]
-                #print 'v1', v1.vertex[1:self.nVars+1]
+            if ok: 
+                np = np2
+                break
 
-                #np = (v1.vertex[1:self.nVars+1] + v0.vertex[1:self.nVars+1]) / 2
-                np += v1.vertex[1:self.nVars+1]
-                np2 = np.copy()
-                np2 /= i
-                self.project(np2)
-                #print np
-                ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=2)
-
-                if ok: 
-                    np = np2
-                    #ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-12, verbose=2)
-                    break
+            print i
 
 
-                print i
-                #v0 = v1
         time_end_inner_point = time.clock()
 
 
@@ -703,352 +686,68 @@ class Samplex:
 
 
         #-----------------------------------------------------------------------
-        # First we need to find a small sample within the solution space
+        # Estimate a point in the middle of the simplex
         #-----------------------------------------------------------------------
 
         self.sum_ln_k = 0
         self.n_solutions = 0
         self.stride = int(dim+1)
 
-        if 0:
-            C = zeros((dof,dof), order='F', dtype=numpy.float64)
+        print np.shape
+        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
+        assert ok
 
-            while True:
-                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
-                lpsolve('set_obj_fn', self.lp, o.tolist())
-
-                while self.next_solution(): pass
-                self.curr_sol = self.package_solution()
-                np[:] = self.curr_sol.vertex[1:self.nVars+1]
-                self.project(np)
-
-                print 'np',np
-                ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
-                print 'ok?', ok
-
-                nadded = 0
-                tol = 1e-10
-                Es = []
-                for i,[c,e] in enumerate(self.eq_list):
-                    #if nadded == dof: break
-
-                    a = e[0] + dot(np, e[1:])
-
-                    if i == self.eq_count:
-                        print '-'*80
-
-                    E = e[1:].copy()
-                    #E += np
-                    #self.project(E)
-                    #E -= np
-
-                    print abs(a)
-                    #---------------------------------------------------------------
-                    # When abs(a)<tol the point np is actually sitting on the
-                    # current contraint plane.
-                    #---------------------------------------------------------------
-                    if abs(a) < tol: 
-                        Es.append(E)
-                        nadded += 1
-
-                print 'nadded', nadded
-                if nadded == dof: break
-
-            print 'dof', dof
-            print C.shape
-            print len(Es)
-            print evec.shape
-
-            js = []
-            for j0 in range(evec.shape[1]):
-                if ev[j0] > 1e-12:
-                    js.append(j0)
-
-            for i,E in enumerate(Es):
-                for j in range(len(js)):
-                    C[i,j] = dot(evec[js[j]], E)
-
-            C = inv(C)
-            C = sum(C,axis=1)
-
-            assert len(js) == C.shape[0]
-
-            for i,j in enumerate(js):
-                vec += C[i] * evec[:,j]
-
-            vec /= norm(vec)
-            print vec
-
-            vec += np
-            self.project(vec)
-            vec -= np
-            #vec /= norm(vec)
-            #print 'vec',vec
-
-            vec *= -1
-            d1 = self.distance_to_plane(np, vec)
-            print d1
-
-
-            np += vec * (d1 / 2)
-            self.project(np)
-            print 'np', np
-
-            print 'Added %i normals of %i (dof=%i)' % (nadded, len(self.eq_list), dof)
-            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
-            print 'ok', ok
-            #assert 0
-
-        if 0:
-            #self.start_new_objective()
-            #while self.next_solution(): pass
-            np[:] = self.curr_sol.vertex[1:self.nVars+1]
-
-            #np[abs(np) < 1e-13] = 0
-            self.project(np)
-
-            print 'np',np
-            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-10, verbose=1)
-            print 'ok?', ok
-
-            nadded = 0
-            tol = 1e-10
-            for i,[c,e] in enumerate(self.eq_list):
-                a = e[0] + dot(np, e[1:])
-
-                if i == self.eq_count:
-                    print '-'*80
-
-                E = e[1:].copy()
-                E += np
-                self.project(E)
-                E -= np
-
-                print abs(a)
-                #---------------------------------------------------------------
-                # When abs(a)<tol the point np is actually sitting on the
-                # current contraint plane.
-                #---------------------------------------------------------------
-                if abs(a) < tol: 
-                    if c == 'geq':
-                        vec += E / norm(E)
-                        nadded += 1
-                    elif c == 'leq':
-                        vec -= E / norm(E)
-                        nadded += 1
-
-                    #vec[s0] += self.sign_of_normal(np+e[1:], c, e) * e[s1]
-
-            vec += np
-            self.project(vec)
-            vec -= np
-            vec /= norm(vec)
-            #print 'vec',vec
-
-            d1 = self.distance_to_plane(np, vec, eq_list=self.eq_list)
-
-            d2 = d1 #self.distance_to_plane(np, vec, eq_list=self.eq_list_no_noise)
-            print d1, d2
-
-
-            np += vec * (d1 / 2)
-            self.project(np)
-            print 'np', np
-
-            print 'Added %i normals of %i (dof=%i)' % (nadded, len(self.eq_list), dof)
-            assert 0
-
-        if 1:
-#           j=0
-#           while True:
-#               for i in xrange(2*dim):
-#                   if not self.next_solution():
-#                       self.start_new_objective()
-#                       continue
-#                   self.curr_sol = self.package_solution()                
-#               vec += self.interior_point(self.curr_sol)[1:]
-#               j += 1
-#               np[:] = vec / j
-#               self.project(np)
-#               if self.in_simplex( np, tol=1e-10, eq_tol=1e-12):
-#                   break
-
-            #vec[:] = self.curr_sol.vertex[1:self.nVars+1]
-
-            if 0:
-                self.project(vec)
-                N = 0
-                ok = False
-                fail_count = self.eqn_count
-                #self.start_new_objective()
-                while not ok:
-                    print 'Step %i] Still need to satisfy %i equations' % (N,fail_count)
-
-                    if 1:
-                        self.start_new_objective()
-                        while self.next_solution():
-                            pass
-                    else:
-                        for i in xrange(2*dim):
-                            if not self.next_solution():
-                                self.start_new_objective()
-
-                    #vec[:] = self.curr_sol.vertex[1:self.nVars+1]
-                    self.curr_sol = self.package_solution()                
-                    v = self.curr_sol.vertex[1:self.nVars+1].copy('A')
-                    #v = self.interior_point(self.curr_sol)[1:]
-                    #self.project(v)
-                    vec += v
-
-                    q = vec.copy('A') / (N+1)
-                    self.project(q)
-
-                    N += 1
-                    ok,fail_count = self.in_simplex(q, eq_tol=1e-12, tol=1e-14, verbose=1)
-
-                vec /= N+1
-                self.project(vec)
-
-
-            #self.project(np)
-            #ok,fail_count = self.in_simplex(np, eq_tol=0, tol=1e-14, verbose=1)
-            #ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-12, verbose=1)
-            #ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=1e-12, verbose=1)
-            print np.shape
-            #print 'lpsolve says', lpsolve('is_feasible', self.lp, np, 1e-12)
-            #print 'lpsolve says', lpsolve('is_feasible', self.lp, np.tolist(), 1e-12)
-            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
-            assert ok
-
-            #p = self.curr_sol.vertex[:self.nVars+1]
-
-
-
-            #ev[abs(ev) < 1e-12] = 0
-            #ev[abs(ev-1) < 1e-12] = 1
-
-            #self.project(vec)
-            #vec[abs(vec) < 1e-12] = 0
-
-            #print vec
-
-            time_begin_middle_point = time.clock()
-            print 'Estimating middle point'
-            for i in range(4):
-                for r in range(eval.size):
-                    if ev[r] >= 1e-12:
-                        direction = evec[:,r]
-                        tmax1 = -self.distance_to_plane(np, -direction)
-                        tmax2 = +self.distance_to_plane(np, +direction)
-                        assert tmax1 < tmax2, 'tmax %e %e  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
-                        np += direction * ((tmax1+tmax2) / 2)
-            time_end_middle_point = time.clock()
-
-            assert self.in_simplex(np)
-
-            time_begin_est_eigenvectors = time.clock()
-            print 'Estimating eigenvectors'
-            nzero = 0
-            n_stored = 0
+        time_begin_middle_point = time.clock()
+        print 'Estimating middle point'
+        for i in range(4):
             for r in range(eval.size):
-                if ev[r] < 1e-12:
-                    eval[r] = 0
-                    nzero += 1
-                else:
+                if ev[r] >= 1e-12:
                     direction = evec[:,r]
                     tmax1 = -self.distance_to_plane(np, -direction)
                     tmax2 = +self.distance_to_plane(np, +direction)
-                    eval[r] = (tmax2 - tmax1) / sqrt(12)
-                    #print 'tmax', tmax1, tmax2, eval[r]
-                    assert tmax1 < tmax2, 'tmax %i %i  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
-                    store[:,n_stored+0] = np + direction * tmax1
-                    store[:,n_stored+1] = np + direction * tmax2
-                    n_stored += 2
+                    assert tmax1 < tmax2, 'tmax %e %e  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
+                    np += direction * ((tmax1+tmax2) / 2)
+        time_end_middle_point = time.clock()
 
-            assert nzero == self.eq_count, '%i != %i' % (nzero, self.eq_count)
+        assert self.in_simplex(np)
 
-            multiply(eval, evec, est_evec)
+        #-----------------------------------------------------------------------
+        # Estimate the eigenvectors of the simplex
+        #-----------------------------------------------------------------------
 
-            print 'est_evec', est_evec#[:,:self.eq_count]
-            #assert 0
+        time_begin_est_eigenvectors = time.clock()
+        print 'Estimating eigenvectors'
+        nzero = 0
+        n_stored = 0
+        for r in range(eval.size):
+            if ev[r] < 1e-12:
+                eval[r] = 0
+                nzero += 1
+            else:
+                direction = evec[:,r]
+                tmax1 = -self.distance_to_plane(np, -direction)
+                tmax2 = +self.distance_to_plane(np, +direction)
+                eval[r] = (tmax2 - tmax1) / sqrt(12)
+                #print 'tmax', tmax1, tmax2, eval[r]
+                assert tmax1 < tmax2, 'tmax %i %i  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
+                store[:,n_stored+0] = np + direction * tmax1
+                store[:,n_stored+1] = np + direction * tmax2
+                n_stored += 2
 
-            store[:,n_stored] = np
-            n_stored += 1
+        assert nzero == self.eq_count, '%i != %i' % (nzero, self.eq_count)
 
-            print store[:, :n_stored]
-            self.compute_eval(store, eval, est_evec, n_stored, window_size)
-            time_end_est_eigenvectors = time.clock()
-            print 'est_evec', est_evec
+        multiply(eval, evec, est_evec)
 
-            #assert 0
+        print 'est_evec', est_evec#[:,:self.eq_count]
+        #assert 0
 
-#           twiddle = 2.4
-#           while True:
-#               accepted,rejected = csamplex.rwalk(self, vec,np,est_evec,twiddle, 0,0)
-#               print accepted, rejected
-#               if accepted == 0:
-#                   twiddle /= 2
-#               else:
-#                   break
+        store[:,n_stored] = np
+        n_stored += 1
 
-#           print '**', accepted, rejected
-
-#           print eval
-#           assert self.in_simplex(vec, tol=1e-10, eq_tol=1e-12)
-#           assert 0
-
-            #print ev
-            #print evec
-
-            #x = random(dim)
-            #self.project(x)
-            #x += evec[:,100]
-            #print x[:10]
-
-            #y = x.copy()
-            #self.project(x)
-            #print x-y
-
-
-            #q = evec[0,:].copy()
-            #self.project(evec[0,:])
-            #print evec[0,:] - q
-
-            #assert 0
-
-        else:
-            while n_stored < window_size:
-
-                for i in xrange(self.stride):
-                    if not self.next_solution():
-                        self.start_new_objective()
-                        self.iteration=0
-                        self.n_solutions += 1
-
-                self.curr_sol = self.package_solution()                
-                #p = self.interior_point(self.curr_sol)
-                p = self.curr_sol.vertex[:self.nVars+1]
-
-                assert p is not None
-
-                self.project(p[1:])
-                if self.in_simplex(p[1:], tol=1e30, eq_tol=1e-5):
-                    store[:,n_stored] = p[1:]
-                    n_stored += 1
-                    print "Found %i/%i initial solutions\r" % (n_stored,window_size)
-                    sys.stdout.flush()
-                else:
-                    print 'point not in simplex'
-
-                if n_stored > 2:
-                    a = store[:,:n_stored-1].mean(axis=1)
-                    d = store[:,:n_stored].mean(axis=1)
-                    print 'avg d', sqrt(sum(pow(a-d,2)))
-
-#           if n_stored > 1 and self.compute_eval_zeros(store,n_stored,window_size) == self.eq_count:
-#               print 'WOULD STOP HERE'
-#               window_size = n_stored
-#               break
+        print store[:, :n_stored]
+        self.compute_eval(store, eval, est_evec, n_stored, window_size)
+        time_end_est_eigenvectors = time.clock()
+        print 'est_evec', est_evec
 
         print
 
@@ -1279,6 +978,8 @@ class Samplex:
         objv  = array(lpsolve('get_objective', self.lp))
         vars  = array(lpsolve('get_variables', self.lp)[0])
         slack = array(lpsolve('get_constraints', self.lp)[0]) - array(lpsolve('get_rh', self.lp)[1:])
+
+        assert len(vars) == lpsolve('get_Norig_columns', self.lp)
 
         slack[abs(slack) < 1e-5] = 0
 
