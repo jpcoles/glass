@@ -1018,7 +1018,7 @@ void normal(double stddev, double mean, double *r0, double *r1)
 PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 {
     int32_t i,j;
-    matrix_t est_evec, eqs;
+    matrix_t evec, eqs;
 
     PyObject *o = args;
     DBG(3) fprintf(stderr, "5> pivot()\n");
@@ -1027,11 +1027,14 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     long rejected;
     double twiddle;
 
-    PyObject *po_vec; // = PyObject_GetAttrString(self, "vec");
-    PyObject *po_np; // = PyObject_GetAttrString(self, "np");
-    PyObject *po_est_evec; // = PyObject_GetAttrString(self, "est_evec");
+    PyObject *po_vec;
+    PyObject *po_eval;
+    PyObject *po_evec;
+    PyObject *po_eqs;
+    PyObject *po_S;
+    PyObject *po_S0;
 
-    if (!PyArg_ParseTuple(args, "OOOOdll", &self, &po_vec, &po_np, &po_est_evec, &twiddle, &accepted, &rejected))
+    if (!PyArg_ParseTuple(args, "OOOOOOOdll", &self, &po_eqs, &po_vec, &po_eval, &po_evec, &po_S, &po_S0, &twiddle, &accepted, &rejected))
         return NULL;
 
           long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
@@ -1046,22 +1049,22 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     //long rejected = PyInt_AsLong(PyObject_GetAttrString(self, "rejected"));
     //double twiddle = PyFloat_AsDouble(PyObject_GetAttrString(self, "twiddle"));
     
-    PyObject *po_eqs = PyObject_GetAttrString(self, "eqs");
+    //PyObject *po_eqs = PyObject_GetAttrString(self, "eqs");
 
 
-
-
-    dble_t * restrict vec = (dble_t * restrict)PyArray_DATA(po_vec), 
-           * restrict np  = (dble_t * restrict)PyArray_DATA(po_np);
+    dble_t * restrict vec  = (dble_t * restrict)PyArray_DATA(po_vec), 
+           * restrict eval = (dble_t * restrict)PyArray_DATA(po_eval),
+           * restrict S    = (dble_t * restrict)PyArray_DATA(po_S),
+           * restrict S0   = (dble_t * restrict)PyArray_DATA(po_S0);
 
     /* Remember, this is in C order */
-    //assert(PyArray_CHKFLAGS(po_est_evec, NPY_F_CONTIGUOUS));
-    //assert(PyArray_CHKFLAGS(po_est_evec, NPY_C));
-    est_evec.data = (dble_t * restrict)PyArray_DATA(po_est_evec);
-    est_evec.rows = PyArray_DIM(po_est_evec,0);
-    est_evec.cols = PyArray_DIM(po_est_evec,1);
+    //assert(PyArray_CHKFLAGS(po_evec, NPY_F_CONTIGUOUS));
+    //assert(PyArray_CHKFLAGS(po_evec, NPY_C));
+    evec.data = (dble_t * restrict)PyArray_DATA(po_evec);
+    evec.rows = PyArray_DIM(po_evec,0);
+    evec.cols = PyArray_DIM(po_evec,1);
 
-    eqs.data = (double *)PyArray_DATA(po_eqs);
+    eqs.data = (double * restrict)PyArray_DATA(po_eqs);
     eqs.rows = PyArray_DIM(po_eqs,0);
     eqs.cols = PyArray_DIM(po_eqs,1);
 
@@ -1084,59 +1087,45 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 
     int once_accepted = 0;
     double redo_stime = CPUTIME;
+
+    for (i=0; i < eqs.rows; i++)
+    {
+        long offs = i * eqs.cols + 1;
+
+        S[i] = 0;
+        for (j=0; j < dim; j++)
+            S[i] += vec[j] * eqs.data[offs++];
+    }
+
     while (redo-- > 0)
     {
-        memset(np, 0, sizeof(*np) * dim);
+        int accept = 1;
 
-        /* Make a random direction */
         double stime = CPUTIME;
 
+        /* Choose a random eigen direction */
         long offs = 0;
         double r,r1;
-        for (i=0; i < dim; i++)
-        {
-            if ((i&1) == 0)
-                normal(twiddle/dof, 0, &r, &r1);
-            else
-                r = r1;
+        normal(twiddle, 0, &r, &r1);
+        long dir_index = drand48() * dim;
+        dble_t q = r;   /* just so the compiler will vectorize the loop */
+        double step = q * eval[dir_index];
 
-            dble_t q = r;   /* just so the compiler will vectorize the loop */
-            for (j=0; j < dim; j++)
-                np[j] += q * est_evec.data[offs++];
-        }
         double etime = CPUTIME;
 
         random_time += etime-stime;
-
-        int accept = 1;
-
-        /* Add our starting point */
-        for (i=0; i < dim; i++)
-        {
-            np[i] += vec[i];
-            if (np[i] < 0) { accept = 0; break; }
-            //fprintf(stderr, "%.3f ", np[i]);
-        }
-        //fprintf(stderr, "\n");
 
         /* Check if we are still in the simplex */
         double s = 0;
         //#pragma omp parallel private(s,accept, offs)
         for (i=0; accept && i < eqs.rows; i++)
         {
-            //if (!accept) continue;
-
-            long offs = i * eqs.cols;
-
             double s = 0;
-            double c = eqs.data[offs++];
-            for (j=0; j < dim; j++)
-            {
-                s += np[j] * eqs.data[offs++];
-            }
-            s += c;
+            long offs = i * eqs.cols;
+            double c = eqs.data[offs];
 
-            //if (!accept) break;
+            S0[i] = S[i] + step * eqs.data[offs+dir_index+1];
+            s = S0[i] + c;
 
             if (i >= geq_offs)
             {
@@ -1159,7 +1148,8 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         /* Maybe take the new point as the current vector for the next round */
         if (accept)
         {
-            memcpy(vec, np, sizeof(*np) * dim);
+            vec[dir_index] += step;
+            memcpy(S, S0, sizeof(*S) * eqs.rows);
             //fprintf(stderr, "ACCEPTED\n");
             once_accepted = 1;
             accepted++;
