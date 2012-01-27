@@ -112,7 +112,6 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
     done = should_stop(id,stopq)
     time_begin = time.clock()
-    print 'Loop begins'
     models_since_last_eval = 0
     for i in xrange(nmodels):
 
@@ -132,7 +131,6 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
         #print ok,v
         #assert ok
 
-        print 'Walking'
         while not done:
             accepted = 0
             rejected = 0
@@ -849,7 +847,8 @@ class Samplex:
 
         time_begin_get_models = time.clock()
         time_threads = []
-        for i in xrange(nmodels):
+        i=0
+        while i < nmodels:
             if q.qsize() + i >= nmodels:
                 for j,thr in enumerate(threads):
                     stopq.put('STOP')
@@ -858,13 +857,12 @@ class Samplex:
             if k == 'TIME':
                 time_threads.append(vec)
                 continue
-            #lock.acquire()
-            #print 'GET', k, id(vec), vec
-            #lock.release()
+
             assert numpy.all(vec >= 0)
             print '%i models left to generate' % (nmodels-i-1)
 
             t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+            i += 1
             t[1:] = vec
             yield t
         time_end_get_models = time.clock()
