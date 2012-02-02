@@ -1,14 +1,19 @@
 #!/bin/bash
 
-ROOT="$HOME/GLASS/glass"
-#ROOT="$HOME/GLASS/glass-DEV"
+#ROOT="$HOME/GLASS/glass"
+ROOT="$HOME/GLASS/glass-DEV"
 #ROOT="$HOME/GAGL/glass"
 
-export LD_LIBRARY_PATH=$HOME/GLASS/glass/solvers/lpsolve/lp_solve_5.5/extra/Python/build/lib.linux-x86_64-2.6:$LD_LIBRARY_PATH
-export PYTHONPATH=/home/itp/jonathan/pynbody/build/lib.linux-x86_64-2.6:$HOME/GLASS/glass/solvers/lpsolve/lp_solve_5.5/extra/Python/build/lib.linux-x86_64-2.6:$PYTHONPATH
 PYTHON=python
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
+export   LD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/lpsolve55:$DYLD_LIBRARY_PATH
+export PYTHONPATH=/home/itp/jonathan/pynbody/build/$PLATDIR:$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$PYTHONPATH
+
+echo $DYLD_LIBRARY_PATH
+echo $PYTHONPATH
 
 $GLASS $*
 
