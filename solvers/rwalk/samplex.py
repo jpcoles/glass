@@ -2,16 +2,17 @@ from __future__ import division
 import sys
 import numpy
 import gc
-from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil, amax
+from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil, amax, fmin, fmax
 from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, ones, delete, log, empty, sqrt, arange, cov, empty_like
-from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply, eye
+from numpy import insert, zeros, vstack, append, hstack, array, all, sum, prod, ones, delete, log, empty, sqrt, arange, cov, empty_like
+from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply, eye, mean
 from numpy import histogram, logspace, flatnonzero, isinf
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
 from numpy import dot
 import scipy.linalg.fblas
-from itertools import izip
+from scipy.optimize import fmin_bfgs
+from itertools import izip, count
 import time
 
 from multiprocessing import Process, Queue, Value, Lock
@@ -108,7 +109,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     #assert 0
     I = eye(evec.shape[0]).copy('F')
 
-    csamplex.set_rnd_cseed(id + samplex.random_seed)
+    csamplex.set_rwalk_seed(id + samplex.random_seed)
 
     done = should_stop(id,stopq)
     time_begin = time.clock()
@@ -173,6 +174,8 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
             break
 
         vec[:] = dot(evec, vec)
+        assert numpy.all(vec >= 0), vec[vec < 0]
+        if numpy.any(vec < 0): sys.exit(0)
 
         samplex.project(vec)
 
@@ -206,8 +209,6 @@ class Samplex:
         Log( "    ncols = %s" % ncols )
         if ncols is not None:
             self.nVars = ncols
-
-        #csamplex.set_rnd_cseed(rngseed)
 
         self.random_seed = rngseed
 
@@ -354,7 +355,7 @@ class Samplex:
         return ok==0, ok
 
     def in_simplex(self, np, tol=0, eq_tol=1e-8, verbose=0):
-        ok = 0
+        bad = []
 
         a_min = inf
         for i,[c,e] in enumerate(self.eq_list_no_noise):
@@ -367,16 +368,16 @@ class Samplex:
                 a_min = min(a_min, a)
                 if a < -tol: 
                     if verbose: print 'F>', i,a
-                    ok += 1
+                    bad.append(i)
             elif c == 'leq':
                 a_min = min(a_min, a)
                 if a > tol: 
                     if verbose: print 'F<', i,a
-                    ok += 1
+                    bad.append(i)
             elif c == 'eq':
                 if abs(a) > eq_tol: 
                     if verbose: print 'F=', i,a, (1 - abs(e[0]/a0))
-                    ok += 1
+                    bad.append(i)
 
             #if verbose > 1: print "TT", c, a
               
@@ -384,9 +385,33 @@ class Samplex:
             print 'Smallest a was %e' % (a_min,)
 
         #print 'T '
-        return ok==0, ok
+        return not bad, bad
 
     def distance_to_plane(self,pt,dir):
+        ''' dir should be a normalized vector '''
+
+        dist = inf
+
+        p = self.dist_eqs
+        a = dot(dir, p[:,1:].T)
+        w = a > 0
+
+        if w.any():
+            dtmp = -(p[:,0] + dot(pt, p[:,1:].T)) / a
+            dist = amin(dtmp[w])
+
+        # check implicit >= 0 contraints
+        a = -dir 
+        w = a > 0
+        if w.any():
+            dtmp = pt / a
+            dist = min(dist, amin(dtmp[w]))
+
+        assert dist != inf
+
+        return dist
+
+    def distance_to_planeX(self,pt,dir):
         ''' dir should be a normalized vector '''
 
         dist = inf
@@ -488,27 +513,100 @@ class Samplex:
         for e in ev:
             e -= dot(self.Apinv, dot(A, e))
 
-    def inner_point(self, np):
-        np = np.copy()
-        new_objf = True
-        i=0
-        while True:
-            i += 1
-            #lpsolve('set_maxim', self.lp)
-            if i%2 == 1 or new_objf:
-                new_objf = False
-                o = random(lpsolve('get_Ncolumns', self.lp)) - 0.5
-                lpsolve('set_sense', self.lp, False)
+    def inner_point3(self, np):
+
+        #lpsolve('set_timeout', self.lp, 1)
+        #lpsolve('set_presolve', self.lp, 1 + 4)
+        #lpsolve('set_pivoting', self.lp, 3+128+32+512)
+        #print 'BEFORE', lpsolve('get_Nrows', self.lp)
+        self.next_solution()
+
+        v1 = self.package_solution()
+        np = v1.vertex[1:self.nVars+1]
+
+        #np = np.copy()
+        np2 = np
+        self.project(np2)
+        for i in count(1):
+            ok,failed = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=0)
+
+            print ok
+            if ok: 
+                return np2
             else:
-                lpsolve('set_sense', self.lp, True)
+                Log('%i equations to satisfy' % len(failed))
+
+            lp_copy = lpsolve('copy_lp', self.lp)
+            #if i%2 == 1:
+            o = random(lpsolve('get_Ncolumns', lp_copy)) - 0.5
+            #lpsolve('set_sense', lp_copy, random() < 0.5)
+            #else:
+            #    lp_copy = lpsolve('copy_lp', self.lp)
+            #    lpsolve('set_sense', lp_copy, True)
+
+            lpsolve('set_obj_fn', lp_copy, o.tolist())
+            self.next_solution(lp_copy)
+
+            v1 = self.package_solution(lp_copy)
+
+            np += v1.vertex[1:self.nVars+1]
+            np2 = np.copy()
+            np2 /= i
+            self.project(np2)
+
+            Log('Inner point step %i' % i)
+
+    def inner_point4(self, np):
+        self.next_solution()
+        v1 = self.package_solution()
+
+        def f(x):
+            ff = self.eqs[self.eq_count:,0] + dot(self.eqs[self.eq_count:,1:], x)
+            ff[ff < 0] = 0
+            ff = log(ff)
+            #print ff
+            return -sum(ff)
+
+        def gradf(x):
+            D = self.eqs[self.eq_count:,0] + dot(self.eqs[self.eq_count:,1:], x)
+            print 1 / D
+            ff = -dot(self.eqs[self.eq_count:,1:].T, 1. / D)
+            print ff
+            assert 0
+            return ff
+
+        p = fmin_bfgs(f, v1.vertex[1:self.nVars+1], fprime=gradf)
+        ok,fail_count = self.in_simplex(p, eq_tol=1e-12, tol=0, verbose=2)
+        assert ok
+        assert 0
+
+    def inner_point(self, np):
+        #lpsolve('set_presolve', self.lp, 1 + 4)
+        #lpsolve('set_pivoting', self.lp, 3+128+32+512)
+        #print 'BEFORE', lpsolve('get_Nrows', self.lp)
+        self.next_solution()
+        v1 = self.package_solution()
+
+        #ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=0, verbose=2)
+        #assert ok
+
+        np = np.copy()
+        np2 = None
+        for i in count(1):
+            Log('Inner point step %i' % i)
+            #lpsolve('set_maxim', self.lp)
+#           if i%2 == 1:
+#               o = random(lpsolve('get_Ncolumns', self.lp))# - 0.5
+#               #print 'o range', amin(o), amax(o), abs(amin(o)) / abs(amax(o))
+#               lpsolve('set_sense', self.lp, False)
+#           else:
+#               lpsolve('set_sense', self.lp, True)
+
+            o = 20*random(lpsolve('get_Ncolumns', self.lp)) - 10
+            lpsolve('set_sense', self.lp, False)
 
             lpsolve('set_obj_fn', self.lp, o.tolist())
-            #lpsolve('set_presolve', self.lp, 1 + 4)
-            print 'BEFORE', lpsolve('get_Nrows', self.lp)
             self.next_solution()
-            print 'AFTER', lpsolve('get_Nrows', self.lp)
-            if lpsolve('get_Ncolumns', self.lp) != lpsolve('get_Norig_columns', self.lp):
-                new_objf = True
 
             v1 = self.package_solution()
 
@@ -516,15 +614,71 @@ class Samplex:
             np2 = np.copy()
             np2 /= i
             self.project(np2)
-            ok,fail_count = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=2)
+            ok,failed = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=0)
+
+            if ok: break
+
+            Log('%i equations to satisfy' % len(failed))
+
+        return np2
+
+    def inner_pointXX(self, np):
+        #lpsolve('set_presolve', self.lp, 1 + 4)
+        lpsolve('set_pivoting', self.lp, 3+128+32+512)
+        #print 'BEFORE', lpsolve('get_Nrows', self.lp)
+        self.next_solution()
+
+        v1 = self.package_solution()
+        ll = v1.vertex[1:self.nVars+1]
+        ur = v1.vertex[1:self.nVars+1]
+
+        size = lpsolve('get_Ncolumns', self.lp)
+        np = np.copy()
+        for i in xrange(size):
+
+            for j in xrange(2):
+                if j%2 == 0:
+                    o = zeros(size)
+                    o[i] = 1
+                    lpsolve('set_sense', self.lp, False)
+                    lpsolve('set_obj_fn', self.lp, o.tolist())
+                else:
+                    lpsolve('set_sense', self.lp, True)
+
+                self.next_solution()
+
+                v1 = self.package_solution()
+                #print v1.vertex[1:self.nVars+1]
+
+                ll = fmin(ll, v1.vertex[1:self.nVars+1])
+                ur = fmax(ur, v1.vertex[1:self.nVars+1])
+
+            #print ll-ur
+
+            np = (ll+ur) / 2
+
+            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-13, verbose=0)
 
             if ok: 
-                return np2
+                return np
+            else:
+                Log('%i equations to satisfy' % fail_count)
 
-            print i
+            Log('Inner point step %i/%i' % (i,size) )
 
     def estimated_middle(self, np, eval, evec, iter=4, eval_tol=1e-12):
         np = np.copy()
+        dirs = evec[:,eval >= eval_tol]
+
+        for i in range(iter):
+            for direction in dirs.T:
+                tmax1 = -self.distance_to_plane(np, -direction)
+                tmax2 = +self.distance_to_plane(np, +direction)
+                assert tmax1 < tmax2, 'tmax %e %e' % (tmax1, tmax2)
+                np += direction * ((tmax1+tmax2) / 2)
+
+        return np
+
         for i in range(iter):
             for r in range(len(eval)):
                 if eval[r] >= eval_tol:
@@ -559,6 +713,7 @@ class Samplex:
 
     def next(self, nsolutions=None):
 
+
         time_begin_next = time.clock()
 
         if nsolutions == 0: return
@@ -570,6 +725,7 @@ class Samplex:
         window_size = 2*dim #max(10, int(1.5 * dim))
         redo = max(100, int((dim ** 2) * self.redo_factor))
         nmodels = nsolutions
+        nthreads = self.nthreads
 
         self.stride = int(dim+1)
 
@@ -588,6 +744,18 @@ class Samplex:
             self.eqs[i,:] = e
         for i in xrange(dim):
             self.eqs[self.eqn_count+i,1+i] = 1
+
+        self.dist_eqs = zeros((self.eqn_count-self.eq_count,dim+1), order='C', dtype=numpy.float64)
+        i=0
+        for c,e in self.eq_list_no_noise:
+            if c == 'eq':
+                continue
+            elif c == 'leq':
+                p = e
+            elif c == 'geq':
+                p = -e
+            self.dist_eqs[i,:] = p
+            i += 1
 
 
         #-----------------------------------------------------------------------
@@ -659,13 +827,24 @@ class Samplex:
         stopq = Queue()
         lock  = Lock()
 
-        nthreads = self.nthreads
         threads = []
         models_per_thread = ceil(nmodels / nthreads)
+        models_over       = nthreads*models_per_thread - nmodels
+        N = 0
         for i in range(nthreads):
-            n = min(models_per_thread, nmodels - i*models_per_thread)
+            n = int(max(0, min(models_per_thread, nmodels - N)))
+            if i < models_over:
+                n -= 1
+            assert n >= 0
+            if n == 0:
+                Log('Skipping thread %i. Not enough work.' % i)
+                continue
             thr = Process(target=rwalk_async, args=(i, n, self, store,n_stored, q,stopq, np,self.twiddle, window_size, lock, eval.copy('A'), evec.copy('A')))
             threads.append(thr)
+
+            N += n
+
+        assert N == nmodels
 
         for thr in threads:
             thr.start()
@@ -683,7 +862,7 @@ class Samplex:
                 time_threads.append(vec)
                 continue
 
-            assert numpy.all(vec >= 0)
+            assert numpy.all(vec >= 0), vec[vec < 0]
             print '%i models left to generate' % (nmodels-i-1)
 
             t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
@@ -707,25 +886,27 @@ class Samplex:
         # 7. Recompute eigenvectors every so often
 
         time_end_next = time.clock()
-        time_threads = amax(time_threads) if time_threads else 0
-        time_end_next += time_threads
+        max_time_threads = amax(time_threads) if time_threads else 0
+        avg_time_threads = mean(time_threads) if time_threads else 0
+        time_end_next += max_time_threads
         print '-'*80
         print 'SAMPLEX TIMINGS'
         print '-'*80
-        print 'Initial inner point    %fs' % (time_end_inner_point - time_begin_inner_point)
-        print 'Estimate middle point  %fs' % (time_end_middle_point - time_begin_middle_point)
-        print 'Estimate eigenvectors  %fs' % (time_end_est_eigenvectors - time_begin_est_eigenvectors)
-        print 'Modeling               %fs' % (time_end_get_models - time_begin_get_models)
-        print 'Max thread time        %fs' % (time_threads)
-        print 'Total time             %fs' % (time_end_next - time_begin_next);
+        print 'Initial inner point    %.2fs' % (time_end_inner_point - time_begin_inner_point)
+        print 'Estimate middle point  %.2fs' % (time_end_middle_point - time_begin_middle_point)
+        print 'Estimate eigenvectors  %.2fs' % (time_end_est_eigenvectors - time_begin_est_eigenvectors)
+        print 'Modeling               %.2fs' % (time_end_get_models - time_begin_get_models)
+        print 'Max/Avg thread time    %.2fs %.2fs' % (max_time_threads, avg_time_threads)
+        print 'Total time             %.2fs' % (time_end_next - time_begin_next);
 
-    def next_solution(self):
+    def next_solution(self, lp=None):
+        if lp is None: lp = self.lp
 
         while True:
 
             #r = self.start_new_objective()
 
-            result = lpsolve('solve', self.lp)
+            result = lpsolve('solve', lp)
             if   result in [OPTIMAL, TIMEOUT]:   break
             elif result == SUBOPTIMAL: continue
             elif result == INFEASIBLE: raise SamplexNoSolutionError()
@@ -734,15 +915,16 @@ class Samplex:
                 Log( result )
                 raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
-        print 'Solution after %i steps.' % lpsolve('get_total_iter', self.lp)
+        print 'Solution after %i steps.' % lpsolve('get_total_iter', lp)
         return False
 
-    def package_solution(self):
-        objv  = array(lpsolve('get_objective', self.lp))
-        vars  = array(lpsolve('get_variables', self.lp)[0])
-        slack = array(lpsolve('get_constraints', self.lp)[0]) - array(lpsolve('get_rh', self.lp)[1:])
+    def package_solution(self, lp=None):
+        if lp is None: lp = self.lp
+        objv  = array(lpsolve('get_objective', lp))
+        vars  = array(lpsolve('get_variables', lp)[0])
+        slack = array(lpsolve('get_constraints', lp)[0]) - array(lpsolve('get_rh', lp)[1:])
 
-        assert len(vars) == lpsolve('get_Norig_columns', self.lp)
+        assert len(vars) == lpsolve('get_Norig_columns', lp)
 
         slack[abs(slack) < 1e-5] = 0
 
@@ -769,12 +951,19 @@ class Samplex:
 
     #=========================================================================
 
+    TT = 1e-14
     def eq(self, a):
+        #print 'eq range', amin(a), amax(a)
+        a[abs(a)<self.TT] = 0
+        #assert abs(a[0])
         lpsolve('add_constraint', self.lp, (a[1:]).tolist(), EQ, -a[0])
         self.eq_count += 1
         self.eq_list_no_noise.append(['eq', a])
 
     def geq(self, a):
+        #print 'geq range', amin(a), amax(a)
+        a[abs(a)<self.TT] = 0
+        #assert (a[a>0] > TT).all(), a[a>0]
         lpsolve('add_constraint', self.lp, (a[1:]).tolist(), GE, -a[0])
         self.geq_count += 1
         self.ineqs.append([a[1:], GE, -a[0]])
@@ -788,6 +977,9 @@ class Samplex:
         # slack on each constraint. This is important to have in
         # package_soltion().
         #-----------------------------------------------------------------------
+        a[abs(a)<self.TT] = 0
+        #print 'leq range', amin(a), amax(a)
+        #assert (a[a>0] > TT).all()
         lpsolve('add_constraint', self.lp, (-a[1:]).tolist(), GE, a[0])
         self.leq_count += 1
 
