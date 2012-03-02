@@ -98,7 +98,7 @@ def lens_eq(o, leq, eq, geq):
     for i,src in enumerate(o.sources):
         for j,img in enumerate(src.images):
             rows = new_row(o, 2)
-            Log( 2*indent+"Source %i,Image %i: %s" % (i,j,img.pos) ) #, b.cell_size
+            Log( 2*indent+"Source %i,Image %i: (% 8.4f, % 8.4f)" % (i,j,img.pos.real, img.pos.imag) ) #, b.cell_size
             rows[0,0] = (img.pos.real + b.map_shift) * src.zcap
             rows[1,0] = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
@@ -580,7 +580,7 @@ def L1parity(o, leq, eq, geq):
                 geq(rows[0])
                 leq(rows[1])
 
-#@object_prior
+@object_prior
 def magnification(o, leq, eq, geq):
 
     Log( "Magnification" )
@@ -673,10 +673,12 @@ def annular_density(o, leq, eq, geq):
 
     Log( indent + "Annular density %s" % theta )
 
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
     if theta is not None and theta != 0:
         row = new_row(o)
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
-            row[o.basis.rings[r]] = -1
+            row[pix_start + o.basis.rings[r]] = -1
             row[0] = theta * len(o.basis.rings[r])
         eq(row)
         on = True
@@ -801,7 +803,7 @@ def profile_steepness(o, leq, eq, geq):
     for l in xrange(0,nrings-1):
         r0 = o.basis.rings[l]
 
-        r0 = o.basis.rings[0]
+        #r0 = o.basis.rings[0]
         r1 = o.basis.rings[l+1]
 
         row = new_row(o)
@@ -954,6 +956,7 @@ def J2gradient(o, leq, eq, geq):
         #Log( 'J2Gradient NOT ACTIVE' )
         #return
 
+    #Lmin = numpy.sqrt(2)*o.basis.top_level_cell_size
     Lmin = 1.1*o.basis.top_level_cell_size
 
     theta = opts.get('theta', 45)
@@ -1054,6 +1057,47 @@ def central_pixel_min(o, leq, eq, geq):
     #row[ [0,cp] ] = -M, 1
     geq(row)
 
+#@default_prior
+@object_prior
+def ring_smoothness(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of its ring neighbours."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "[DISABLED] Ring smoothness" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( indent + "Ring smoothness (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    if include_central_pixel:
+        row = new_row(o)
+        ring = o.basis.rings[1]
+
+        row[pix_start + ring] = 1
+        row[pix_start + o.basis.central_pixel] = -len(ring) / smoothness_factor
+        c += 1
+
+    for ring in o.basis.rings[1:]:
+        for i,cntr in enumerate(ring):
+
+            row = new_row(o)
+            left = ring[(i-1) % len(ring)]
+            rght = ring[(i+1) % len(ring)]
+
+            row[pix_start + left] = 1
+            row[pix_start + rght] = 1
+            row[pix_start + cntr] = -2 / smoothness_factor
+
+            geq(row)
+            c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
 @default_prior
 @object_prior
 def PLsmoothness(o, leq, eq, geq):
@@ -1136,7 +1180,8 @@ def smoothness(o, leq, eq, geq):
 
         row = new_row(o)
         row[pix_start + nbrs] = 1
-        row[pix_start + i]    = -len(nbrs) / ((smoothness_factor-1) * (1 - abs(ri) / o.basis.pixrad) + 1)
+        #row[pix_start + i]    = -len(nbrs) / ((smoothness_factor-1) * (1 - abs(ri) / o.basis.pixrad) + 1)
+        row[pix_start + i]    = -len(nbrs) / smoothness_factor
 
         geq(row)
         c += 1
@@ -1376,26 +1421,10 @@ def intersect(A,B):
     #print r-l, t-b
     return [t,b,l,r]
 
-def intersect_frac(A,B):
-    t,b,l,r = intersect(A,B) 
-    areaB = (B[0]-B[1]) * (B[3]-B[2])
-    return (max(r-l,0) * max(t-b,0)) / areaB
-
-    areaA = (A[0]-A[1]) * (A[3]-A[2])
-    areaB = (B[0]-B[1]) * (B[3]-B[2])
-    v = [A[0],A[1], B[0],B[1]]
-    h = [A[2],A[3], B[2],B[3]]
-    v.sort()
-    h.sort()
-    #print v,h
-    b,t = max(v[0],v[1]), min(v[2],v[3])
-    l,r = max(h[0],h[1]), min(h[2],h[3])
-    #print t,b,l,r
-    #print r-l, t-b
-    return (max(r-l,0) * max(t-b,0)) / areaB
-
 @object_prior
 def min_kappa_leier_grid(o, leq, eq, geq):
+
+    assert 0
 
     g = o.prior_options.get('minkappa Leier grid')
 
@@ -1421,44 +1450,8 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     grid[:] = data[5] * 1e10
     grid = grid.reshape((r,c)).T        # Data is stored in column-major order!
     grid = flipud(grid)
-    L = o.basis.pixrad
-    J = r // 2
-    #grid = congrid(grid, (2*L+1, 2*L+1), minusone=True)
 
-    grid_cell_size = grid_size / r
-    cell_size      = o.basis.top_level_cell_size
-
-    #cell_size = grid_cell_size
-
-    grid *= grid_cell_size**2
-
-    pg = zeros((2*L+1, 2*L+1))
-    for y in xrange(2*L+1):
-        for x in xrange(2*L+1):
-            rt = (L-y+0.5) * cell_size
-            rb = (L-y-0.5) * cell_size
-            cl = (x-L-0.5) * cell_size
-            cr = (x-L+0.5) * cell_size
-            for i in xrange(2*J+1):
-                for j in xrange(2*J+1):
-                    it = (J-i+0.5) * grid_cell_size
-                    ib = (J-i-0.5) * grid_cell_size
-                    jl = (j-J-0.5) * grid_cell_size
-                    jr = (j-J+0.5) * grid_cell_size
-                    frac = intersect_frac([rt,rb,cl,cr], [it,ib,jl,jr])
-                    pg[y,x] += frac * grid[i,j]
-#                   if frac > 0:
-#                       print [rt,rb,cl,cr], [it,ib,jl,jr]
-#                       print frac, i,j, L,J, cell_size, grid_cell_size
-                        #assert 0
-
-            #break
-        #break
-
-    #pg *= 2
-    pg /= cell_size**2
-    pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, max_nu)
-
+    
 
 #   print data[11] / data[12]
 #   from numpy import cos,sin,arctan2, arctan, angle

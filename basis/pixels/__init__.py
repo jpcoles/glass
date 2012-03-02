@@ -12,7 +12,12 @@ import priors
 from funcs import default_post_process
 
 opts = env().basis_options
-if not opts.has_key('solver') or opts['solver'] == 'samplex':
+if opts.has_key('solver') and opts['solver'] is None:
+    pass
+elif not opts.has_key('solver') or opts['solver'] == 'rwalk':
+    from solvers.rwalk.samplex import Samplex
+    import solvers.rwalk.glcmds 
+elif not opts.has_key('solver') and opts['solver'] == 'samplex':
     from solvers.samplex.samplex import Samplex
     import solvers.samplex.glcmds 
 elif opts.has_key('solver') and opts['solver'] == 'lpsolve':
@@ -24,9 +29,6 @@ elif opts.has_key('solver') and opts['solver'] == 'samplexsimple':
 elif opts.has_key('solver') and opts['solver'] == 'samplexsimple2':
     from solvers.samplexsimple.samplex2 import Samplex
     import solvers.samplexsimple.glcmds 
-elif opts.has_key('solver') and opts['solver'] == 'rwalk':
-    from solvers.rwalk.samplex import Samplex
-    import solvers.rwalk.glcmds 
 else:
     assert 0, 'Unknown solver %s' % opts['solver']
 
@@ -161,6 +163,13 @@ def package_solution(sol, objs, fn_package_sol = None):
             'obj,data': zip(objs, map(fn_package_sol, objs)),
             'tagged':  False}
 
+def check_model(objs, sol):
+    for o in objs:
+        for p in acc_objpriors:
+            if p.check: p.check(o, sol)
+    for p in acc_enspriors:
+        if p.check: p.check(objs, sol)
+
 @command
 def generate_models(objs, n, *args, **kwargs):
 
@@ -171,28 +180,31 @@ def generate_models(objs, n, *args, **kwargs):
     if mode == 'particles':
         assert n==1, 'Can only generate a single model in particles mode.'
         assert len(objs) == 1, 'Can only model a single object from particles.'
-#<<<<<<< .mine
-        #assert kwargs.has_key('data'), 'Missing "data" keyword for modeling model "particles" .'
-#=======
         data = kwargs.get('data', None)
         assert data is not None, 'data keyword must be given with model parameters.'
-#>>>>>>> .r118
         objs[0].basis.array_offset = 1
-#<<<<<<< .mine
-        #yield _projected_model(objs[0], *kwargs['data'])
-#=======
-        ps = _projected_model(objs[0], *data)
+        ps = _particle_model(objs[0], *data)
 
-        init_model_generator(n)
-        for o in objs:
-            for p in acc_objpriors:
-                if p.check: p.check(o, ps['sol'])
-        for p in acc_enspriors:
-            if p.check: p.check(objs, ps['sol'])
+        if opts.get('solver', None):
+            init_model_generator(n)
+            check_model(objs, ps['sol'])
 
         yield ps
 
-#>>>>>>> .r118
+    elif mode == 'grid':
+        assert n==1, 'Can only generate a single model in grid mode.'
+        assert len(objs) == 1, 'Can only model a single object from a grid.'
+        data = kwargs.get('data', None)
+        assert data is not None, 'data keyword must be given with model parameters.'
+        objs[0].basis.array_offset = 1
+        ps = _grid_model(objs[0], *data)
+
+        if opts.get('solver', None):
+            init_model_generator(n)
+            check_model(objs, ps['sol'])
+
+        yield ps
+
     elif mode == 'isothermal':
         assert n==1, 'Can only generate a single model in isothermal mode.'
         assert len(objs) == 1, 'Can only model a single object from isothermal.'
@@ -207,22 +219,13 @@ def generate_models(objs, n, *args, **kwargs):
         assert False, 'Unsupported model mode "%s"' % mode
     else:
 
-        init_model_generator(n)
-
-        mg = env().model_gen
-        
-        mg.start()
-        for sol in mg.next(n):
-            for o in objs:
-                for p in acc_objpriors:
-                    if p.check: p.check(o, sol)
-            for p in acc_enspriors:
-                if p.check: p.check(objs, sol)
-
-            yield package_solution(sol, objs)
-#           yield {'sol':  sol,
-#                  'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-#                  'tagged':  False}
+        if opts.get('solver', None):
+            init_model_generator(n)
+            mg = env().model_gen
+            mg.start()
+            for sol in mg.next(n):
+                check_model(objs, sol)
+                yield package_solution(sol, objs)
 
     for o in objs:
         o.post_process_funcs.append([default_post_process, [], {}])
@@ -250,8 +253,15 @@ def make_ensemble_average():
     sol = mean([m['sol'] for m in env().models], axis=0)
     objs = env().objects
     env().ensemble_average = package_solution(sol, objs)
+    for od in env().ensemble_average['obj,data']:
+        default_post_process(od)
 
-def _projected_model(obj, X,Y,M, src, H0inv):
+def _grid_model(obj, grid, grid_size, src, H0inv):
+    grid_mass = obj.basis.grid_to_grid(grid, grid_size, H0inv)
+    ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)
+    return package_solution(ps, [obj])
+
+def _particle_model(obj, X,Y,M, src, H0inv):
 
     grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
     ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)

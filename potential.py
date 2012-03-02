@@ -1,6 +1,7 @@
 from __future__ import division
 from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos
+from environment import env
 
 @vectorize
 def poten2d(x,y,a):
@@ -56,6 +57,44 @@ def poten_dx(r, a):
       -   (xm*arctan(yp/xm)  + xp*arctan(ym/xp)) - (ym*log(xp2 + ym2) + yp*log(xm2 + yp2)) / 2 )
     return v / pi
 
+def XXpoten_dx(r, a):
+    from scipy import weave
+    from numpy import empty_like
+
+    if type(r) == type(complex(0,0)):
+        return XXpoten_dx
+
+    v = empty_like(r.real)
+    code="""
+        int i;
+        double vi, xi,yi;
+        std::complex<double> ri;
+        for (i=0; i < l; i++)
+        {
+            //ri = py_to_complex(PyList_GetItem(r.ptr(),i),"r");
+            xi = std::real(r[i]);
+            yi = std::imag(r[i]);
+
+            double xm = xi - a[i]/2;
+            double xp = xi + a[i]/2;
+            double ym = yi - a[i]/2;
+            double yp = yi + a[i]/2;
+
+            double xm2 = xm*xm;
+            double xp2 = xp*xp;
+            double ym2 = ym*ym;
+            double yp2 = yp*yp;
+            vi = ( (xm*atan(ym/xm)  + xp*atan(yp/xp)) + (ym*log(xm2 + ym2) + yp*log(xp2 + yp2)) / 2
+              -   (xm*atan(yp/xm)  + xp*atan(ym/xp)) - (ym*log(xp2 + ym2) + yp*log(xm2 + yp2)) / 2 );
+            vi /= pi;
+            v[i] = vi;
+        }
+    """
+
+    l = len(r)
+    weave.inline(code, ['l', 'r', 'v', 'pi', 'a'])
+    return v
+
 #@vectorize
 def poten_dy(r, a):
     x,y = r.real, r.imag
@@ -74,6 +113,48 @@ def poten_dy(r, a):
        + xm*log(xm2 + ym2)/2 + xp*log(xp2 + yp2)/2
        - xm*log(xm2 + yp2)/2 - xp*log(xp2 + ym2)/2)
     return v / pi
+
+def XXpoten_dy(r, a):
+    from scipy import weave
+    from numpy import empty_like
+
+    if type(r) == type(complex(0,0)):
+        return XXpoten_dx
+
+    v = empty_like(r.real)
+    code="""
+        int i;
+        double vi, xi,yi;
+        std::complex<double> ri;
+        for (i=0; i < l; i++)
+        {
+            //ri = py_to_complex(PyList_GetItem(r.ptr(),i),"r");
+            xi = std::real(r[i]);
+            yi = std::imag(r[i]);
+
+            double xm = xi - a[i]/2;
+            double xp = xi + a[i]/2;
+            double ym = yi - a[i]/2;
+            double yp = yi + a[i]/2;
+
+            double xm2 = xm*xm;
+            double xp2 = xp*xp;
+            double ym2 = ym*ym;
+            double yp2 = yp*yp;
+            //vi = ( (xm*atan(ym/xm)  + xp*atan(yp/xp)) + (ym*log(xm2 + ym2) + yp*log(xp2 + yp2)) / 2
+              //-   (xm*atan(yp/xm)  + xp*atan(ym/xp)) - (ym*log(xp2 + ym2) + yp*log(xm2 + yp2)) / 2 );
+            vi = (ym*atan(xm/ym)    + yp*atan(xp/yp)
+               - ym*atan(xp/ym)    - yp*atan(xm/yp)
+               + xm*log(xm2 + ym2)/2 + xp*log(xp2 + yp2)/2
+               - xm*log(xm2 + yp2)/2 - xp*log(xp2 + ym2)/2);
+            vi /= pi;
+            v[i] = vi;
+        }
+    """
+
+    l = len(r)
+    weave.inline(code, ['l', 'r', 'v', 'pi', 'a'])
+    return v
 
 @vectorize
 def poten_dxdy(r, a):
@@ -216,4 +297,67 @@ def maginv_new5(r, a, c, s):
     delta =  s*c*(yy-xx) - xy*(c2-s2)
 
     return [delta, alpha, beta]
+
+
+
+def grad(W,r0,r,a):
+    from scipy import weave
+    from numpy import empty_like
+
+    if type(r) == type(complex(0,0)):
+        assert 0, "Shouldn't use potential.grad() for none array-based positions."
+
+    code="""
+        int i;
+        std::complex<double> v(0,0);
+        //Py_BEGIN_ALLOW_THREADS
+        double xx=0,yy=0;
+        omp_set_num_threads(threads);
+        #pragma omp parallel for reduction(+:xx) reduction(+:yy)
+        for (i=0; i < l; i++)
+        {
+            double vx,vy;
+            std::complex<double> dr = r0-r[i];
+            const double xi = std::real(dr);
+            const double yi = std::imag(dr);
+
+            const double xm = xi - a[i]/2;
+            const double xp = xi + a[i]/2;
+            const double ym = yi - a[i]/2;
+            const double yp = yi + a[i]/2;
+
+            const double xm2 = xm*xm;
+            const double xp2 = xp*xp;
+            const double ym2 = ym*ym;
+            const double yp2 = yp*yp;
+
+            const double log_xm2_ym2 = log(xm2 + ym2);
+            const double log_xp2_yp2 = log(xp2 + yp2);
+            const double log_xp2_ym2 = log(xp2 + ym2);
+            const double log_xm2_yp2 = log(xm2 + yp2);
+
+            vx = (xm*atan(ym/xm) + xp*atan(yp/xp)) + (ym*log_xm2_ym2 + yp*log_xp2_yp2) / 2
+               - (xm*atan(yp/xm) + xp*atan(ym/xp)) - (ym*log_xp2_ym2 + yp*log_xm2_yp2) / 2;
+            vx /= pi;
+            vx *= W[i];
+
+            vy = (ym*atan(xm/ym) + yp*atan(xp/yp)) + (xm*log_xm2_ym2 + xp*log_xp2_yp2) / 2
+               - (ym*atan(xp/ym) + yp*atan(xm/yp)) - (xm*log_xm2_yp2 + xp*log_xp2_ym2) / 2;
+            vy /= pi;
+            vy *= W[i];
+            //v += std::complex<double>(vx,vy);
+            xx += vx;
+            yy += vy;
+        }
+        //Py_END_ALLOW_THREADS
+        return_val = std::complex<double>(xx,yy);
+    """
+
+    l = len(r)
+    threads = env().ncpus
+    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'],
+                     extra_compile_args =['-O3 -fopenmp'],
+                     extra_link_args=['-lgomp'],
+                     headers=['<omp.h>'])
+    return v
 

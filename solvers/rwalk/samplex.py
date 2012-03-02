@@ -34,12 +34,21 @@ except ImportError:
     Log = l
 
 import csamplex
-import lpsolve55 as lp
-from lpsolve55 import lpsolve, EQ,GE,LE
-from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
+if 0:
+    import glpklpsolve as lpsolve55
+    import lpsolve55 as lpsolve55
+    from lpsolve55 import lpsolve, EQ,GE,LE
+    from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
 
-from lpsolve55 import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
-from lpsolve55 import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
+    from lpsolve55 import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
+    from lpsolve55 import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
+else:
+    import glpklpsolve as lpsolve55
+    from glpklpsolve import lpsolve, EQ,GE,LE
+    from glpklpsolve import NORMAL, DETAILED, FULL, IMPORTANT
+
+    from glpklpsolve import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
+    from glpklpsolve import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 
 from copy import deepcopy
 
@@ -181,6 +190,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
         store[:,n_stored] = vec
         n_stored += 1
+        #if i >= window_size:
         q.put([id,vec.copy('A')])
 
 
@@ -222,7 +232,7 @@ class Samplex:
         self.eq_list_no_noise = []
 
         self.ineqs = []
-        self.lp = lpsolve('make_lp', 0, ncols)
+        self.lp = lpsolve('make_lp', 0, ncols+1)
         lpsolve('set_epsb', self.lp, 1e-14)
         lpsolve('set_epsd', self.lp, 1e-14)
         lpsolve('set_epsint', self.lp, 1e-14)
@@ -368,16 +378,16 @@ class Samplex:
                 a_min = min(a_min, a)
                 if a < -tol: 
                     if verbose: print 'F>', i,a
-                    bad.append(i)
+                    bad.append([i,a])
             elif c == 'leq':
                 a_min = min(a_min, a)
                 if a > tol: 
                     if verbose: print 'F<', i,a
-                    bad.append(i)
+                    bad.append([i,a])
             elif c == 'eq':
                 if abs(a) > eq_tol: 
                     if verbose: print 'F=', i,a, (1 - abs(e[0]/a0))
-                    bad.append(i)
+                    bad.append([i,a])
 
             #if verbose > 1: print "TT", c, a
               
@@ -400,12 +410,17 @@ class Samplex:
             dtmp = -(p[:,0] + dot(pt, p[:,1:].T)) / a
             dist = amin(dtmp[w])
 
+        #print '!!!dist', dist
+
+        #print pt
+
         # check implicit >= 0 contraints
         a = -dir 
         w = a > 0
         if w.any():
             dtmp = pt / a
-            dist = min(dist, amin(dtmp[w]))
+            dist = amin([dist, amin(dtmp[w])])
+            #print '???dist', dist
 
         assert dist != inf
 
@@ -513,96 +528,36 @@ class Samplex:
         for e in ev:
             e -= dot(self.Apinv, dot(A, e))
 
-    def inner_point3(self, np):
-
-        #lpsolve('set_timeout', self.lp, 1)
+    def inner_pointQ(self, np):
         #lpsolve('set_presolve', self.lp, 1 + 4)
         #lpsolve('set_pivoting', self.lp, 3+128+32+512)
         #print 'BEFORE', lpsolve('get_Nrows', self.lp)
-        self.next_solution()
+        #o = 20*random(lpsolve('get_Ncolumns', self.lp)) - 10
 
-        v1 = self.package_solution()
-        np = v1.vertex[1:self.nVars+1]
-
-        #np = np.copy()
-        np2 = np
-        self.project(np2)
-        for i in count(1):
-            ok,failed = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=0)
-
-            print ok
-            if ok: 
-                return np2
-            else:
-                Log('%i equations to satisfy' % len(failed))
-
-            lp_copy = lpsolve('copy_lp', self.lp)
-            #if i%2 == 1:
-            o = random(lpsolve('get_Ncolumns', lp_copy)) - 0.5
-            #lpsolve('set_sense', lp_copy, random() < 0.5)
-            #else:
-            #    lp_copy = lpsolve('copy_lp', self.lp)
-            #    lpsolve('set_sense', lp_copy, True)
-
-            lpsolve('set_obj_fn', lp_copy, o.tolist())
-            self.next_solution(lp_copy)
-
-            v1 = self.package_solution(lp_copy)
-
-            np += v1.vertex[1:self.nVars+1]
-            np2 = np.copy()
-            np2 /= i
-            self.project(np2)
-
-            Log('Inner point step %i' % i)
-
-    def inner_point4(self, np):
-        self.next_solution()
-        v1 = self.package_solution()
-
-        def f(x):
-            ff = self.eqs[self.eq_count:,0] + dot(self.eqs[self.eq_count:,1:], x)
-            ff[ff < 0] = 0
-            ff = log(ff)
-            #print ff
-            return -sum(ff)
-
-        def gradf(x):
-            D = self.eqs[self.eq_count:,0] + dot(self.eqs[self.eq_count:,1:], x)
-            print 1 / D
-            ff = -dot(self.eqs[self.eq_count:,1:].T, 1. / D)
-            print ff
-            assert 0
-            return ff
-
-        p = fmin_bfgs(f, v1.vertex[1:self.nVars+1], fprime=gradf)
-        ok,fail_count = self.in_simplex(p, eq_tol=1e-12, tol=0, verbose=2)
-        assert ok
-        assert 0
-
-    def inner_point(self, np):
-        #lpsolve('set_presolve', self.lp, 1 + 4)
-        #lpsolve('set_pivoting', self.lp, 3+128+32+512)
-        #print 'BEFORE', lpsolve('get_Nrows', self.lp)
+        #lpsolve('set_obj_fn', self.lp, o.tolist())
+        #print lpsolve('get_Ncolumns', self.lp)
+        #assert 0
+        #o = 2000*random(lpsolve('get_Ncolumns', self.lp)) - 1000
+        #lpsolve('set_sense', self.lp, False)
+        #lpsolve('set_obj_fn', self.lp, o.tolist())
         self.next_solution()
         v1 = self.package_solution()
 
         #ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=0, verbose=2)
-        #assert ok
+        #ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=-1e-13, verbose=2)
+        #assert ok, len(fail_count)
+#       return v1.vertex[1:self.nVars+1]
+        #assert 0
 
         np = np.copy()
         np2 = None
-        for i in count(1):
-            Log('Inner point step %i' % i)
-            #lpsolve('set_maxim', self.lp)
-#           if i%2 == 1:
-#               o = random(lpsolve('get_Ncolumns', self.lp))# - 0.5
-#               #print 'o range', amin(o), amax(o), abs(amin(o)) / abs(amax(o))
-#               lpsolve('set_sense', self.lp, False)
-#           else:
-#               lpsolve('set_sense', self.lp, True)
+        i=0
+        while True:
+            i += 1
 
-            o = 20*random(lpsolve('get_Ncolumns', self.lp)) - 10
+            Log('Inner point step %i' % i)
+
+            o = 2000*random(lpsolve('get_Ncolumns', self.lp)) - 1000
             lpsolve('set_sense', self.lp, False)
 
             lpsolve('set_obj_fn', self.lp, o.tolist())
@@ -622,49 +577,65 @@ class Samplex:
 
         return np2
 
-    def inner_pointXX(self, np):
-        #lpsolve('set_presolve', self.lp, 1 + 4)
-        lpsolve('set_pivoting', self.lp, 3+128+32+512)
-        #print 'BEFORE', lpsolve('get_Nrows', self.lp)
+    def inner_point(self, np):
+        ncols = lpsolve('get_Ncolumns', self.lp)
+        o = zeros(ncols)
+        o[-1] = 1
+
+        assert ncols == self.nVars+1
+        for i in range(self.nVars):
+            q = zeros(ncols)
+            q[i] = -1
+            q[-1] = 1
+            lpsolve('add_constraint', self.lp, q.tolist(), LE, 0)
+
+        lpsolve('set_sense', self.lp, False)
+        lpsolve('set_obj_fn', self.lp, o.tolist())
         self.next_solution()
-
         v1 = self.package_solution()
-        ll = v1.vertex[1:self.nVars+1]
-        ur = v1.vertex[1:self.nVars+1]
 
-        size = lpsolve('get_Ncolumns', self.lp)
+        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=0, verbose=2)
+        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=-1e-13, verbose=2)
+        assert ok, len(fail_count)
+        np = v1.vertex[1:self.nVars+1]
+        self.project(np)
+        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=2)
+        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-5, verbose=2)
+
+        #print np
+        #print len(np)
+        #assert 0
+        return np
+
+        assert 0
+
         np = np.copy()
-        for i in xrange(size):
+        np2 = None
+        i=0
+        while True:
+            i += 1
 
-            for j in xrange(2):
-                if j%2 == 0:
-                    o = zeros(size)
-                    o[i] = 1
-                    lpsolve('set_sense', self.lp, False)
-                    lpsolve('set_obj_fn', self.lp, o.tolist())
-                else:
-                    lpsolve('set_sense', self.lp, True)
+            Log('Inner point step %i' % i)
 
-                self.next_solution()
+            o = 2000*random(lpsolve('get_Ncolumns', self.lp)) - 1000
+            lpsolve('set_sense', self.lp, False)
 
-                v1 = self.package_solution()
-                #print v1.vertex[1:self.nVars+1]
+            lpsolve('set_obj_fn', self.lp, o.tolist())
+            self.next_solution()
 
-                ll = fmin(ll, v1.vertex[1:self.nVars+1])
-                ur = fmax(ur, v1.vertex[1:self.nVars+1])
+            v1 = self.package_solution()
 
-            #print ll-ur
+            np += v1.vertex[1:self.nVars+1]
+            np2 = np.copy()
+            np2 /= i
+            self.project(np2)
+            ok,failed = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=0)
 
-            np = (ll+ur) / 2
+            if ok: break
 
-            ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-13, verbose=0)
+            Log('%i equations to satisfy' % len(failed))
 
-            if ok: 
-                return np
-            else:
-                Log('%i equations to satisfy' % fail_count)
-
-            Log('Inner point step %i/%i' % (i,size) )
+        return np2
 
     def estimated_middle(self, np, eval, evec, iter=4, eval_tol=1e-12):
         np = np.copy()
@@ -722,7 +693,10 @@ class Samplex:
 
         dim = self.nVars
         dof = dim - self.eq_count
+        #window_size = max(10, int(0.1 * dim))
+
         window_size = 2*dim #max(10, int(1.5 * dim))
+
         redo = max(100, int((dim ** 2) * self.redo_factor))
         nmodels = nsolutions
         nthreads = self.nthreads
@@ -794,10 +768,10 @@ class Samplex:
         #-----------------------------------------------------------------------
         print 'Estimating middle point'
         time_begin_middle_point = time.clock()
-        np = self.estimated_middle(np, ev, evec)
+        #np = self.estimated_middle(np, ev, evec)
         time_end_middle_point = time.clock()
-        ok,fail_count = self.in_simplex(np)
-        assert ok
+#       ok,fail_count = self.in_simplex(np)
+#       assert ok
 
         #-----------------------------------------------------------------------
         # Estimate the eigenvectors of the simplex
@@ -885,6 +859,8 @@ class Samplex:
         # 6. Accept original or new point
         # 7. Recompute eigenvectors every so often
 
+        del self.lp
+
         time_end_next = time.clock()
         max_time_threads = amax(time_threads) if time_threads else 0
         avg_time_threads = mean(time_threads) if time_threads else 0
@@ -922,11 +898,12 @@ class Samplex:
         if lp is None: lp = self.lp
         objv  = array(lpsolve('get_objective', lp))
         vars  = array(lpsolve('get_variables', lp)[0])
-        slack = array(lpsolve('get_constraints', lp)[0]) - array(lpsolve('get_rh', lp)[1:])
+        slack = [] #array(lpsolve('get_constraints', lp)[0]) - array(lpsolve('get_rh', lp)[1:])
 
         assert len(vars) == lpsolve('get_Norig_columns', lp)
+        vars = vars[:-1]
 
-        slack[abs(slack) < 1e-5] = 0
+        #slack[abs(slack) < 1e-5] = 0
 
         nvars = len(vars)
         nslack = len(slack)
@@ -938,8 +915,10 @@ class Samplex:
 
         s.vertex = empty(nvars + nslack + 1)
         s.vertex[1:nvars+1] = vars
-        s.vertex[1+nvars:1+nvars+nslack] = slack
+        #s.vertex[1+nvars:1+nvars+nslack] = slack
         s.vertex[0] = objv
+
+        s.vertex[abs(s.vertex) < 1e-15] = 0
 
         assert all(s.vertex[1:] >= 0), s.vertex[s.vertex < 0]
 
@@ -956,18 +935,27 @@ class Samplex:
         #print 'eq range', amin(a), amax(a)
         a[abs(a)<self.TT] = 0
         #assert abs(a[0])
-        lpsolve('add_constraint', self.lp, (a[1:]).tolist(), EQ, -a[0])
+        l = (a[1:]).tolist()
+        l.append(0)
+        lpsolve('add_constraint', self.lp, l, EQ, -a[0])
         self.eq_count += 1
         self.eq_list_no_noise.append(['eq', a])
 
     def geq(self, a):
+        return self.leq(-a)
+
         #print 'geq range', amin(a), amax(a)
-        a[abs(a)<self.TT] = 0
+        #a[abs(a)<self.TT] = 0
         #assert (a[a>0] > TT).all(), a[a>0]
-        lpsolve('add_constraint', self.lp, (a[1:]).tolist(), GE, -a[0])
+        l = (a[1:]).tolist()
+        l.append(1)
+        lpsolve('add_constraint', self.lp, l, GE, -a[0])
         self.geq_count += 1
         self.ineqs.append([a[1:], GE, -a[0]])
         self.eq_list_no_noise.append(['geq', a])
+
+        #if self.geq_count == 73:
+            #assert 0
 
     def leq(self, a):
         #-----------------------------------------------------------------------
@@ -977,12 +965,18 @@ class Samplex:
         # slack on each constraint. This is important to have in
         # package_soltion().
         #-----------------------------------------------------------------------
-        a[abs(a)<self.TT] = 0
+        #a[abs(a)<self.TT] = 0
         #print 'leq range', amin(a), amax(a)
         #assert (a[a>0] > TT).all()
-        lpsolve('add_constraint', self.lp, (-a[1:]).tolist(), GE, a[0])
+        l = (a[1:]).tolist()
+        l.append(1)
+        lpsolve('add_constraint', self.lp, l, LE, -a[0])
+        #lpsolve('add_constraint', self.lp, (-a[1:]).tolist(), GE, a[0])
         self.leq_count += 1
 
         self.ineqs.append([-a[1:], GE, a[0]])
         self.eq_list_no_noise.append(['leq', a])
 
+
+        #if self.leq_count == 17:
+            #assert 0

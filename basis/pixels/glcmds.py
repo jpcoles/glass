@@ -3,8 +3,9 @@ from environment import env, command
 #from solvers.samplex.samplex import Samplex
 #from solvers.samplexsimple.samplex import Samplex
 #from solvers.lpsolve.samplex import Samplex
+import numpy as np
+from itertools import izip
 from basis import PixelBasis as basis_class
-from numpy import load, mean, pi, radians
 from scales import convert
 
 @command
@@ -45,12 +46,14 @@ def hires(r, refine=1):
     env().current_object().basis.hires_levels = refine
     
 @command
-def smooth(factor=2, include_central_pixel=None):
+def smooth(factor=2, L=None, include_central_pixel=None):
     o = env().current_object()
     #o.prior_options['smoothness'] = {}
     o.prior_options['smoothness']['factor'] = factor
     if include_central_pixel is not None:
         o.prior_options['smoothness']['include_central_pixel'] = include_central_pixel
+    if L is not None:
+        o.prior_options['smoothness']['L'] = L
 
 @command
 def steepness(lb, ub):
@@ -66,7 +69,7 @@ def kann(theta):
 def dgcone(theta):
     assert (0 < theta <= 90), "dgcone: need 0 < theta <= 90"
     o = env().current_object()
-    o.prior_options['gradient'] = (90-theta) * pi/180
+    o.prior_options['gradient'] = np.radians(90-theta)
 
 @command
 def local_gradient(theta=None, L=None):

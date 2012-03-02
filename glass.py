@@ -60,26 +60,27 @@ def report():
     Log( '=' * 80 )
     Log( pp('Omega Matter = %.4g' % _env.omega_matter, '') )
     Log( pp('Omega Lambda = %.4g' % _env.omega_lambda, '') )
-    Log( pp('g            = %s'   % str_range(_env.g, '%.4g'), '[Gyr]') )
-    Log( pp('1/g          = %s'   % str_range(_env.h_spec, '%.4g'), '[km/s/Mpc]') )
+    Log( pp('H0inv        = %s'   % str_range(convert('nu to H0^-1 in Gyr',_env.nu), '%.4g'), '[Gyr]') )
+    Log( pp('H0           = %s'   % str_range(convert('nu to H0 in km/s/Mpc',_env.nu), '%.4g'), '[km/s/Mpc]') )
+    Log( pp('H0inv ref    = %s'   % str_range(_env.H0inv_ref, '%.4g'), '[Gyr]') )
+    Log( pp('filled_beam  = %s' % _env.filled_beam, '') )
     Log(  )
     Log( '=' * 80 )
     Log( 'OBJECTS' )
     Log( '=' * 80 )
-    g14_as_nu = convert('H0^-1 in Gyr to nu', 14)
+    H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', _env.H0inv_ref)
     for i,o in enumerate(_env.objects):
         Log( pp('%i. %s at z=%.4g  Distance(Obs->Lens) = %.4f' % (i+1, o.name, o.z, cosmo.angdist(0,o.z)), '') )
         if o.maprad:
-            Log( pp('    Map radius            = %.4g' % o.maprad, '[arcsec]') )
-            Log( pp('    Map radius g=14       = %.4g' % convert('arcsec to kpc', o.maprad, o.dL, g14_as_nu), '[kpc]') )
+            Log( pp('    Map radius       = %.4g' % o.maprad, '[arcsec]') )
+            Log( pp('    Map radius       = %.4g (H0inv=%4.1f)' % (convert('arcsec to kpc', o.maprad, o.dL, H0inv_ref_as_nu), _env.H0inv_ref), '[kpc]') )
         else:
-            Log( pp('    Map radius            = Not specified', '') )
-            Log( pp('    Map radius g=14       = Not specified', '') )
+            Log( pp('    Map radius       = Not specified', '') )
         #Log( pp('    Time scale            = %.4g' % o.scales['time'],    '[g days/arcsec^2]') )
         #Log( pp('    Angular distance      = %.4g' % o.scales['angdist'], '[g kpc/arcsec]') )
         #Log( pp('    Critical density      = %.4e' % convert('kappa to Msun/arcsec^2', 1, o.dL, '[Msun/arcsec^2]') )
-        Log( pp('    Critical density g=14 = %.4e' \
-            % convert('kappa to Msun/kpc^2', 1, o.dL, g14_as_nu), '[Msun/kpc^2]') )
+        Log( pp('    Critical density = %.4e (H0inv=%.1f)' \
+            % (convert('kappa to Msun/kpc^2', 1, o.dL, H0inv_ref_as_nu), _env.H0inv_ref), '[Msun/kpc^2]') )
         if o.shear:
             pass
             #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )
@@ -104,7 +105,7 @@ def report():
     Log( '=' * 80 )
     Log( 'MISCELLANEOUS' )
     Log( '=' * 80 )
-    Log( 'filled_beam = %s' % _env.filled_beam )
+    Log( 'Graphics %s' % ('enabled' if _env.withgfx else 'disabled') )
     Log(  )
     Log( '=' * 80 )
     Log( 'SYSTEM' )
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     with open(arglist[0], 'r') as f:
         env().input_file = f.read()
 
-    env().argv = arglist[1:]
+    env().argv = arglist
 
     execfile(arglist[0])
     try:

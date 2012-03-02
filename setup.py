@@ -47,7 +47,7 @@ csamplexsimple = Extension('solvers.samplexsimple.csamplex',
              extra_link_args=extra_link_args)
 
 crwalk = Extension('solvers.rwalk.csamplex',
-                     sources = ['solvers/rwalk/csamplex_omp.c'],
+                     sources = ['solvers/rwalk/csamplex_omp.c', 'solvers/rwalk/WELL44497a.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
              libraries=libraries,

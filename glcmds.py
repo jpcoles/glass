@@ -1,6 +1,9 @@
 from __future__ import division, with_statement
 import cosmo
+import time
+
 from itertools import izip, count, repeat
+import numpy as np
 from numpy import arctan2, savez, load, array, pi
 from environment import env, set_env, Image, Source, command
 from shear import Shear
@@ -20,19 +23,9 @@ def quad(*args):                assert False, "quad() not supported. Use source(
 @command
 def multi(*args):               assert False, "multi() not supported. Use source()."
 @command
-def g(*args):
-    assert False, 'g() no longer supported, use hubble_time'
-    env().g      = array(args)
-    env().h_spec = 1 / array(args)
-    #h = args if len(args) > 1 else [args[0], args[0]]
-    #env().h_spec = (1/h[0], 1/h[1])
+def g(*args):                   assert False, 'g() no longer supported, use hubble_time'
 @command
-def t0(*args):
-    assert False, 't0() no longer supported, use hubble_time'
-    env().g      = array(args)
-    env().h_spec = 1 / array(args)
-    #h = args if len(args) > 1 else [args[0], args[0]]
-    #env().h_spec = (1/h[0], 1/h[1])
+def t0(*args):                  assert False, 't0() no longer supported, use hubble_time'
 
 @command
 def globject(name):
@@ -141,7 +134,7 @@ def savestate(fname):
 
     header = '''\
 GLASS version 0.1
-CREATED ON: %s'''
+CREATED ON: %s''' % time.asctime()
 
     env().creation_info = [header]
     #ppf = env().post_process_funcs
@@ -194,11 +187,12 @@ def apply_filters():
 
     env().accepted_models = models
 
-# Although this is technically a command, we need it here so that it
-# can see 'init_model_generator' which will be defined by the executed
-# input file.
 @command
-def model(nmodels, *args, **kwargs):
+def model(nmodels=None, *args, **kwargs):
+
+    Log( '=' * 80 )
+    Log('GLASS version 0.1  %s' % time.asctime())
+    Log( '=' * 80 )
 
     for o in env().objects:
         o.init()
@@ -214,13 +208,19 @@ def model(nmodels, *args, **kwargs):
     models = []
     solutions = []
 
-    for i,m in enumerate(generate_models(env().objects, nmodels, *args, **kwargs)):
-        Log( 'Model %i/%i complete.' % (i+1, nmodels) )
+    if nmodels is None:
+        m = {'sol':  None,
+             'obj,data': [ [o, {}] for o in env().objects ],
+             'tagged':  False}
         models.append(m)
-        solutions.append(m['sol'])
-        #print 'glcmds.py:model ???', id(m['sol'])
+    else:
+        for i,m in enumerate(generate_models(env().objects, nmodels, *args, **kwargs)):
+            Log( 'Model %i/%i complete.' % (i+1, nmodels) )
+            models.append(m)
+            solutions.append(m['sol'])
+            #print 'glcmds.py:model ???', id(m['sol'])
 
-    _post_process(models)
+        _post_process(models)
 
     env().accepted_models = env().models
 
@@ -274,5 +274,48 @@ def XXXreprocess(state_file):
         env().models.append(m)
 
     env().accepted_models = env().models
+
+
+@command
+def ensemble_mass_rms(models, model0):
+    total_rms2 = 0
+    for m in models:
+        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+            obj,data = m1
+            obj0,data0 = m2
+            mass0 = data0['kappa'] * convert('kappa to Msun/arcsec^2', 1, obj0.dL, data0['nu'])
+            mass1 = data['kappa'] * convert('kappa to Msun/arcsec^2', 1, obj.dL, data['nu'])
+            total_rms2 += np.mean((mass1 - mass0)**2)
+    return np.sqrt(total_rms2)
+
+
+@command
+def kappa_chi2(models, model0):
+    n_chi2 = 0
+    d_chi2 = 0
+    for m in models:
+        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+            obj,data = m1
+            obj0,data0 = m2
+            v0 = data0['kappa']
+            v1 = data['kappa']
+            n_chi2 += np.sum((v1 - v0)**2)
+            d_chi2 += np.sum(v0**2)
+    return n_chi2 / d_chi2
+
+
+@command
+def kappa_profile_chi2(models, model0):
+    n_chi2 = 0
+    d_chi2 = 0
+    for m in models:
+        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+            obj,data = m1
+            obj0,data0 = m2
+            v0 = data0['kappa(R)'][1:-2]
+            v1 = data['kappa(R)'][1:-2]
+            n_chi2 += np.sum((v1 - v0)**2)
+            d_chi2 += np.sum(v0**2)
+    return n_chi2 / d_chi2
 
 

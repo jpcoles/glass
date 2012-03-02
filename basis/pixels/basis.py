@@ -7,7 +7,7 @@ if __name__ == "__main__":
     import sys
     sys.path.append('/Users/jonathan/GLASS/glass/')
 
-import numpy
+import numpy as np
 from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, negative, array, take,   \
                   ndindex, empty, arange, empty_like, ogrid, round, where,  \
                   unique, round, argwhere, asarray, lexsort, angle, floor,  \
@@ -17,8 +17,8 @@ from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, n
                   trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
                   sin, cos, pi, matrix, diag, average, log, sqrt, mean, hypot
 
-if 0:
-    import pylab
+if 1:
+    import pylab as pl
     from pylab import plot, show, matshow, figure, contour, over, scatter, subplot, draw, ion, ioff
     from matplotlib.patches import Circle, Rectangle
 
@@ -34,9 +34,10 @@ from math import atan2, pi
 from itertools import izip
 
 from environment import env
+import potential
 from potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
 from scales import convert
-from handythread import parallel_map2
+from handythread import parallel_map2, parallel_map
 
 from potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
 
@@ -190,6 +191,48 @@ def Xestimated_Re(obj, ps, src_index):
 
     return mean([Vl,Vs]), Vl, Vs, arctan2(D1[1], D1[0]) * 180/pi
 
+def gauss_kernel(size, sizey=None):
+    """ Returns a normalized 2D gauss kernel array for convolutions """
+    size = int(size)
+    if not sizey:
+        sizey = size
+    else:
+        sizey = int(sizey)
+    x, y = np.mgrid[-size:size+1, -sizey:sizey+1]
+    g = np.exp(-(x**2/float(size)+y**2/float(sizey)))
+    return g / g.sum()
+
+def intersect(A,B):
+    if B[0] < A[1] or B[1] > A[0] or B[2] > A[3] or B[3] < A[2]: return [0,0,0,0]
+    v = [A[0],A[1], B[0],B[1]]
+    h = [A[2],A[3], B[2],B[3]]
+    v.sort()
+    h.sort()
+    #print v,h
+    b,t = max(v[0],v[1]), min(v[2],v[3])
+    l,r = max(h[0],h[1]), min(h[2],h[3])
+    #print t,b,l,r
+    #print r-l, t-b
+    return [t,b,l,r]
+
+def intersect_frac(A,B):
+    t,b,l,r = intersect(A,B) 
+    areaB = (B[0]-B[1]) * (B[3]-B[2])
+    return (max(r-l,0) * max(t-b,0)) / areaB
+
+    areaA = (A[0]-A[1]) * (A[3]-A[2])
+    areaB = (B[0]-B[1]) * (B[3]-B[2])
+    v = [A[0],A[1], B[0],B[1]]
+    h = [A[2],A[3], B[2],B[3]]
+    v.sort()
+    h.sort()
+    #print v,h
+    b,t = max(v[0],v[1]), min(v[2],v[3])
+    l,r = max(h[0],h[1]), min(h[2],h[3])
+    #print t,b,l,r
+    #print r-l, t-b
+    return (max(r-l,0) * max(t-b,0)) / areaB
+
 
 class PixelBasis(object): 
 
@@ -269,9 +312,12 @@ class PixelBasis(object):
             self.maprad = rmax * 1.1 
             self.maprad = rmax * 1.5
             self.maprad = rmax / (L-1) * L
+            self.maprad = rmax * amax([1.2, L/(L-2)])
+            #print self.maprad, rmax, amax([1.2, L/(L-2)])
+            #assert 0
             #Log( 'Adjusting maprad to allow one ring outside images.' )
             #self.maprad = rmax+rmin
-            #self.maprad = amin([rmax+rmin, 2*rmax-rmin])
+            self.maprad = rmax + amin([rmin, rmax-rmin])
 
         self.map_shift = self.maprad        # [arcsec]
 
@@ -304,7 +350,7 @@ class PixelBasis(object):
         # the kappa array.
         #---------------------------------------------------------------------
         self.pmap = array(lexsort(keys = (arctan2(self.int_ploc.imag, self.int_ploc.real), rkeys)),
-                          dtype=numpy.int32)
+                          dtype=np.int32)
 
         self.int_ploc  = self.int_ploc.take(self.pmap)
         rkeys          = rkeys.take(self.pmap)
@@ -386,6 +432,23 @@ class PixelBasis(object):
 #       sp.set_aspect('equal')
         #show()
         #---------------------------------------------------------------------
+        if 0:
+            f=pl.figure()
+            sp=f.add_subplot(111, aspect='equal')
+            xmin,xmax = np.inf, -np.inf
+            ymin,ymax = np.inf, -np.inf
+            for r,s in izip(self.int_ploc, self.int_cell_size):
+                x,y = r.real-s/2, r.imag-s/2
+                xmin,xmax = min([xmin,x]), max([xmax,x+s])
+                ymin,ymax = min([ymin,y]), max([ymax,y+s])
+                sp.add_artist(Rectangle([x,y], s,s, fill=False))
+            pl.xlim(xmin,xmax)
+            pl.ylim(ymin,ymax)
+
+            pl.show()
+            assert 0
+
+
 
         #---------------------------------------------------------------------
         # Now adjust the positions so that they are physical
@@ -431,15 +494,15 @@ class PixelBasis(object):
 
         self.nvar = self.H0+1
 
-        g14_as_nu = convert('H0^-1 in Gyr to nu', 14)
+        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', env().H0inv_ref)
         Log( 'Pixel basis' )
         Log( '    Pixel radius         = %i'  % self.pixrad )
         Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
         Log( '    Map Extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
         Log( '    top_level_cell_size  = %.4f [arcsec]'  % self.top_level_cell_size )
-        Log( '    Map radius g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.maprad, obj.dL, g14_as_nu))
-        Log( '    Map Extent g=14      = %3.4f [kpc]'     % convert('arcsec to kpc', self.mapextent, obj.dL, g14_as_nu) )
-        Log( '    top_level_cell g=14  = %3.4f [kpc]'     % convert('arcsec to kpc', self.top_level_cell_size, obj.dL, g14_as_nu) )
+        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), env().H0inv_ref))
+        Log( '    Map Extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), env().H0inv_ref ))
+        Log( '    top_level_cell       = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), env().H0inv_ref ))
         Log( '    Number of rings      = %i'    % len(self.rings) )
         Log( '    Number of pixels     = %i'    % npix )
         Log( '    Number of variables  = %i'    % self.nvar )
@@ -555,13 +618,16 @@ class PixelBasis(object):
         gy = atleast_2d(-gx).T
         return vectorize(complex)(gx, gy)
 
-    def _to_grid(self, a):
+    def _to_grid(self, a, refinement=1):
         L = self.pixrad
         reorder = empty_like(a)
         reorder.put(self.pmap, a)
         grid = zeros((2*L+1)**2)
         grid[self.insideL] = reorder
         grid = grid.reshape((2*L+1,2*L+1))
+        if refinement > 1:
+            grid = repeat(grid, refinement, axis=1)
+            grid = repeat(grid, refinement, axis=0)
         return grid
 
     def from_grid(self, a):
@@ -580,9 +646,7 @@ class PixelBasis(object):
         S = self.subdivision
         assert (S%2)==1
 
-        grid = self._to_grid(data['kappa'])
-        grid = repeat(grid, S, axis=1)
-        grid = repeat(grid, S, axis=0)
+        grid = self._to_grid(data['kappa'], S)
 
         #self.refined_cell_size = repeat(self.cell_size, S) / S
 
@@ -719,11 +783,12 @@ class PixelBasis(object):
     def deflect(self, theta, data):
         obj = self.myobject
         kappa = data['kappa']
-        dist  = theta - self.ploc
+        #dist  = theta - self.ploc
         #s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
         #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
-        s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
-                    dot(kappa, (poten_dy(dist,self.cell_size))))
+        #s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
+                    #dot(kappa, (poten_dy(dist,self.cell_size))))
+        s = potential.grad(kappa,theta, self.ploc, self.cell_size)
         if obj.shear:
             s1,s2 = data['shear']
             s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
@@ -751,7 +816,7 @@ class PixelBasis(object):
 
             kappa   = data['kappa']
             deflect = empty_like(self.ploc)
-            dist    = empty_like(self.ploc)
+            #dist    = empty_like(self.ploc)
             ploc    = self.ploc
             cell_size = self.cell_size
 
@@ -765,17 +830,23 @@ class PixelBasis(object):
             if not data.has_key('deflect'):
                 x = False
                 _or = None 
-                for i,theta in enumerate(ploc):
-                    subtract(theta, ploc, dist)
-                    deflect[i] = complex(dot(kappa, poten_dx(dist,cell_size)), 
-                                         dot(kappa, poten_dy(dist,cell_size)))
-
+                def pot_grad(args):
+                    global x
+                    i,theta = args
+#                   if (i%100) == 0: 
+#                       print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
+#                       x = True
+                    deflect[i] = potential.grad(kappa,theta,ploc,cell_size)
                     if obj.shear:
                         s1,s2 = data['shear']
                         s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
                                     s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
                         deflect[i] += s
 
+                #parallel_map(pot_grad, enumerate(ploc), threads = 1, return_ = False)
+                #parallel_map(pot_grad, enumerate(ploc), threads = env().ncpus, return_ = False)
+                for i,theta in enumerate(ploc):
+                    pot_grad((i,theta))
                     if i%100 == 0: 
                         print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
                         x = True
@@ -789,7 +860,6 @@ class PixelBasis(object):
             else:
                 
                 deflect = data['deflect']
-
 
             data['srcdiff'] = map(lambda s: abs(s[0] - ploc + deflect / s[1].zcap),
                                   izip(data['src'], obj.sources))
@@ -815,10 +885,55 @@ class PixelBasis(object):
         obj = self.myobject
         return [ self._to_grid(self.srcdiff(data, i)) for i,src in enumerate(obj.sources) ]
 
+    def grid_to_grid(self, grid, grid_size, H0inv):
+        o = self.myobject
+        L = o.basis.pixrad
+        r = grid.shape[0]
+        J = r // 2
+        #grid = congrid(grid, (2*L+1, 2*L+1), minusone=True)
+
+        grid_cell_size = grid_size / r
+        cell_size      = o.basis.top_level_cell_size
+
+        #cell_size = grid_cell_size
+
+        grid *= grid_cell_size**2
+
+        pg = zeros((2*L+1, 2*L+1))
+        for y in xrange(2*L+1):
+            for x in xrange(2*L+1):
+                rt = (L-y+0.5) * cell_size
+                rb = (L-y-0.5) * cell_size
+                cl = (x-L-0.5) * cell_size
+                cr = (x-L+0.5) * cell_size
+                for i in xrange(2*J+1):
+                    for j in xrange(2*J+1):
+                        it = (J-i+0.5) * grid_cell_size
+                        ib = (J-i-0.5) * grid_cell_size
+                        jl = (j-J-0.5) * grid_cell_size
+                        jr = (j-J+0.5) * grid_cell_size
+                        frac = intersect_frac([rt,rb,cl,cr], [it,ib,jl,jr])
+                        pg[y,x] += frac * grid[i,j]
+#                   if frac > 0:
+#                       print [rt,rb,cl,cr], [it,ib,jl,jr]
+#                       print frac, i,j, L,J, cell_size, grid_cell_size
+                            #assert 0
+
+                #break
+            #break
+
+        #pg *= 2
+        pg /= cell_size**2
+        pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
+
+        return pg
+
     def grid_mass(self, X,Y,M, H0inv, to_kappa=True):
         obj = self.myobject
         Rmap = self.mapextent
         Rpix = self.pixrad
+
+        #return ones(len(self.insideL)+len(self.outsideL))
 
         cell_size      = self.top_level_cell_size
         #phys_cell_size = Arcsec_to_Kpc(obj, cell_size, H0inv)
@@ -835,16 +950,21 @@ class PixelBasis(object):
         rx = convert('arcsec to kpc', Rmap, obj.dL, nu)
         ry = convert('arcsec to kpc', Rmap, obj.dL, nu)
 
-        grid = histogram2d(-Y, X, bins=2*Rpix+1, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
+        bins = 2*Rpix+1
+        #binsX = self.ploc.real - cell_size
+        #binsY = self.ploc.imag - cell_size
+        #bins = [binsX, binsY]
+        grid = histogram2d(-Y, X, bins=bins, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
 
-        kernel = array([[1,4,7,4,1], 
-                        [4,16,26,16,4],
-                        [7,26,41,26,7],
-                        [4,16,26,16,4],
-                        [1,4,7,4,1]]
-                        ) / 273.
+#       kernel = array([[1,4,7,4,1], 
+#                       [4,16,26,16,4],
+#                       [7,26,41,26,7],
+#                       [4,16,26,16,4],
+#                       [1,4,7,4,1]]
+#                       ) / 273.
         
-        #grid = convolve2d(grid, kernel, mode='same')
+        #grid = convolve2d(grid, gauss_kernel(1), mode='same')
+        #Log('Projected mass has been smooth with a 5x5 gaussian kernel.')
 
         #-----------------------------------------------------------------------
         # Convert physical units to internal units.
@@ -891,7 +1011,7 @@ class PixelBasis(object):
         dy = dx
         gg = g(self.ploc.real-dx, self.ploc.real+dx, self.ploc.imag-dy, self.ploc.imag+dy)
         gg /= self.cell_size**2
-        assert numpy.all(gg >= 0)
+        assert np.all(gg >= 0)
         return self.solution_from_array(0.5*theta_E * gg,
                                         src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
                                         top_level_func_name=top_level_func_name)

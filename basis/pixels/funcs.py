@@ -113,6 +113,16 @@ def default_post_process(m):
 
     ps['arrival times'] = arrival_time(m)
 
+    ps['time delays'] = []
+    for src_index,src in enumerate(obj.sources):
+        d = []
+        if ps['arrival times'][src_index]:
+            t0 = ps['arrival times'][src_index][0]
+            for i,t in enumerate(ps['arrival times'][src_index][1:]):
+                d.append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, ps['nu'])) )
+                t0 = t
+        ps['time delays'].append(d)
+
     # convert to DArray
 
     ps['R']['arcsec'] = DArray(ps['R']['arcsec'], ul=['arcsec', r'$R$ $(\mathrm{arcsec})$'])

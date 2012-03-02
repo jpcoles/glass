@@ -1,7 +1,6 @@
 from __future__ import division
 import numpy, os, subprocess
 from numpy import arctan2, pi, linspace, atleast_2d, abs, ndarray, asarray
-from potential import poten2d
 from collections import defaultdict 
 import traceback
 
@@ -80,6 +79,9 @@ class Image:
         self.parity_name = parity
         self.parity = ['min', 'sad', 'max', 'unk'].index(parity)
 
+    def __str__(self):
+        return '%s(%s)' % (self.pos, self.parity_name)
+
     def __eq__(self, a):
         return a is self or a is self._pos 
         
@@ -124,18 +126,18 @@ class Environment:
         # For use in cosmo.py. Based on WMAP7+BAO
         self.omega_matter = 0.28
         self.omega_lambda = 0.72
+        self.H0inv_ref    = 13.7
 
-        self.h_spec       = [None, None]
-        self.g            = None
         self.nu           = None
         self.filled_beam  = True
 
         self.ncpus_detected = _detect_cpus()
         self.ncpus          = self.ncpus_detected
-        #self.ncpus = 3
+        #self.ncpus = 40
         self.argv = []
 
         self.withgfx = True
+        self.bw_styles = False
 
 #   def __getattr__(self, name):
 #       f = glass_command_list.get(name, None)

@@ -1,6 +1,10 @@
 from __future__ import division
 import sys
 import numpy as np
+
+import pylab as pl
+import matplotlib.cm as cm  
+
 from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
@@ -11,14 +15,13 @@ from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 from scipy.optimize import fsolve, fmin
 
-from pylab import contour, matshow, show, over, figure, gcf
-import matplotlib.cm as cm  
 from scales import convert
 from itertools import izip
+from log import log as Log
 
 fig = None
 
-def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verbose=False):
+def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verbose=False, viz=False):
     """Find the positions of images by raytracing back to the source.
 
         ipeps - Radius on the image plane to consider two image as one.
@@ -27,16 +30,17 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
                 
     global fig
 
-    if len(model) == 2:
-        [obj,ps], src_index = model
-    else:
-        obj_index, src_index = model[1:]
-        obj,ps = model[0]['obj,data'][obj_index]
+    obj,ps,src_index = model
+#   if len(model) == 2:
+#       [obj,ps], src_index = model
+#   else:
+#       obj_index, src_index = model[1:]
+#       obj,ps = model[0]['obj,data'][obj_index]
 
-    srcdiff = obj.basis.srcdiff(ps, src_index).copy()
     ploc    = obj.basis.ploc
     src     = ps['src'][src_index]
     zcap    = obj.sources[src_index].zcap
+    srcdiff = None
     #zcap=1
 
     if ipeps is None:
@@ -45,6 +49,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 
     if speps is None:
         speps = obj.basis.top_level_cell_size #/ sqrt(2)
+        #speps = 0.01 * obj.basis.mapextent
 
     #---------------------------------------------------------------------------
     # (1) Make an initial guess where the images are. 
@@ -56,13 +61,13 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     #---------------------------------------------------------------------------
 
     if not initial_guess:
+        srcdiff = obj.basis.srcdiff(ps, src_index)
         initial_guess = []
         asort = argsort(srcdiff)
 
         for j in asort:
             if srcdiff[j] > speps: break
             initial_guess.append(ploc[j])
-
 
 #   if not initial_guess:
 #       initial_guess = []
@@ -84,29 +89,6 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 #           else:
 
 #        if len(initial_guess) >= nimgs: break
-
-#       if fig == None:
-#           fig = figure()
-
-#       print obj.sources
-#       reorder = empty_like(srcdiff)
-#       reorder.put(obj.basis.pmap, srcdiff)
-#       sd = zeros((2*obj.basis.pixrad+1)**2)
-#       sd[obj.basis.insideL] = reorder
-#       #sd[:len(srcdiff)] = srcdiff #reorder
-#       sd = sd.reshape((2*obj.basis.pixrad+1,2*obj.basis.pixrad+1))
-#       R = obj.basis.mapextent
-#       kw = {'extent': [-R,R,-R,R],
-#             'interpolation': 'nearest',
-#             'aspect': 'equal',
-#             'origin': 'upper',
-#             #'cmap': cm.terrain,
-#             'fignum': False,
-#             #'vmin': -1,
-#             #'vmax':  1
-#             }
-#       matshow(sd, **kw)
-#       show()
 
 #       raw_input()
 
@@ -139,16 +121,20 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True) #, xtol=1e-12)
         #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
 
-        if not ier: continue
+        if not ier: 
+            print ier
+            continue
 
-        i = complex(*x)
+        r = complex(*x)
 
         # if an initial guess was poor then the minimum will not be near zero.
         # Only accept solutions that are very close to zero.
         leq = abs(complex(*lenseq(x)))
-        if leq < 2e-10:
+        if leq < 2e-8:
             #print leq
-            xs.append([img, i, leq])
+            xs.append([img, r, leq])
+        else:
+            print 'Image at %s rejected. %e' % (r, leq)
 
     #---------------------------------------------------------------------------
     # (3) Sort by how well we were able to minimize each function.
@@ -161,43 +147,92 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     #---------------------------------------------------------------------------
 
     imgs0 = []
-    for img,i,r in xs:
+    for img,r0,t0 in xs:
 
-        for j,t in imgs0:
-            if abs(i-j) < ipeps: break
+        for r,t in imgs0:
+            if abs(r0-r) < ipeps: break
         else:
-            tau  = abs(i-src)**2 / 2
+            tau  = abs(r0-src)**2 / 2
             tau *= zcap
-            xxx = dot(ps['kappa'], poten(i - obj.basis.ploc, obj.basis.cell_size))
-            print i, tau, xxx
-            tau -= xxx
+            tau -= dot(ps['kappa'], poten(r0 - obj.basis.ploc, obj.basis.cell_size))
             if obj.shear:
-                tau -= s1*obj.shear.poten(1,i) + s2*obj.shear.poten(2,i)
-            print tau
+                tau -= s1*obj.shear.poten(1,r0) + s2*obj.shear.poten(2,r0)
+            #print tau
             #print '!!', poten(i - obj.basis.ploc, obj.basis.cell_size)[0]
-            print '!!', dot(ps['kappa'], poten(complex(1,0) - obj.basis.ploc, obj.basis.cell_size))
-            imgs0.append([i,tau])
+            #print '!!', dot(ps['kappa'], poten(complex(1,0) - obj.basis.ploc, obj.basis.cell_size))
+            imgs0.append([r0,tau])
+
+    if viz:
+        if fig == None:
+            fig = pl.figure()
+
+        if srcdiff is None:
+            srcdiff = obj.basis.srcdiff(ps, src_index)
+
+        #print obj.sources
+        reorder = empty_like(srcdiff)
+        reorder.put(obj.basis.pmap, srcdiff)
+        sd = zeros((2*obj.basis.pixrad+1)**2)
+        sd[obj.basis.insideL] = reorder
+        #sd[:len(srcdiff)] = srcdiff #reorder
+        sd = sd.reshape((2*obj.basis.pixrad+1,2*obj.basis.pixrad+1))
+        R = obj.basis.mapextent
+        kw = {'extent': [-R,R,-R,R],
+              'interpolation': 'nearest',
+              'aspect': 'equal',
+              'origin': 'upper',
+              #'cmap': cm.terrain,
+              'fignum': False,
+              #'vmin': -1,
+              #'vmax':  1
+              }
+        pl.cla()
+        pl.matshow(sd, **kw)
+        #pl.colorbar()
+#       print '??'
+#       for i in initial_guess: print i
+#       print '??'
+        #arrival_plot({'obj,data':[[obj,ps]]}, src_index=src_index, clevels=150)
+        xs = [r.real for r in initial_guess]
+        ys = [r.imag for r in initial_guess]
+        pl.scatter(xs,ys)
+
+#       print '**'
+#       for i in obj.sources[src_index].images: print i
+#       print '**'
+
+#       xs = [r.pos.real for r in obj.sources[src_index].images]
+#       ys = [r.pos.imag for r in obj.sources[src_index].images]
+#       pl.scatter(xs,ys, color='r', s=40)
+
+        xs = [r.real for r,tau in imgs0]
+        ys = [r.imag for r,tau in imgs0]
+        pl.scatter(xs,ys, color='g')
+        pl.draw()
+        print '*'*80
+        print 'PRESS ANY KEY TO CONTINUE'
+        print '*'*80
+        raw_input()
 
 
     #---------------------------------------------------------------------------
     # (5) Determine magnification information
     #---------------------------------------------------------------------------
 
-    M = []
     imgs = []
     for img in imgs0:
-        print 'tau', tau
-        i, tau = img
-        theta = arctan2(i.imag, i.real) * 180/pi
-        K = zcap*identity(2) - obj.basis.magnification(i, theta, ps)
+        #print 'tau', tau
+        r, tau = img
+        theta = arctan2(r.imag, r.real) * 180/pi
+        A = zcap*identity(2) - obj.basis.magnification(r, theta, ps)
 
-        detK = det(K)
-        trK  = K.trace()
+        detA = det(A)
+        trA  = A.trace()
+        mu   = 1. / detA # magnification factor
 
-        parity = ['sad', 'sad', 'max', 'min'][(detK > 0)*2 + (trK > 0)]
+        parity = ['sad', 'sad', 'max', 'min'][(detA > 0)*2 + (trA > 0)]
 
-        Kinv = K.I
-        imgs.append(img + [ [1./det(K), Kinv, K, detK, trK], parity ])
+        imgs.append(img + [ [mu, A], parity ])
 
     #Mavg = average(map(lambda x: (x[3] != 'max') * x[2][3], imgs))
 
@@ -211,7 +246,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 #   if fig == None:
 #       fig = figure()
 
-#   f = gcf()
+#   f = pl.gcf()
 ##  figure() #fig.number)
 ##  reorder = empty_like(srcdiff)
 ##  reorder.put(obj.basis.pmap, srcdiff)
@@ -239,34 +274,40 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 
     return imgs
 
-def check_model_magnifications(model, **kw):
-    kw = kw.copy()
+def check_model_magnifications(model, **kw_orig):
 
-    assert len(model) == 2
-    if type(model[1]) == type(0):
-        obj,ps = model[0]['obj,data'][model[1]]
-    else:
-        obj,ps = model
+#   assert len(model) == 2
+#   if type(model[1]) == type(0):
+#       assert 0, 'Deprecated feature. If absolutely necessary, remove this assert.'
+#       pass
+#       obj,ps = model[0]['obj,data'][model[1]]
+#   else:
+#       obj,ps = model
 
     #obj,ps = model['obj,data'][obj_index]
 
-    for src_index,_ in enumerate(obj.sources):
-        rt_imgs  = raytrace([[obj,ps],src_index],**kw)
+    for obj,ps in model['obj,data']:
+        for src_index,_ in enumerate(obj.sources):
+            kw = kw_orig.copy()
 
-        Mrt = 0
-        for _,_,M,_ in rt_imgs:
-            Mrt += abs(M[0])
+            rt_imgs  = raytrace([obj,ps,src_index],**kw)
+            Mrt = sum( [ abs(mu) for _,_,[mu,_],_ in rt_imgs ] )
 
-        kw['initial_guess'] = [x.pos for x in obj.sources[0].images]
-        obj_imgs = raytrace([[obj,ps],src_index],**kw)
+            kw['initial_guess'] = [x.pos for x in obj.sources[src_index].images]
 
-        Mobj = 0
-        for _,_,M,parity in obj_imgs:
-            Mobj += abs(M[0])
+            obj_imgs = raytrace([obj,ps,src_index],**kw)
+            Mobj = sum( [ abs(mu) for _,_,[mu,_],_ in obj_imgs ] )
 
-        if abs(Mrt-Mobj) / Mobj > 0.05: 
-            print 'Rejected:', abs(Mrt-Mobj), Mobj
-            return False
+            if abs(Mrt-Mobj) / Mobj > 0.05: 
+                print src_index
+                print 'Rejected:', abs(Mrt-Mobj), Mobj
+                for r,t,[mu,_],p in rt_imgs: print r,t,mu,p
+                print '-----'
+                for r,t,[mu,_],p in obj_imgs: print r,t,mu,p
+                del kw['initial_guess']
+                kw['viz'] = True
+                obj_imgs = raytrace([obj,ps,src_index],**kw)
+                return False
 
     return True
     #return abs(Mrt-Mobj) / Mobj < 0.05, Mrt, Mobj
@@ -286,7 +327,7 @@ def raytraceX(obj, ps, sys_index, nimgs=None, eps=None):
       + abs(correlate1d(arrival, w, axis=1, mode='constant'))
     d = d[1:-1,1:-1]
 
-    matshow(d)
+    pl.matshow(d)
 
     xy = obj.basis.refined_xy_grid(ps)[1:-1,1:-1]
 
@@ -337,7 +378,7 @@ def observables(model, obj_index, src_index, seq):
 
     _,prev,_,_ = seq[0]
     for img,t,_,parity in seq[1:]:
-        print parity, t-prev, obj.z, ps['nu']
+        #print parity, t-prev, obj.z, ps['nu']
         t0 = convert('arcsec^2 to days', t-prev, obj.dL, obj.z, ps['nu'])
         imglist.append([img, parity,t0])
         prev = t

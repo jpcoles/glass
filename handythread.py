@@ -66,8 +66,8 @@ def foreach(f,l,threads=3,return_=False):
                 f(v)
             return
 
-def parallel_map(f,l,threads=3):
-    return foreach(f,l,threads=threads,return_=True)
+def parallel_map(f,l,threads=3,return_=True):
+    return foreach(f,l,threads=threads,return_=return_)
 
 def parallel_map2(f,l,threads=3):
     if threads > 1:
