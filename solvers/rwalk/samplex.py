@@ -98,7 +98,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
     #nmodels = int(ceil(nmodels / max(1,samplex.nthreads-1)))
 
-    print ' '*39, 'STARTING rwalk_async THREAD [this thread makes %i models]' % nmodels
+    print ' '*39, 'STARTING rwalk_async THREAD %i [this thread makes %i models]' % (id,nmodels)
 
     store = store.copy('A')
     eqs  = samplex.eqs.copy('A')
@@ -118,7 +118,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     #assert 0
     I = eye(evec.shape[0]).copy('F')
 
-    csamplex.set_rwalk_seed(id + samplex.random_seed)
+    csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
 
     done = should_stop(id,stopq)
     time_begin = time.clock()
@@ -151,11 +151,12 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
                 done = True
                 break
 
+
             accepted,rejected = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
 
             r = accepted / (accepted + rejected)
             #lock.acquire()
-            print ' '*39, '%.3f Acceptance rate  (%i Accepted  %i Rejected  %e twiddle)' % (r, accepted, rejected, twiddle)
+            print ' '*39, 'THREAD %i %.3f Acceptance rate  (%i Accepted  %i Rejected  %e twiddle)' % (id, r, accepted, rejected, twiddle)
             #lock.release()
 
             #-------------------------------------------------------------------
