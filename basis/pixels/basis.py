@@ -78,9 +78,9 @@ def xy_list(L, R=0, refine=1):
         rs  = [ r*1/refine for r in xrange((R-1)*refine+(refine-1)) ]
         rcs = [   1/refine for r in xrange((R-1)*refine+(refine-1)) ]
 
-        if R == 1:
-            rs = rs[:-1]
-            rcs = rcs[:-1]
+#       if R == 1:
+#           rs = rs[:-1]
+#           rcs = rcs[:-1]
 
         t = []
         v = []
@@ -128,10 +128,13 @@ def visual_neighbor_verification(self, nbrs):
         #plot(self.ploc.real, self.ploc.imag)
         #scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
 
+        loc = self.ploc
+        cs = self.cell_size
+
         i=N[0]
-        sp.plot(self.ploc[:i+1].real, self.ploc[:i+1].imag, 'k-', marker='s')
-        sp.scatter(self.ploc.real, self.ploc.imag, s=(5*self.cell_size)**2, marker='s')
-        for r,s in izip(self.ploc, self.cell_size):
+        sp.plot(loc[:i+1].real, loc[:i+1].imag, 'k-', marker='s')
+        sp.scatter(loc.real, loc.imag, s=(5*cs)**2, marker='s')
+        for r,s in izip(loc, cs):
             sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
             #sp.add_artist(Circle([r.real, r.imag], radius=1.5*s, fill=False))
         #scatter(self.ploc.real, self.ploc.imag, s=(5*self.cell_size)**2, marker='s')
@@ -139,11 +142,11 @@ def visual_neighbor_verification(self, nbrs):
         sp.set_aspect('equal')
 
         A = []
-        for n in N[2]:
-            r = self.ploc[n]
-            s = self.cell_size[n]
-            a = sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True))
-            A.append(a)
+#       for n in N[2]:
+#           r = self.ploc[n]
+#           s = self.cell_size[n]
+#           a = sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True))
+#           A.append(a)
 
         draw()
         raw_input()
@@ -268,6 +271,8 @@ class PixelBasis(object):
         self.grad_rmax = 1
         #self.grad_rmax = sqrt(10.5)
 
+        self.symmetric = False
+
     def __getattr__(self, name):
         if name == 'nbrs':
             Log( 'Finding neighbors...' )
@@ -342,7 +347,15 @@ class PixelBasis(object):
         self.int_ploc      = self.xy[insideL]
         self.int_cell_size = self.int_cell_size[insideL]
 
-        rkeys = array([self.rs[argmin(abs(abs(p)-self.rs))] for p in self.int_ploc])
+        print self.rs
+        rkeys = array(
+            [ 
+                self.rs[ argmin(abs(abs(p)-self.rs)) ] 
+                for p in self.int_ploc
+            ])
+
+        print rkeys
+#        assert 0
 
         #---------------------------------------------------------------------
         # By sorting by the arctan2() and abs() of the positions we create a
@@ -394,6 +407,7 @@ class PixelBasis(object):
 
 
         npix = len(self.int_ploc)
+        assert (npix%2) == 1
         #print "npix =", npix
 
         # Useful for some contraints
@@ -430,7 +444,7 @@ class PixelBasis(object):
 #       for r,s in izip(self.int_ploc, self.int_cell_size):
 #           sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
 #       sp.set_aspect('equal')
-        #show()
+#       show()
         #---------------------------------------------------------------------
         if 0:
             f=pl.figure()
@@ -449,14 +463,13 @@ class PixelBasis(object):
             assert 0
 
 
-
         #---------------------------------------------------------------------
         # Now adjust the positions so that they are physical
         #---------------------------------------------------------------------
         self.rs                *= self.top_level_cell_size
-        self.cell_size          = self.int_cell_size        * self.top_level_cell_size
-        self.radial_cell_size   = self.int_radial_cell_size * self.top_level_cell_size
-        self.ploc               = self.int_ploc * self.cell_size
+        self.cell_size          = self.top_level_cell_size * self.int_cell_size
+        self.radial_cell_size   = self.top_level_cell_size * self.int_radial_cell_size
+        self.ploc               = self.top_level_cell_size * self.int_ploc
         self.xy                *= self.top_level_cell_size
 
 
@@ -482,17 +495,15 @@ class PixelBasis(object):
         self.pix_start,    self.pix_end    = 0, npix
         self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is not None)
         self.ptmass_start, self.ptmass_end = self.shear_end, self.shear_end
-
-        #nimgs=0
-        #for src in obj.sources:
-            #nimgs += len(src.images)
-
-        #print "nimgs =", nimgs
-
-        self.srcpos_start,    self.srcpos_end    = self.ptmass_end, self.ptmass_end+2*len(obj.sources)
+        self.srcpos_start, self.srcpos_end = self.ptmass_end, self.ptmass_end+2*len(obj.sources)
         self.H0 = self.srcpos_end
 
         self.nvar = self.H0+1
+
+        self.nvar_symm = self.nvar
+        if obj.symm:
+            self.symmetric = True
+            self.nvar_symm -= (npix-1) // 2
 
         H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', env().H0inv_ref)
         Log( 'Pixel basis' )
@@ -535,10 +546,9 @@ class PixelBasis(object):
 
 #       sys.exit(0)
 
-
     def solution_to_dict(self, sol):
         obj    = self.myobject
-        o      = self.array_offset
+        o      = 0 #self.array_offset
 
         ps = {}
 
@@ -560,6 +570,8 @@ class PixelBasis(object):
         ps['H0']     = convert('nu to H0 in km/s/Mpc', ps['nu'])
         ps['1/H0']   = convert('nu to H0^-1 in Gyr',   ps['nu'])
 
+        #print ps['nu']
+        #assert 0
 
         #---------------------------------------------------------------------
         # These are computed quantities based on the above solutions.
@@ -618,7 +630,7 @@ class PixelBasis(object):
         gy = atleast_2d(-gx).T
         return vectorize(complex)(gx, gy)
 
-    def _to_grid(self, a, refinement=1):
+    def _simple_to_grid(self, a, refinement=1):
         L = self.pixrad
         reorder = empty_like(a)
         reorder.put(self.pmap, a)
@@ -629,6 +641,27 @@ class PixelBasis(object):
             grid = repeat(grid, refinement, axis=1)
             grid = repeat(grid, refinement, axis=0)
         return grid
+
+    def _hires_to_grid(self, a, refinement=1):
+        L = self.pixrad
+        R = self.mapextent
+
+        bins = (2*L+1)
+        Y = self.ploc.imag
+        X = self.ploc.real
+        c = histogram2d(Y, X, bins=bins, range=[[-R,R], [-R,R]])[0]
+        w = histogram2d(Y, X, bins=bins, weights=a, range=[[-R,R], [-R,R]])[0]
+        grid= np.nan_to_num(w/c)
+        if refinement > 1:
+            grid = repeat(grid, refinement, axis=1)
+            grid = repeat(grid, refinement, axis=0)
+        return grid
+
+    def _to_grid(self, a, refinement=1):
+        if self.hires_levels is not None:
+            return self._hires_to_grid(a, refinement)
+        else:
+            return self._simple_to_grid(a, refinement)
 
     def from_grid(self, a):
         print self.insideL
@@ -722,7 +755,7 @@ class PixelBasis(object):
         for i,src in enumerate(obj.sources):
             l = []
             for img in src.images:
-                p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
+                p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
                 if obj.shear:
                     p -= s1*obj.shear.poten(1, img.pos) + s2*obj.shear.poten(2, img.pos)
                 l.append(p)
@@ -748,7 +781,8 @@ class PixelBasis(object):
         def _tau(img,r):
             geom  = abs(img.pos - r)**2 / 2  *  src.zcap
 
-            p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
+            p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
+            #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
             if obj.shear:
                 p -= s1*obj.shear.poten(1, img.pos) + s2*obj.shear.poten(2, img.pos)
 
@@ -1029,8 +1063,8 @@ class PixelBasis(object):
         # Now fill in the solution array.
         #-----------------------------------------------------------------------
 
-        o = self.array_offset
-        sol = zeros(obj.basis.nvar+1)
+        o = 1 #self.array_offset
+        sol = zeros(o+obj.basis.nvar)
 
         sol[o+self.pix_start : o+self.pix_end] = a
         if shear:  sol[o+self.shear_start  : o+self.shear_end]  = shear
@@ -1047,6 +1081,7 @@ class PixelBasis(object):
             sol[offs : offs+2] *= obj.sources[i].zcap
 
         nu = convert('H0^-1 in Gyr to nu', H0inv)
+        print "nu", nu
         sol[o+self.H0] = nu
         #sol[o+self.H0] = time_to_internal(obj, H0inv)
 

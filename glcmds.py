@@ -32,8 +32,9 @@ def globject(name):
     return env().new_object(name)
 
 @command
-def shear(phi):
+def shear(phi, strength=0.1):
     env().current_object().shear = Shear(phi)
+    env().current_object().prior_options['shear']['strength'] = strength
 
 @command
 def zlens(z):
@@ -120,7 +121,10 @@ def hubble_constant(*args):
     env().nu      = convert('H0 in km/s/Mpc to nu', array(args))
 
 @command
-def maprad(r):
+def maprad(r,units='arcsec'):
+    if units != 'arcsec':
+        assert env().nu[0] == env().nu[1]
+        r = convert('%s to arcsec' % units, r, env().current_object().dL, env().nu[0])
     env().current_object().maprad = r
 
 @command
@@ -318,4 +322,18 @@ def kappa_profile_chi2(models, model0):
             d_chi2 += np.sum(v0**2)
     return n_chi2 / d_chi2
 
+
+@command
+def time_delay_chi2(models, model0):
+    n_chi2 = 0
+    d_chi2 = 0
+    for m in models:
+        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+            obj,data = m1
+            obj0,data0 = m2
+            v0 = np.array([ td for tds in data0['time delays'] for td in tds ])
+            v1 = np.array([ td for tds in data['time delays'] for td in tds ])
+            n_chi2 += np.sum((v1 - v0)**2)
+            d_chi2 += np.sum(v0**2)
+    return n_chi2 / d_chi2
 

@@ -87,6 +87,8 @@ def default_post_process(m):
 
     rscale = convert('arcsec to kpc', 1, obj.dL, ps['nu'])
 
+    print ps['nu'], convert('nu to H0^-1 in Gyr', ps['nu'])
+
     dscale1 = convert('kappa to Msun/arcsec^2', 1, obj.dL, ps['nu'])
     dscale2 = convert('kappa to Msun/kpc^2',    1, obj.dL, ps['nu'])
 
@@ -96,6 +98,10 @@ def default_post_process(m):
     ps['R'] = {}
     ps['R']['arcsec'] = b.rs + b.radial_cell_size / 2
     ps['R']['kpc']    = ps['R']['arcsec'] * rscale
+
+    #print ps['R']['arcsec']
+    #print ps['R']['kpc']
+    #assert 0
 
     ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
     ps['Sigma(R)']  =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])

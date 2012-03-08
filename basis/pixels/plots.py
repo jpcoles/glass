@@ -169,11 +169,11 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
     #print abs(obj.basis.ploc)
 
 
-    rmin = 0 #abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmin))])
+    rmin = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmin))])
     rmax = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmax))])
 
-    #plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
-    plist = arange(len(obj.basis.ploc))
+    plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
+    #plist = arange(len(obj.basis.ploc))
     Nk = len(plist)
 
     kappas = empty((N, Nk))
@@ -388,5 +388,4 @@ def radial_chi2_plot(models, model0):
 #   print np.log(np.sum(rchi2[0]) / np.sum(rchi2[1]))
 #   print '+'*80
 #   print '+'*80
-
 

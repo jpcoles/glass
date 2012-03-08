@@ -82,12 +82,22 @@ def local_gradient(theta=None, L=None):
     if L is not None: o.prior_options['J2Gradient']['size']  = L
 
 @command
-def minkappa(X,Y,M,H0inv):
+def min_kappa(v):
+    o = env().current_object()
+    o.prior_options['min_kappa']['kappa'] = v
+
+@command
+def min_annular_density(v):
+    o = env().current_object()
+    o.prior_options['min_annular_density']['v'] = v
+
+@command
+def min_kappa_particles(X,Y,M,H0inv):
 
     o = env().current_object()
-    o.prior_options['minkappa']['grid'] = [X,Y,M]
-    o.prior_options['minkappa']['H0inv'] = H0inv
-    o.prior_options['minkappa']['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
+    o.prior_options['min_kappa_particles']['grid'] = [X,Y,M]
+    o.prior_options['min_kappa_particles']['H0inv'] = H0inv
+    o.prior_options['min_kappa_particles']['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
 
 @command
 def minkappa_from_model(model, obj_index):

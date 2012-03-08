@@ -31,8 +31,18 @@ def lpsolve(f, *args):
         for i in range(nc):
             g.glp_set_col_bnds(lp, i+1, g.GLP_LO, 0, 0)
 
+        lp.glpk_parms = g.glp_smcp()
+        g.glp_init_smcp(lp.glpk_parms)
+
         return lp
 
+    if f == 'set_verbose':
+        lp = args[0]
+        lvl = args[1]
+        if lvl == FULL:      lp.glpk_parms.msg_lev = g.GLP_MSG_ALL
+        if lvl == DETAILED:  lp.glpk_parms.msg_lev = g.GLP_MSG_ALL
+        if lvl == NORMAL:    lp.glpk_parms.msg_lev = g.GLP_MSG_ON
+        if lvl == IMPORTANT: lp.glpk_parms.msg_lev = g.GLP_MSG_ERR
 
     if f == 'add_constraint':
         lp = args[0]
@@ -60,7 +70,7 @@ def lpsolve(f, *args):
 
     if 1 and f == 'solve':
         lp = args[0]
-        r = g.glp_simplex(lp, None)
+        r = g.glp_simplex(lp, lp.glpk_parms)
         if r == 0:
             r = g.glp_get_status(lp)
             if r == g.GLP_OPT: return OPTIMAL

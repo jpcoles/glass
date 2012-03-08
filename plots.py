@@ -260,7 +260,7 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
 
     #grid[grid >= 1] = 0
 
-    kw = default_kw(R)
+    kw = default_kw(R, vmin=0, vmax=2)
 
     if not only_contours:
         #matshow(log10(grid), **kw)
@@ -716,6 +716,9 @@ def _data_error_plot(models, X,Y, **kwargs):
 
     for k,v in objplot.iteritems():
         avg = v['ysum'] / (mi+1)
+        #print len(v['xs'])
+        #print len(avg)
+        #assert 0
         errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color='grey', marker='.')
         pl.yscale(yscale)
         pl.xscale(xscale)

@@ -374,7 +374,7 @@ def observables(model, obj_index, src_index, seq):
 
     if not seq: return
 
-    imglist = [[seq[0][0], seq[0][3]]]
+    imglist = [[seq[0][0], seq[0][3], None]]
 
     _,prev,_,_ = seq[0]
     for img,t,_,parity in seq[1:]:
@@ -405,7 +405,7 @@ def write_glass_code(model, obj_index, src_index, seq, simple=False):
         return "%s = (% 9.15f,% 9.15f)" % (a[0],a[1][0].real,a[1][0].imag)
 
     def img2str2(a):
-        if len(a[1]) == 2:
+        if a[1][2] is None:
             return "%s, '%s'" % (a[0], a[1][1])
         else:
             return "%s, '%s', %.15f" % (a[0], a[1][1], a[1][2])
@@ -432,7 +432,7 @@ def write_code(model, obj_index, src_index, seq, simple=False):
         #return "['%s', (% 9.5f,% 9.5f), '%s', %.4f]" % (l, img.real, img.imag, parity, time_delay)
 
     def img2str(a):
-        if len(a[1]) == 2:
+        if a[1][2] is None:
             return "['%s', (% 9.15f,% 9.15f), '%s']" % (a[0],a[1][0].real,a[1][0].imag, a[1][1])
         else:
             return "['%s', (% 9.15f,% 9.15f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])

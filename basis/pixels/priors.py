@@ -127,7 +127,7 @@ def lens_eq(o, leq, eq, geq):
 def check_lens_eq(o, sol):
     Log( "Check Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12)" )
     b    = o.basis
-    offs = b.array_offset
+    offs = 0 #b.array_offset
 
     pix_start,    pix_end    = offs+b.pix_start,    offs+b.pix_end
     srcpos_start, srcpos_end = offs+b.srcpos_start, offs+b.srcpos_end
@@ -676,22 +676,28 @@ def annular_density(o, leq, eq, geq):
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
     if theta is not None and theta != 0:
-        row = new_row(o)
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
+            row = new_row(o)
             row[pix_start + o.basis.rings[r]] = -1
             row[0] = theta * len(o.basis.rings[r])
-        eq(row)
+            eq(row)
         on = True
         
 @default_prior
 @object_prior
 def external_shear(o, leq, eq, geq):
     on = None
+    v = o.prior_options.get('shear', None)
+    if v is None:
+        v = 0.1
+    else:
+        v = o.prior_options['shear']['strength']
+
     for s in xrange(1+o.basis.shear_start, 1+o.basis.shear_end):
         row = new_row(o)
-        row[ [0,s] ] = 0.1, -1
+        row[ [0,s] ] = v, -1
         geq(row)
-        on = [0.1, -1]
+        on = [v, -1]
 
     if on is None:
         on = '[DISABLED]'
@@ -817,13 +823,37 @@ def profile_steepness(o, leq, eq, geq):
         else:
             geq(row)
 
-#           if maxsteep is not None:
-#               row = new_row(o)
-#               lc  = (l+0.5) ** maxsteep
-#               lpc = (l+1.5) ** maxsteep
-#               row[pix_start+r0] =  lc  / len(r0)
-#               row[pix_start+r1] = -lpc / len(r1)
-#               leq(row)
+            if maxsteep is not None:
+                row = new_row(o)
+                lc  = (l+0.5) ** maxsteep
+                lpc = (l+1.5) ** maxsteep
+                row[pix_start+r0] =  lc  / len(r0)
+                row[pix_start+r1] = -lpc / len(r1)
+                leq(row)
+
+#   for l in xrange(nrings-3,nrings-1):
+#       r0 = o.basis.rings[l]
+
+#       #r0 = o.basis.rings[0]
+#       r1 = o.basis.rings[l+1]
+
+#       row = new_row(o)
+#       lc  = (l+0.5) ** minsteep
+#       lpc = (l+1.5) ** minsteep
+#       row[pix_start+r0] =  lc  / len(r0)
+#       row[pix_start+r1] = -lpc / len(r1)
+
+#       if minsteep == maxsteep:
+#           eq(row)
+#       else:
+#           geq(row)
+
+#           row = new_row(o)
+#           lc  = (l+0.5) ** 1
+#           lpc = (l+1.5) ** 1
+#           row[pix_start+r0] =  lc  / len(r0)
+#           row[pix_start+r1] = -lpc / len(r1)
+#           leq(row)
 
 
 #   print "\tmaxsteep=", maxsteep, "minsteep=",minsteep
@@ -848,6 +878,71 @@ def profile_steepness(o, leq, eq, geq):
 #   row[pix_start+r1] = lpc / len(r1)
 #   geq(row)
 #   c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+@object_prior
+def PLprofile_steepness(o, leq, eq, geq):
+    steep = o.prior_options.get('steepness', None)
+
+    if steep is None: 
+        Log( "[DISABLED] Profile Steepness" )
+        return
+
+    Log( indent + "Profile Steepness %s" % steep )
+
+    minsteep, maxsteep = steep
+    assert maxsteep is None or maxsteep >= minsteep
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    nrings = len(o.basis.rings)
+    row = new_row(o)
+
+    #---------------------------------------------------------------------------
+    # First handle the central pixel
+    #---------------------------------------------------------------------------
+    r0,r1 = o.basis.rings[0:2]
+    lc = (0.0) ** minsteep
+    lpc = (1) ** minsteep
+    row[pix_start+r0] = lc / len(r0)
+    row[pix_start+r1] = -lpc / len(r1)
+    #print r0,r1
+    #print row
+    c=1
+    geq(row)
+
+    c = 0
+
+    #---------------------------------------------------------------------------
+    # Now the rest of the rings.
+    #---------------------------------------------------------------------------
+    for l in xrange(1,nrings-1):
+        r0 = o.basis.rings[l]
+        r1 = o.basis.rings[l+1]
+
+        row = new_row(o)
+        lc  = (l) ** minsteep
+        lpc = (l+1) ** minsteep
+        row[pix_start+r0] =  lc  / len(r0)
+        row[pix_start+r1] = -lpc / len(r1)
+
+        if minsteep == maxsteep:
+            eq(row)
+        else:
+            geq(row)
+
+    if maxsteep is not None and maxsteep > minsteep:
+        row = zeros(1+o.basis.nvar)
+        r0 = o.basis.rings[1]
+        r1 = o.basis.rings[-1]
+
+        lc  = 1
+        lpc = (nrings) ** maxsteep
+        row[pix_start+r0] = -lc  / len(r0)
+        row[pix_start+r1] =  lpc / len(r1)
+        geq(row)
+        c += 1
 
     Log( 2*indent + "# eqs = %i" % c )
         
@@ -973,6 +1068,7 @@ def J2gradient(o, leq, eq, geq):
     sn = sin(theta)
     c = 0
     for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+        #if i in o.basis.rings[-2]: break
         if i == o.basis.central_pixel: continue
 
         nbrs = neighbors(r,L, o.basis.ploc)
@@ -1001,6 +1097,16 @@ def J2gradient(o, leq, eq, geq):
             row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real
             geq(row)
             c += 1
+
+#   i = o.basis.rings[-1]
+#   for j,k in zip(i[:-1], i[1:]):
+#       row = new_row(o)
+#       row[ [0, pix_start+j, pix_start+k] ] = -1e-2, 1, -1
+#       leq(row)
+#   row = new_row(o)
+#   row[ [0, pix_start+i[0], pix_start+i[-1]] ] = -1e-2, 1, -1
+#   leq(row)
+        
 
     Log( 2*indent + "gradient eqs = %i" % c )
     Log( 2*indent + "sn=%g" % sn )
@@ -1053,7 +1159,7 @@ def central_pixel_min(o, leq, eq, geq):
     #M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
 
     row = new_row(o)
-    row[ [0,cp] ] = -13.25, 1
+    row[ [0,cp] ] = -6.5, 1
     #row[ [0,cp] ] = -M, 1
     geq(row)
 
@@ -1220,42 +1326,68 @@ def max_kappa(o, leq, eq, geq):
     
 @object_prior
 def min_kappa(o, leq, eq, geq):
-    Log( "Minimum Kappa" )
+    g = o.prior_options.get('min_kappa')
+
+    if not g: 
+        Log( "[DISABLED] Minimum Kappa" )
+        return
+
+    Log( indent + "Minimum Kappa" )
+
+    v = g['kappa']
+
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
     for i in xrange(pix_start, pix_end):
         row = new_row(o)
-        row[ [0,i] ] = -0.6, 1
+        row[ [0,i] ] = -v, 1
         geq(row)
 
 @object_prior
-def min_kappa_grid(o, leq, eq, geq):
-
-    g = o.prior_options.get('minkappa')
-
-    if not g: 
-        Log( "[DISABLED] Minimum Kappa Grid" )
+def min_annular_density(o, leq, eq, geq):
+    g = o.prior_options.get('min_annular_density', None)
+    if g is None:
+        Log( "[DISABLED] Minimum annular density" )
         return
 
-    Log( indent + "Minimum Kappa Grid" )
+    theta = g['v']
+
+    Log( indent + "Minimum annular density %s" % theta )
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    if theta is not None and theta > 0:
+        for r in o.basis.rings:
+            row = new_row(o)
+            row[pix_start + r] = 1
+            row[0] = -theta * len(r)
+            geq(row)
+        on = True
+
+@object_prior
+def min_kappa_particles(o, leq, eq, geq):
+
+    g = o.prior_options.get('min_kappa_particles')
+
+    if not g: 
+        Log( "[DISABLED] Minimum Kappa Particles" )
+        return
+
+    Log( indent + "Minimum Kappa Particles" )
 
     X,Y,M = g['grid']
     H0inv = g['H0inv']
     nu    = g['nu']
 
-    max_nu = env().nu[-1]
+    #max_nu = env().nu[-1]
 
     g  = o.basis.grid_mass(X,Y,M, H0inv, to_kappa=False)
-    #g *= convert('den_stel to den_lum', 1., o.dL, nu) 
-    g *= convert('Msun/ly^2 to kappa',  1., o.dL, max_nu)
+    g *= convert('Msun/ly^2 to kappa',  1., o.dL, nu)
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
     a = g.ravel()[o.basis.insideL].take(o.basis.pmap)
 
-    #nu = 1+o.basis.H0
-
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
-        #row[ [nu,j] ] = -a[i], 1
         row[ [0,j] ] = -a[i], 1
         geq(row)
 

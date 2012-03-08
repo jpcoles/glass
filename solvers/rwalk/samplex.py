@@ -237,7 +237,7 @@ class Samplex:
         lpsolve('set_epsd', self.lp, 1e-14)
         lpsolve('set_epsint', self.lp, 1e-14)
         lpsolve('set_epsel', self.lp, 1e-8)
-        #lpsolve('set_verbose', self.lp, FULL)
+        lpsolve('set_verbose', self.lp, IMPORTANT)
 
         self.iteration = 0
         self.moca = None
@@ -528,7 +528,8 @@ class Samplex:
         for e in ev:
             e -= dot(self.Apinv, dot(A, e))
 
-    def inner_pointQ(self, np):
+    def inner_point0(self, np):
+
         #lpsolve('set_presolve', self.lp, 1 + 4)
         #lpsolve('set_pivoting', self.lp, 3+128+32+512)
         #print 'BEFORE', lpsolve('get_Nrows', self.lp)
@@ -549,7 +550,7 @@ class Samplex:
 #       return v1.vertex[1:self.nVars+1]
         #assert 0
 
-        np = np.copy()
+        np = zeros_like(np)
         np2 = None
         i=0
         while True:
@@ -591,31 +592,33 @@ class Samplex:
 
         lpsolve('set_sense', self.lp, False)
         lpsolve('set_obj_fn', self.lp, o.tolist())
+        lpsolve('set_verbose', self.lp, FULL)
+        Log('Finding first inner point')
         self.next_solution()
+        lpsolve('set_verbose', self.lp, IMPORTANT)
+
         v1 = self.package_solution()
 
-        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=0, verbose=2)
-        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=-1e-13, verbose=2)
+        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=0, verbose=1)
+        ok,fail_count = self.in_simplex(v1.vertex[1:self.nVars+1], eq_tol=1e-12, tol=-1e-13, verbose=1)
         assert ok, len(fail_count)
         np = v1.vertex[1:self.nVars+1]
         self.project(np)
-        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=2)
-        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-5, verbose=2)
+        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
+        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-5, verbose=1)
 
         #print np
         #print len(np)
         #assert 0
-        return np
-
-        assert 0
+        #return np
 
         np = np.copy()
         np2 = None
-        i=0
-        while True:
+        i=1
+        while i < 20:
             i += 1
 
-            Log('Inner point step %i' % i)
+            Log('Refining inner point, step %i/20' % i)
 
             o = 2000*random(lpsolve('get_Ncolumns', self.lp)) - 1000
             lpsolve('set_sense', self.lp, False)
@@ -630,10 +633,6 @@ class Samplex:
             np2 /= i
             self.project(np2)
             ok,failed = self.in_simplex(np2, eq_tol=1e-12, tol=-1e-13, verbose=0)
-
-            if ok: break
-
-            Log('%i equations to satisfy' % len(failed))
 
         return np2
 
@@ -768,7 +767,7 @@ class Samplex:
         #-----------------------------------------------------------------------
         print 'Estimating middle point'
         time_begin_middle_point = time.clock()
-        #np = self.estimated_middle(np, ev, evec)
+        np = self.estimated_middle(np, ev, evec)
         time_end_middle_point = time.clock()
 #       ok,fail_count = self.in_simplex(np)
 #       assert ok
@@ -891,7 +890,7 @@ class Samplex:
                 Log( result )
                 raise SamplexUnexpectedError("unknown pivot result = %i" % result)
 
-        print 'Solution after %i steps.' % lpsolve('get_total_iter', lp)
+        #print 'Solution after %i steps.' % lpsolve('get_total_iter', lp)
         return False
 
     def package_solution(self, lp=None):
