@@ -1,11 +1,11 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from environment import env, set_env, new_env, glass_command_list, DArray, Environment
-import cosmo
+from glass.environment import env, set_env, new_env, glass_command_list, DArray, Environment
+import glass.cosmo
 from handythread import parallel_map
-from log import log as Log, setup_log
-from scales import convert
+from glass.log import log as Log, setup_log
+from glass.scales import convert
 from numpy import abs
 
 GlassEnvironment = Environment
