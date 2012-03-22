@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#ROOT="$HOME/GLASS/glass"
-ROOT="$HOME/GLASS/glass-DEV"
+ROOT="$HOME/GLASS/glass"
+#ROOT="$HOME/GLASS/glass-DEV"
 #ROOT="$HOME/GAGL/glass"
 
-PYTHON=python
+PYTHON="python"
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
 export   LD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$LD_LIBRARY_PATH
