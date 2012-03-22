@@ -1,20 +1,15 @@
+import pylab as pl
 import numpy as np
-from itertools import izip
-from numpy import array, mat, empty_like, amin, amax, repeat, logspace, arange, \
-                  ptp, amin, amax, sqrt, sort, abs, put, empty, zeros, ogrid, \
-                  mgrid, atleast_2d, linspace, meshgrid, log10, log, diff, ravel, \
-                  meshgrid, vstack, argsort, logical_and, logical_not, where, argmin
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
-                  hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
-                  suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
-                  text, axvline, axhline, xlim
-
 import matplotlib.cm as cm  
-from matplotlib.lines import Line2D
 import mpl_toolkits.mplot3d as p3
 
+from matplotlib.lines import Line2D
+from itertools import izip
+from numpy import logical_and, logical_not, where
+from pylab import gca, gcf
+
 from environment import env, command
-from .. plots import default_kw
+
 
 def glscolorbar():
     rows,cols,_ = gca().get_geometry()
@@ -32,7 +27,7 @@ def glscolorbar():
     figH = (totHeight-(hspace*(rows>1))) / rows
     figW = (totWidth-(wspace*(cols>1))) / cols
 
-    colorbar(shrink=figW/figH)
+    pl.colorbar(shrink=figW/figH)
 
 @command
 def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
@@ -46,9 +41,9 @@ def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, c
 
     coords = obj.basis.xy
 
-    X = linspace(-R, R, (2*L+1) * S)
+    X = np.linspace(-R, R, (2*L+1) * S)
     Y = X
-    X, Y = meshgrid(X, Y)
+    X, Y = np.meshgrid(X, Y)
     Z = obj.basis.kappa_grid(data)
 
     print Z.shape
@@ -71,9 +66,9 @@ def srcdiff_plot3d(model, obj_index=0, src_index=0, with_contours=False, only_co
 
     coords = obj.basis.xy
 
-    X = linspace(-R, R, (2*L+1) * S)
+    X = np.linspace(-R, R, (2*L+1) * S)
     Y = X
-    X, Y = meshgrid(X, Y)
+    X, Y = np.meshgrid(X, Y)
     Z = obj.basis.srcdiff_grid(data)[src_index]
 
     print Z.shape
@@ -116,14 +111,14 @@ def kappa_ensemble_plot(models=None, obj_index=0, with_contours=False, only_cont
           'vmax':  1}
 
     if not only_contours:
-        matshow(log10(grid), **kw)
+        pl.matshow(np.log10(grid), **kw)
         if with_colorbar: glscolorbar()
 
     if with_contours:
-        over(contour, grid, clevels, extent=[-R,R,-R,R], extend='both', colors='w', alpha=0.7, **kw)
+        pl.contour(grid, clevels, extent=[-R,R,-R,R], extend='both', colors='w', alpha=0.7, **kw)
 
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 
 @command
 def kappa_ensemble_plot3d(models=None, obj_index=0, 
@@ -148,9 +143,9 @@ def kappa_ensemble_plot3d(models=None, obj_index=0,
 
     Z /= len(models)
 
-    X = linspace(-R, R, (2*L+1) * S)
+    X = np.linspace(-R, R, (2*L+1) * S)
     Y = X
-    X, Y = meshgrid(X, Y)
+    X, Y = np.meshgrid(X, Y)
 
     ax = p3.Axes3D(gcf(), rect=gca().get_position())
     #ax.plot_wireframe(X,Y,Z, rstride=1, cstride=1, cmap=cm.terrain)
@@ -165,20 +160,20 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
     assert len(models) > 0
 
     obj,_ = models[0]['obj,data'][obj_index]
-    rs = [ abs(img.pos) for src in obj.sources for img in src.images ]
-    rmin, rmax = amin(rs), amax(rs)
+    rs = [ np.abs(img.pos) for src in obj.sources for img in src.images ]
+    rmin, rmax = np.amin(rs), np.amax(rs)
     #print rmin, rmax
-    #print abs(obj.basis.ploc)
+    #print np.abs(obj.basis.ploc)
 
 
-    rmin = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmin))])
-    rmax = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmax))])
+    rmin = np.abs(obj.basis.ploc[np.argmin(np.abs(np.abs(obj.basis.ploc)-rmin))])
+    rmax = np.abs(obj.basis.ploc[np.argmin(np.abs(np.abs(obj.basis.ploc)-rmax))])
 
-    plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
-    #plist = arange(len(obj.basis.ploc))
+    plist, = where(logical_and(np.abs(obj.basis.ploc) <= rmax, np.abs(obj.basis.ploc) >= rmin))
+    #plist = np.arange(len(obj.basis.ploc))
     Nk = len(plist)
 
-    kappas = empty((N, Nk))
+    kappas = np.empty((N, Nk))
 
     for i,model in enumerate(models):
         _,data = model['obj,data'][obj_index]
@@ -187,7 +182,7 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
     data0 = data0['kappa'][plist]
 
     if sort:
-        bs = argsort(data0)
+        bs = np.argsort(data0)
         ks = kappas.take(bs, axis=1)
         bs = data0[bs]
     else:
@@ -203,7 +198,7 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
         ks /= ds
         ds = 1
 
-    xs = arange(Nk)[::every]
+    xs = np.arange(Nk)[::every]
     ys = ks[int(N*0.50),:][::every]
     #ds = data0[bs][::every]
 
@@ -213,8 +208,8 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
 
     hi = ks[hi100,:][::every]
     lo = ks[lo100,:][::every]
-    es = vstack((ys-lo, hi-ys))
-    errorbar(xs, ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
+    es = np.vstack((ys-lo, hi-ys))
+    pl.errorbar(xs, ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
 
     bad = []
 
@@ -224,9 +219,9 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
 
     hi = ks[hi68,:][::every]
     lo = ks[lo68,:][::every]
-    es = vstack((ys-lo, hi-ys))
-    errorbar(xs, ys, es, ecolor="#555555", ls='None', barsabove=True)
-    #plot(xs, models[0]['obj,data'][obj_index][1]['kappa'][plist] / data0, 'b-')
+    es = np.vstack((ys-lo, hi-ys))
+    pl.errorbar(xs, ys, es, ecolor="#555555", ls='None', barsabove=True)
+    #pl.plot(xs, models[0]['obj,data'][obj_index][1]['kappa'][plist] / data0, 'b-')
 
     if mark and mark == '1sigma':
         w = where(logical_not(logical_and(lo <= ds, ds <= hi)))
@@ -245,29 +240,29 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
 
     if mark:
         for b in bad:
-            axvline(b, color='r')
+            pl.axvline(b, color='r')
 
     if not normalize:
-        plot(xs, ds, "k-", lw=4)
+        pl.plot(xs, ds, "k-", lw=4)
     else:
-        axhline(1, linewidth=4, color='k')
+        pl.axhline(1, linewidth=4, color='k')
 
     for r in obj.basis.rings:
-        R = r[0] #abs(obj.basis.ploc[r[0]])
-        axvline(R, ls=':', color='k')
+        R = r[0] #np.abs(obj.basis.ploc[r[0]])
+        pl.axvline(R, ls=':', color='k')
 
     if label:
-        text(0.1, 0.85, '% 3i\\%% within  $1\sigma$\n%3i\\%% within $\infty\sigma$' % (within68, within100),
+        pl.text(0.1, 0.85, '% 3i\\%% within  $1\sigma$\n%3i\\%% within $\infty\sigma$' % (within68, within100),
              family = 'monospace', fontsize=14,
              transform = gca().transAxes,
              bbox=dict(facecolor='white', edgecolor='white', alpha=0.8))
 
     if sort:
-        xlabel('Sort index')
+        pl.xlabel('Sort index')
     else:
-        xlabel('Pixel index')
-    ylabel(r'$\kappa$')
-    xlim(xmin=xlim()[0] - 0.01*(xlim()[1] - xlim()[0]))
+        pl.xlabel('Pixel index')
+    pl.ylabel(r'$\kappa$')
+    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
 
 
 @command
@@ -278,19 +273,19 @@ def kappa_compare_grid_plot(models, base_model, obj_index):
     assert len(models) > 0
 
     obj,_ = models[0]['obj,data'][obj_index]
-    rs = [ abs(img.pos) for src in obj.sources for img in src.images ]
-    rmin, rmax = amin(rs), amax(rs)
+    rs = [ np.abs(img.pos) for src in obj.sources for img in src.images ]
+    rmin, rmax = np.amin(rs), np.amax(rs)
     #print rmin, rmax
-    #print abs(obj.basis.ploc)
+    #print np.abs(obj.basis.ploc)
 
 
-    rmin = 0 #abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmin))])
-    rmax = abs(obj.basis.ploc[argmin(abs(abs(obj.basis.ploc)-rmax))])
+    rmin = 0 #np.abs(obj.basis.ploc[np.argmin(np.abs(np.abs(obj.basis.ploc)-rmin))])
+    rmax = np.abs(obj.basis.ploc[np.argmin(np.abs(np.abs(obj.basis.ploc)-rmax))])
 
-    plist, = where(logical_and(abs(obj.basis.ploc) <= rmax, abs(obj.basis.ploc) >= rmin))
+    plist, = where(logical_and(np.abs(obj.basis.ploc) <= rmax, np.abs(obj.basis.ploc) >= rmin))
 
     Nk = len(plist)
-    kappas = empty((N, Nk))
+    kappas = np.empty((N, Nk))
 
     for i,model in enumerate(models):
         _,data = model['obj,data'][obj_index]
@@ -300,7 +295,7 @@ def kappa_compare_grid_plot(models, base_model, obj_index):
     ks = kappas
 
     ks.sort(axis=0) 
-    xs = arange(Nk)
+    xs = np.arange(Nk)
     ys = ks[int(N*0.50),:]
     ds = bs
 
@@ -318,7 +313,7 @@ def kappa_compare_grid_plot(models, base_model, obj_index):
 
     grid = obj.basis._to_grid(bs)
     R = obj.basis.mapextent
-    #matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
+    #pl.matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
     #colorbar()
 
     kw = {'extent': [-R,R,-R,R],
@@ -330,7 +325,7 @@ def kappa_compare_grid_plot(models, base_model, obj_index):
           'vmin': -1,
           'vmax':  1}
 
-    matshow(log10(grid), **kw)
+    pl.matshow(np.log10(grid), **kw)
     glscolorbar()
     return
 
@@ -354,12 +349,12 @@ def kappa_residual_grid_plot(model, base_model, obj_index, with_contours=False, 
           #'vmax':  1}
 
     if not only_contours:
-        matshow(grid, **kw)
+        pl.matshow(grid, **kw)
     if only_contours or with_contours:
         kw.update({'colors':'k', 'linewidths':1, 'cmap':None})
-        contour(grid, **kw)
+        pl.contour(grid, **kw)
         kw.update({'colors':'k', 'linewidths':2, 'cmap':None})
-        contour(grid, [0], **kw)
+        pl.contour(grid, [0], **kw)
 
     if with_colorbar:
         glscolorbar()
@@ -381,9 +376,9 @@ def radial_chi2_plot(models, model0):
                 v1 = data['kappa(R)'][ri]
                 rchi2[0][ri] += np.sum((v1 - v0)**2)
                 rchi2[1][ri] += np.sum(v0**2)
-    plot(xs, np.log(rchi2[0] / rchi2[1]), 'k.-')
-    ylabel(_chi2_xlabel)
-    xlabel(r'$R$ (arcsec)')
+    pl.plot(xs, np.log(rchi2[0] / rchi2[1]), 'k.-')
+    pl.ylabel(_chi2_xlabel)
+    pl.xlabel(r'$R$ (arcsec)')
 #   print '+'*80
 #   print '+'*80
 #   print np.log(np.sum(rchi2[0] / rchi2[1]))
@@ -445,8 +440,8 @@ def gradient_grid_plot(model, obj_index):
         grid[i] = dr 
 
     grid = grid
-    kw = default_kw(b.mapextent, vmin=amin(grid), vmax=amax(grid))
+    kw = default_kw(b.mapextent, vmin=np.amin(grid), vmax=np.amax(grid))
     grid = b._to_grid(grid, b.subdivision)
-    matshow(grid, **kw)
+    pl.matshow(grid, **kw)
     glscolorbar()
 

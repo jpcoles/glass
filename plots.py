@@ -1,11 +1,12 @@
 from __future__ import division
+import pylab as pl
 import numpy as np
+import math
 from numpy import array, mat, empty_like, amin, amax, repeat, logspace, arange, \
                   ptp, amin, amax, sqrt, sort, abs, put, empty, zeros, ogrid, \
                   mgrid, atleast_2d, linspace, meshgrid, log10, log, diff, ravel, \
                   meshgrid, vstack, argsort, logical_and, inf
 from numpy.random import random
-import pylab as pl
 from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
                   hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
                   suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
@@ -18,7 +19,6 @@ from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle, Ellipse
 import matplotlib.lines as mpll
 from matplotlib.lines import Line2D
-import math
 from collections import defaultdict
 
 #import matplotlib.axes3d as p3
