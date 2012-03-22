@@ -30,24 +30,24 @@ extra_compile_args += ['-msse2']
 #extra_link_args = ['-lgomp']
 
 incdir = os.path.join(get_python_lib(plat_specific=1), 'numpy/core/include')
-csamplex = Extension('solvers.samplex.csamplex',
-                     sources = ['solvers/samplex/csamplex_omp.c'],
+csamplex = Extension('glass.solvers.samplex.csamplex',
+                     sources = ['glass/solvers/samplex/csamplex_omp.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
              libraries=libraries,
              extra_compile_args=extra_compile_args,
              extra_link_args=extra_link_args)
 
-csamplexsimple = Extension('solvers.samplexsimple.csamplex',
-                     sources = ['solvers/samplexsimple/csamplex_omp.c'],
+csamplexsimple = Extension('glass.solvers.samplexsimple.csamplex',
+                     sources = ['glass/solvers/samplexsimple/csamplex_omp.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
              libraries=libraries,
              extra_compile_args=extra_compile_args,
              extra_link_args=extra_link_args)
 
-crwalk = Extension('solvers.rwalk.csamplex',
-                     sources = ['solvers/rwalk/csamplex_omp.c', 'solvers/rwalk/WELL44497a.c'],
+crwalk = Extension('glass.solvers.rwalk.csamplex',
+                     sources = ['glass/solvers/rwalk/csamplex_omp.c', 'glass/solvers/rwalk/WELL44497a.c'],
 		     include_dirs=[incdir],
              undef_macros=['DEBUG'],
              libraries=libraries,
@@ -59,12 +59,12 @@ setup(name = 'Glass',
       author_email = 'jonathan@physik.uzh.ch',
       version = '1.0',
       description = 'Gravitational Lensing and Something Something',
-      package_dir = {'glass': ''},
-      packages = ['', 
-                  'solvers', 'solvers.samplex', 'solvers.lpsolve', 
-                  'solvers.samplexsimple',
-                  'solvers.rwalk',
-                  'basis', 'basis.pixels', 'basis.bessel',
-                  'massmodel', 'misc'],
+      package_dir = {'glass': 'glass'},
+      packages = ['glass', 
+                  'glass.solvers', 'glass.solvers.samplex', 'glass.solvers.lpsolve', 
+                  'glass.solvers.samplexsimple',
+                  'glass.solvers.rwalk',
+                  'glass.basis', 'glass.basis.pixels', 'glass.basis.bessel',
+                  'glass.massmodel', 'glass.misc'],
       ext_modules = [csamplex, csamplexsimple, crwalk])
 

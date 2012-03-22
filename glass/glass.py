@@ -24,6 +24,7 @@ def Ximport_functions(pkg):
 
 def glass_basis(name, **kwargs):
     env().basis_options = kwargs
+    print name
     f = __import__(name, globals(), locals())
     for name,func in glass_command_list.iteritems():
         if __builtins__.__dict__.has_key(name):
