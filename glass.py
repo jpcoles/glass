@@ -1,10 +1,10 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from glass.environment import env, set_env, new_env, glass_command_list, DArray, Environment
-import glass.cosmo
-from glass.log import log as Log, setup_log
-from glass.scales import convert
+from environment import env, set_env, new_env, glass_command_list, DArray, Environment
+import cosmo
+from log import log as Log, setup_log
+from scales import convert
 from numpy import abs
 
 GlassEnvironment = Environment
@@ -135,10 +135,10 @@ if __name__ == "__main__":
             env().withgfx = False
 
     if env().withgfx:
-        import glass.plots 
+        import plots 
 
-    import glass.glcmds
-    import glass.scales
+    import glcmds
+    import scales
     #import pytipsy 
 
     with open(arglist[0], 'r') as f:

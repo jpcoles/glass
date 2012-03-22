@@ -6,7 +6,7 @@ ROOT="$HOME/GLASS/glass"
 
 PYTHON="python"
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
-GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
+GLASS="$PYTHON $ROOT/build/$PLATDIR/glass/glass.py"
 export   LD_LIBRARY_PATH=$ROOT/glass/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$LD_LIBRARY_PATH
 export   LD_LIBRARY_PATH=$ROOT/glass/solvers/rwalk/glpk_build/lib:$LD_LIBRARY_PATH
 export DYLD_LIBRARY_PATH=$ROOT/glass/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$DYLD_LIBRARY_PATH
