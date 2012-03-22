@@ -1,9 +1,9 @@
 from __future__ import division
-from scales import convert
+from glass.scales import convert
 import numpy as np
 from numpy import cumsum, mean, array, where, pi, dot, abs
-from environment import DArray
-from potential import poten, poten_dx, poten_dy
+from glass.environment import DArray
+from glass.potential import poten, poten_dx, poten_dy
 
 def estimated_Rlens(obj, ps, src_index):
 

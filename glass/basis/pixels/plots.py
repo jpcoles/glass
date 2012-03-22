@@ -8,7 +8,8 @@ from itertools import izip
 from numpy import logical_and, logical_not, where
 from pylab import gca, gcf
 
-from environment import env, command
+from glass.environment import env, command
+from glass.plots import default_kw
 
 
 def glscolorbar():

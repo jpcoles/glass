@@ -33,15 +33,15 @@ import scipy.ndimage._nd_image as _nd_image
 from math import atan2, pi
 from itertools import izip
 
-from environment import env
-import potential
-from potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
-from scales import convert
-from handythread import parallel_map2, parallel_map
+from glass.environment import env
+import glass.potential
+from glass.potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
+from glass.scales import convert
+from glass.handythread import parallel_map2, parallel_map
 
-from potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
+from glass.potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
 
-from log import log as Log
+from glass.log import log as Log
 
 def neighbors(r,s, Rs):
     rs = abs(Rs-r)

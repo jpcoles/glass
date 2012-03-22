@@ -3,32 +3,32 @@ from itertools import izip
 from numpy import mean, zeros, argwhere
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
-from log import log as Log
-from environment import env, Object, command
+from glass.log import log as Log
+from glass.environment import env, Object, command
 
-import glcmds
-import funcs
-import priors
+from . import glcmds
+from . import funcs
+from . import priors
 from funcs import default_post_process
 
 opts = env().basis_options
 if opts.has_key('solver') and opts['solver'] is None:
     pass
 elif not opts.has_key('solver') or opts['solver'] == 'rwalk':
-    from solvers.rwalk.samplex import Samplex
-    import solvers.rwalk.glcmds 
+    from glass.solvers.rwalk.samplex import Samplex
+    import glass.solvers.rwalk.glcmds 
 elif not opts.has_key('solver') and opts['solver'] == 'samplex':
-    from solvers.samplex.samplex import Samplex
-    import solvers.samplex.glcmds 
+    from glass.solvers.samplex.samplex import Samplex
+    import glass.solvers.samplex.glcmds 
 elif opts.has_key('solver') and opts['solver'] == 'lpsolve':
-    from solvers.lpsolve.samplex import Samplex
-    import solvers.lpsolve.glcmds 
+    from glass.solvers.lpsolve.samplex import Samplex
+    import glass.solvers.lpsolve.glcmds 
 elif opts.has_key('solver') and opts['solver'] == 'samplexsimple':
-    from solvers.samplexsimple.samplex import Samplex
-    import solvers.samplexsimple.glcmds 
+    from glass.solvers.samplexsimple.samplex import Samplex
+    import glass.solvers.samplexsimple.glcmds 
 elif opts.has_key('solver') and opts['solver'] == 'samplexsimple2':
-    from solvers.samplexsimple.samplex2 import Samplex
-    import solvers.samplexsimple.glcmds 
+    from glass.solvers.samplexsimple.samplex2 import Samplex
+    import glass.solvers.samplexsimple.glcmds 
 else:
     assert 0, 'Unknown solver %s' % opts['solver']
 

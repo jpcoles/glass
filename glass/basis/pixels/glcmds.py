@@ -1,12 +1,12 @@
 from __future__ import division
-from environment import env, command
+from glass.environment import env, command
 #from solvers.samplex.samplex import Samplex
 #from solvers.samplexsimple.samplex import Samplex
 #from solvers.lpsolve.samplex import Samplex
 import numpy as np
 from itertools import izip
 from basis import PixelBasis as basis_class
-from scales import convert
+from glass.scales import convert
 
 @command
 def minsteep(a):                assert False, "minsteep not supported. Use steepness()."

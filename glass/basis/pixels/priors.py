@@ -1,11 +1,11 @@
 from __future__ import division
 if __name__ != '__main__':
-    from environment import env, command
-    from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
+    from glass.environment import env, command
+    from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
     from itertools import izip
-    from log import log as Log
-    from scales import convert
-    from basis import neighbors
+    from glass.log import log as Log
+    from glass.scales import convert
+    from . basis import neighbors
 else:
     def command(x): pass
 

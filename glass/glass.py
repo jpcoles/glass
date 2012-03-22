@@ -3,7 +3,6 @@ import sys, getopt, os, traceback
 import numpy
 from glass.environment import env, set_env, new_env, glass_command_list, DArray, Environment
 import glass.cosmo
-from handythread import parallel_map
 from glass.log import log as Log, setup_log
 from glass.scales import convert
 from numpy import abs
@@ -136,11 +135,11 @@ if __name__ == "__main__":
             env().withgfx = False
 
     if env().withgfx:
-        import plots 
+        import glass.plots 
 
-    import glcmds
-    import scales
-    import pytipsy 
+    import glass.glcmds
+    import glass.scales
+    #import pytipsy 
 
     with open(arglist[0], 'r') as f:
         env().input_file = f.read()
