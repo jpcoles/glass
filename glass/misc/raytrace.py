@@ -9,15 +9,15 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
-from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
+from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
 from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 from scipy.optimize import fsolve, fmin
 
-from scales import convert
+from glass.scales import convert
 from itertools import izip
-from log import log as Log
+from glass.log import log as Log
 
 fig = None
 

@@ -237,7 +237,7 @@ def _model_dict(objs, sol):
             'tagged':   False}
 
 @command
-def package_solution(sol, objs, fn_package_sol = None):
+def package_solution(env, sol, objs, fn_package_sol = None):
     if fn_package_sol is None:
         fn_package_sol = lambda x: solution_to_dict(x, sol)
     
@@ -256,7 +256,7 @@ def check_model(objs, ps):
         if p.check: p.check(objs, ps['sol'])
 
 @command
-def generate_models(objs, n, *args, **kwargs):
+def generate_models(env, objs, n, *args, **kwargs):
 
     #if n <= 0: return
 
@@ -306,7 +306,7 @@ def generate_models(objs, n, *args, **kwargs):
 
         if opts.get('solver', None):
             init_model_generator(n)
-            mg = env().model_gen
+            mg = env.model_gen
             mg.start()
             for sol in mg.next(n):
                 ps = package_solution(sol, objs)
@@ -329,24 +329,24 @@ def regenerate_models(objs):
 #              'tagged':  False}
 
 @command
-def make_ensemble_average():
+def make_ensemble_average(env):
 #   Log( "s*********" )
 #   for m in env().models:
 #       Log( m['sol'] )
 #   Log( "s*********" )
 
-    sol = mean([m['sol'] for m in env().models], axis=0)
+    sol = mean([m['sol'] for m in env.models], axis=0)
     #sol = sol[1:]
-    objs = env().objects
-    #env().ensemble_average = package_solution(sol, objs)
-    #env().ensemble_average = {
+    objs = env.objects
+    #env.ensemble_average = package_solution(sol, objs)
+    #env.ensemble_average = {
     #    'sol':  sol,
     #    'obj,data': zip(objs, map(lambda o: o.basis.solution_to_dict(sol), objs)),
     #    'tagged':  False
     #}
 
-    env().ensemble_average = package_solution(sol, objs)
-    for od in env().ensemble_average['obj,data']:
+    env.ensemble_average = package_solution(sol, objs)
+    for od in env.ensemble_average['obj,data']:
         default_post_process(od)
 
 def _grid_model(obj, grid, grid_size, src, H0inv):
@@ -367,7 +367,7 @@ def _particle_model(obj, X,Y,M, src, H0inv):
 
 
 @command 
-def change_source(models, src, invalidate=True):
+def change_source(env, models, src, invalidate=True):
     for m in models:
         assert len(src) == len(m['obj,data'])
         for [obj,data],s in izip(m['obj,data'], src):

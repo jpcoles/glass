@@ -96,11 +96,11 @@ def glscolorbar():
     colorbar(shrink=figW/figH)
 
 @command
-def show_plots():
+def show_plots(env):
     show()
 
 @command
-def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False):
+def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False):
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]
 
@@ -139,10 +139,10 @@ def img_plot(model, obj_index=0, src_index=None, with_maximum=True, color=None, 
                     a.add_artist(Circle((0,0),sqrt(x**2 + y**2), fill=False))
 
 @command
-def Re_plot(models=None, obj_index=0, color=None):
+def Re_plot(env, models=None, obj_index=0, color=None):
 
     if models is None:
-        models = env().models
+        models = env.models
     elif not hasattr(models, '__getslice__'):
         models = [models]
 
@@ -163,9 +163,9 @@ def Re_plot(models=None, obj_index=0, color=None):
         #gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
 
 @command
-def src_plot(models=None, obj_index=0, hilite_model=None, hilite_color='g'):
+def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g'):
 
-    if models is None: models = env().models
+    if models is None: models = env.models
 
     def plot(model, si, hilite=False):
         obj, data = model
@@ -197,7 +197,7 @@ def src_plot(models=None, obj_index=0, hilite_model=None, hilite_color='g'):
 _src_hist_xlabel = r'$r$ $(\mathrm{arcsec})$'
 _src_hist_ylabel = r'$\mathrm{Count}$'
 def src_hist(models=None, hilite_model=None):
-    if models is None: models = env().models
+    if models is None: models = env.models
 
     d = []
     hilite=[]
@@ -233,7 +233,7 @@ def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels
     return kappa_plot(model, obj_index, with_contours, only_contours, clevels)
 
 @command
-def kappa_plot(model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
+def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
     obj, data = model['obj,data'][obj_index]
 
 #   print gca()
@@ -278,7 +278,7 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
     ylabel('arcsec')
 
 @command
-def grad_kappa_plot(model, obj_index, which='x', with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
+def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
     obj, data = model['obj,data'][obj_index]
 
     R = obj.basis.mapextent
@@ -305,7 +305,7 @@ def grad_kappa_plot(model, obj_index, which='x', with_contours=False, only_conto
     ylabel('arcsec')
 
 @command
-def potential_plot(model, obj_index, src_index, with_colorbar=True, with_contours=False):
+def potential_plot(env, model, obj_index, src_index, with_colorbar=True, with_contours=False):
     obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     grid = obj.basis.potential_grid(data)
@@ -331,7 +331,7 @@ def potential_plot(model, obj_index, src_index, with_colorbar=True, with_contour
     #suptitle('Potential')
 
 @command
-def critical_curve_plot(model, obj_index, src_index):
+def critical_curve_plot(env, model, obj_index, src_index):
     obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     g = obj.basis.maginv_grid(data)[src_index]
@@ -339,7 +339,7 @@ def critical_curve_plot(model, obj_index, src_index):
     over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
 
 @command
-def arrival_plot(model, obj_index=None, src_index=None, only_contours=True, clevels=None, with_colorbar=False):
+def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True, clevels=None, with_colorbar=False):
 
     if obj_index is None:
         obj_slice = slice(None)
@@ -390,7 +390,7 @@ def arrival_plot(model, obj_index=None, src_index=None, only_contours=True, clev
     ylabel('arcsec')
 
 @command
-def srcdiff_plot(model, obj_index, src_index, with_colorbar=False):
+def srcdiff_plot(env, model, obj_index, src_index, with_colorbar=False):
     obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
@@ -412,7 +412,7 @@ def srcdiff_plot(model, obj_index, src_index, with_colorbar=False):
     ylabel('arcsec')
 
 @command
-def deflect_plot(model, obj_index, which, src_index):
+def deflect_plot(env, model, obj_index, which, src_index):
     obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
@@ -427,7 +427,7 @@ def deflect_plot(model, obj_index, which, src_index):
     #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
 @command
-def grad_tau(model, obj_index, which, src_index):
+def grad_tau(env, model, obj_index, which, src_index):
 
     assert which in ['x','y'], "grad_tau: 'which' must be one of 'x' or 'y'"
 
@@ -452,7 +452,7 @@ def grad_tau(model, obj_index, which, src_index):
     matshow(d, fignum=False, extent=[-R,R,-R,R], alpha=0.5)
 
 @command
-def deriv(model, obj_index, src_index, m, axis, R):
+def deriv(env, model, obj_index, src_index, m, axis, R):
     w = central_diff_weights(5)
     #d = correlate1d(m, w, axis=axis, mode='constant')
     d = (correlate1d(m, -w, axis=0, mode='constant')) \
@@ -483,7 +483,7 @@ def deriv(model, obj_index, src_index, m, axis, R):
 #   img_plot(model, src_index=src_index)
 
 @command
-def inout_plot(model, obj_index, src_index):
+def inout_plot(env, model, obj_index, src_index):
     print "inout"
     obj,ps = model['obj,data'][obj_index]
     R = obj.basis.mapextent
@@ -496,7 +496,7 @@ def _data_plot(models, X,Y, x_label, y_label, **kwargs):
     with_legend = False
     use = [0,0,0]
     if models is None:
-        models = env().models
+        models = env.models
     elif not hasattr(models, '__getslice__'):
         models = [models]
 
@@ -579,7 +579,7 @@ def _data_plot2(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
     if models is None:
-        models = env().models
+        models = env.models
     elif not hasattr(models, '__getslice__'):
         models = [models]
 
@@ -680,7 +680,7 @@ def _data_error_plot(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
     if models is None:
-        models = env().models
+        models = env.models
     elif not hasattr(models, '__getslice__'):
         models = [models]
 
@@ -768,19 +768,19 @@ def _data_error_plot(models, X,Y, **kwargs):
     #ylim(0, ymax)
 
 @command
-def glplot(models, ptype, xkeys, ykeys=[], **kwargs):
+def glplot(env, models, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
     _data_plot2(models, xkeys, ykeys, **kwargs)
 
 @command
-def glerrorplot(models, ptype, xkeys, ykeys=[], **kwargs):
+def glerrorplot(env, models, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
     _data_error_plot(models, xkeys, ykeys, **kwargs)
 
 _enckappa_xlabel = r'$R$ (arcsec)'
 _enckappa_ylabel = r'$\kappa(<R)$'
 @command
-def enckappa_plot(models=None, **kwargs):
+def enckappa_plot(env, models=None, **kwargs):
     #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
     kwargs.setdefault('mark_images', 'arsec')
     _data_plot(models, 'R', 'kappa(<R)', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
@@ -788,7 +788,7 @@ def enckappa_plot(models=None, **kwargs):
 _kappa_prof_xlabel = r'$R$ (arcsec)$'
 _kappa_prof_ylabel = r'$\langle\kappa(R)\rangle$'
 @command
-def kappa_prof_plot(models=None, **kwargs):
+def kappa_prof_plot(env, models=None, **kwargs):
     #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
     kwargs.setdefault('mark_images', 'arsec')
     _data_plot(models, 'R', 'kappa(R)', _kappa_prof_xlabel, _kappa_prof_ylabel, plotf=plot,**kwargs)
@@ -796,7 +796,7 @@ def kappa_prof_plot(models=None, **kwargs):
 _sigma_xlabel = r'$R$ (kpc)'
 _sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
 @command
-def sigma_plot(models, **kwargs):
+def sigma_plot(env, models, **kwargs):
     kwargs.setdefault('mark_images', 'arsec')
     xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
     xlabel = kwargs.setdefault('xlabel',      _sigma_xlabel)
@@ -806,50 +806,50 @@ def sigma_plot(models, **kwargs):
 _sigp_xlabel = r'$R$ (kpc)'
 _sigp_ylabel = r'$\sigma_p$ $()$'
 @command
-def sigp_plot(models, **kwargs):
+def sigp_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=semilogx, **kwargs)
     #_data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, kwargs, plotf=plot)
 
 _mass3d_xlabel = r'$r$ (kpc)'
 _mass3d_ylabel = r'$M$'
 @command
-def mass3d_plot(models, **kwargs):
+def mass3d_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:mass3d', _mass3d_xlabel, _mass3d_ylabel, plotf=loglog, **kwargs)
 
 _rho_xlabel = r'$r$ (kpc)'
 _rho_ylabel = r'$\rho$ $()$'
 @command
-def rho_plot(models, **kwargs):
+def rho_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:rho', _rho_xlabel, _rho_ylabel, **kwargs)
 
 _rhoint_xlabel = r'$r$ (kpc)'
 _rhoint_ylabel = r'$\rho$ $()$'
 @command
-def rhoint_plot(models, **kwargs):
+def rhoint_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:rhoint', _rhoint_xlabel, _rhoint_ylabel, **kwargs)
 
 _drho_xlabel = r'$r$ (kpc)'
 _drho_ylabel = r'$d\ln\rho/d\ln r$'
 @command
-def drho_plot(models, **kwargs):
+def drho_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:drho', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
 
 _rhoa_xlabel = r'$r$ (kpc)'
 _rhoa_ylabel = r'$\rho_\mathrm{abel}$ $()$'
 @command
-def rhoa_plot(models, **kwargs):
+def rhoa_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:rhoa', _rho_xlabel, _rho_ylabel, **kwargs)
 
 _drhoa_xlabel = r'$r$ (kpc)'
 _drhoa_ylabel = r'$d\ln\rho_\mathrm{abel}/d\ln r$'
 @command
-def drhoa_plot(models, **kwargs):
+def drhoa_plot(env, models, **kwargs):
     _data_plot(models, 'sigp:r', 'sigp:drhoa', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
 
 _encmass_xlabel = r'$R$ (kpc)'
 _encmass_ylabel = r'$M(<R)$ $(M_\odot)$'
 @command
-def encmass_plot(models, **kwargs):
+def encmass_plot(env, models, **kwargs):
     kwargs.setdefault('mark_images', 'arsec')
     xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
     xlabel = kwargs.setdefault('xlabel',      _encmass_xlabel)
@@ -859,8 +859,8 @@ def encmass_plot(models, **kwargs):
 
 _H0inv_xlabel = r'$H_0^{-1}$ (Gyr)'
 @command
-def H0inv_plot(models=None, objects=None, key='accepted'):
-    if models is None: models = env().models
+def H0inv_plot(env, models=None, objects=None, key='accepted'):
+    if models is None: models = env.models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -913,8 +913,8 @@ def H0inv_plot(models=None, objects=None, key='accepted'):
 
 _H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command
-def H0_plot(models=None, obj_index=0, key='accepted'):
-    if models is None: models = env().models
+def H0_plot(env, models=None, obj_index=0, key='accepted'):
+    if models is None: models = env.models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -972,8 +972,8 @@ def H0_plot(models=None, obj_index=0, key='accepted'):
 
 _time_delays_xlabel = r'Time delay (days)'
 @command
-def time_delays_plot(models=None, obj_index=0, src_index=0, key='accepted'):
-    if models is None: models = env().models
+def time_delays_plot(env, models=None, obj_index=0, src_index=0, key='accepted'):
+    if models is None: models = env.models
 
     d = defaultdict(list)
     for m in models:
@@ -1001,8 +1001,8 @@ def time_delays_plot(models=None, obj_index=0, src_index=0, key='accepted'):
 
 _scale_factor_xlabel = r'Scale factor'
 @command
-def scale_factor_plot(models=None, objects=None, key='accepted'):
-    if models is None: models = env().models
+def scale_factor_plot(env, models=None, objects=None, key='accepted'):
+    if models is None: models = env.models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1026,8 +1026,8 @@ def scale_factor_plot(models=None, objects=None, key='accepted'):
 
 _chisq_xlabel = r'$\chi^2$'
 @command
-def chisq_plot(models=None, objects=None, key='accepted'):
-    if models is None: models = env().models
+def chisq_plot(env, models=None, objects=None, key='accepted'):
+    if models is None: models = env.models
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1049,8 +1049,8 @@ def chisq_plot(models=None, objects=None, key='accepted'):
     ylabel(r'Count')
 
 @command
-def shear_plot(models=None, obj_index=None, src_index=None, key='accepted'):
-    if models is None: models = env().models
+def shear_plot(env, models=None, obj_index=None, src_index=None, key='accepted'):
+    if models is None: models = env.models
     obj_slice = index_to_slice(obj_index)
     src_slice = index_to_slice(src_index)
 
@@ -1063,7 +1063,7 @@ def shear_plot(models=None, obj_index=None, src_index=None, key='accepted'):
 
 _chi2_xlabel = r'$\ln \chi^2$'
 @command
-def chi2_plot(models, model0):
+def chi2_plot(env, models, model0):
     v = []
     n_chi2 = 0
     d_chi2 = 0

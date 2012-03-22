@@ -1,11 +1,12 @@
 from __future__ import division, with_statement
 import sys, getopt, os, traceback
 import numpy
-from environment import env, set_env, new_env, glass_command_list, DArray, Environment
-import cosmo
-from log import log as Log, setup_log
-from scales import convert
+from glass.environment import env, set_env, new_env, glass_command_list, DArray, Environment
+import glass.cosmo
+from glass.log import log as Log, setup_log
+from glass.scales import convert
 from numpy import abs
+import glass.basis as basis
 
 GlassEnvironment = Environment
 
@@ -23,12 +24,11 @@ def Ximport_functions(pkg):
 
 def glass_basis(name, **kwargs):
     env().basis_options = kwargs
-    print name
     f = __import__(name, globals(), locals())
-    for name,func in glass_command_list.iteritems():
+    for name,[f,g] in glass_command_list.iteritems():
         if __builtins__.__dict__.has_key(name):
-            print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, func, __builtins__.__dict__[name])
-        __builtins__.__dict__[name] = func
+            print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name])
+        __builtins__.__dict__[name] = g
 
 
 #import filters
@@ -135,10 +135,10 @@ if __name__ == "__main__":
             env().withgfx = False
 
     if env().withgfx:
-        import plots 
+        import glass.plots 
 
-    import glcmds
-    import scales
+    import glass.glcmds
+    import glass.scales
     #import pytipsy 
 
     with open(arglist[0], 'r') as f:

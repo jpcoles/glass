@@ -4,13 +4,6 @@ from numpy import arctan2, pi, linspace, atleast_2d, abs, ndarray, asarray
 from collections import defaultdict 
 import traceback
 
-if not globals().has_key('glass_command_list'):
-    glass_command_list = {}
-
-def command(f):
-    glass_command_list[f.__name__] = f
-    return f
-
 def _detect_cpus():
     """
     Detects the number of CPUs on a system.
@@ -192,5 +185,16 @@ def new_env():
 def set_env(env):
     global _env
     _env = env
+
+if not globals().has_key('glass_command_list'):
+    glass_command_list = {}
+
+def command(f):
+    def g(*args, **kwargs):
+        #print 'calling', f.__name__, env(), args, kwargs
+        return f(env(), *args, **kwargs)
+    glass_command_list[f.__name__] = [f,g]
+    return g
+
 
 import cosmo

@@ -8,7 +8,7 @@ from itertools import izip
 from numpy import logical_and, logical_not, where
 from pylab import gca, gcf
 
-from glass.environment import env, command
+from glass.environment import command
 from glass.plots import default_kw
 
 
@@ -31,7 +31,7 @@ def glscolorbar():
     pl.colorbar(shrink=figW/figH)
 
 @command
-def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
+def kappa_plot3d(env, model, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
 
     obj, data = model['obj,data'][obj_index]
 
@@ -56,7 +56,7 @@ def kappa_plot3d(model, obj_index=0, with_contours=False, only_contours=False, c
     #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.terrain, levels=clevels)
 
 @command
-def srcdiff_plot3d(model, obj_index=0, src_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
+def srcdiff_plot3d(env, model, obj_index=0, src_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
 
     obj, data = model['obj,data'][obj_index]
 
@@ -81,8 +81,8 @@ def srcdiff_plot3d(model, obj_index=0, src_index=0, with_contours=False, only_co
     #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.terrain, levels=clevels)
 
 @command
-def kappa_ensemble_plot(models=None, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
-    if models is None: models = env().models
+def kappa_ensemble_plot(env, models=None, obj_index=0, with_contours=False, only_contours=False, clevels=30, with_colorbar=False):
+    if models is None: models = env.models
 
     grid = None
 
@@ -122,13 +122,13 @@ def kappa_ensemble_plot(models=None, obj_index=0, with_contours=False, only_cont
     pl.ylabel('arcsec')
 
 @command
-def kappa_ensemble_plot3d(models=None, obj_index=0, 
+def kappa_ensemble_plot3d(env, models=None, obj_index=0, 
                           with_contours=False, 
                           only_contours=False, 
                           with_colorbar=False,
                           clevels=30):
 
-    if models is None: models = env().models
+    if models is None: models = env.models
 
     Z = None
 
@@ -154,7 +154,7 @@ def kappa_ensemble_plot3d(models=None, obj_index=0,
     #ax.contour(X,Y,Z, rstride=10, cstride=10, cmap=cm.terrain, levels=clevels)
 
 @command
-def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False, label=True, mark=None):
+def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=False, label=True, mark=None):
     obj0,data0 = base_model['obj,data'][obj_index]
     N  = len(models)
 
@@ -267,7 +267,7 @@ def kappa_compare_plot(models, base_model, obj_index, sort=True, normalize=False
 
 
 @command
-def kappa_compare_grid_plot(models, base_model, obj_index):
+def kappa_compare_grid_plot(env, models, base_model, obj_index):
     obj0,data0 = base_model['obj,data'][obj_index]
     N  = len(models)
 
@@ -331,7 +331,7 @@ def kappa_compare_grid_plot(models, base_model, obj_index):
     return
 
 @command
-def kappa_residual_grid_plot(model, base_model, obj_index, with_contours=False, only_contours=False, with_colorbar=True):
+def kappa_residual_grid_plot(env, model, base_model, obj_index, with_contours=False, only_contours=False, with_colorbar=True):
     obj0,data0 = base_model['obj,data'][obj_index]
     obj1,data1 = model['obj,data'][obj_index]
 
@@ -363,7 +363,7 @@ def kappa_residual_grid_plot(model, base_model, obj_index, with_contours=False, 
 
 _chi2_xlabel = r'$\ln \chi^2$'
 @command
-def radial_chi2_plot(models, model0):
+def radial_chi2_plot(env, models, model0):
     rchi2 = None
     for m in models:
         for m1,m2 in izip(m['obj,data'], model0['obj,data']):
@@ -389,7 +389,7 @@ def radial_chi2_plot(models, model0):
 
 
 @command
-def gradient_plot(model, obj_index):
+def gradient_plot(env, model, obj_index):
     obj,data = model['obj,data'][obj_index]
     b = obj.basis
     kappa = data['kappa']
@@ -418,7 +418,7 @@ def gradient_plot(model, obj_index):
         gca().add_artist(Line2D([x0,x1], [y0,y1], linewidth=1))
 
 @command
-def gradient_grid_plot(model, obj_index):
+def gradient_grid_plot(env, model, obj_index):
     obj,data = model['obj,data'][obj_index]
     b = obj.basis
     kappa = data['kappa']

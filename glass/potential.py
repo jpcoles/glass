@@ -1,7 +1,7 @@
 from __future__ import division
 from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos
-from environment import env
+from . import environment
 
 @vectorize
 def poten2d(x,y,a):
@@ -356,7 +356,7 @@ def grad(W,r0,r,a):
     """
 
     l = len(r)
-    threads = env().ncpus
+    threads = environment.env().ncpus
     #kw = dict( extra_compile_args =['-O3 -fopenmp'], extra_link_args=['-lgomp'], headers=['<omp.h>'] )
     kw = {}
     v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **kw)

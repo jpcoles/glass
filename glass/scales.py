@@ -12,7 +12,7 @@ Munit = 11.988 # Msun
 #    return obj,v,H0inv
 
 @command
-def convert(type, v, *args):
+def convert(env, type, v, *args):
 
     s,d = type.split('to')
     if s.strip() == d.strip(): return v

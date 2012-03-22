@@ -88,7 +88,7 @@ def default_post_process(m):
 
     rscale = convert('arcsec to kpc', 1, obj.dL, ps['nu'])
 
-    print ps['nu'], convert('nu to H0^-1 in Gyr', ps['nu'])
+    #print ps['nu'], convert('nu to H0^-1 in Gyr', ps['nu'])
 
     dscale1 = convert('kappa to Msun/arcsec^2', 1, obj.dL, ps['nu'])
     dscale2 = convert('kappa to Msun/kpc^2',    1, obj.dL, ps['nu'])

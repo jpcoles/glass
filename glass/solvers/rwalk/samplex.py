@@ -709,6 +709,7 @@ class Samplex:
         self.dof = dof
         self.redo = redo
 
+        print window_size, nmodels
         store = zeros((dim, window_size+nmodels+1), order='Fortran', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
         evec  = zeros((dim,dim), order='F', dtype=numpy.float64)

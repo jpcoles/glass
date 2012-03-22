@@ -1,2 +1,2 @@
-__all__ = ['cosmo', 'environment', 'filters', 'glass', 'glcmds', 'plots', \
+__all__ = ['cosmo', 'environment', 'filters', 'glcmds', 'plots', \
            'potential', 'scales', 'shear', 'spherical_deproject', 'sigp']

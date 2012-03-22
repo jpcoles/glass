@@ -46,7 +46,7 @@ def object_prior_check(check):
     return x
 
 @command
-def include_prior(*f):
+def include_prior(env, *f):
     #assert not exc_priors, 'Cannot both include and exclude priors.'
     for p in f:
         try:
@@ -56,20 +56,20 @@ def include_prior(*f):
             raise Exception("Can't find '%s' from available priors" % p)
 
 @command
-def include_all_priors():
+def include_all_priors(env):
     del inc_priors[:], exc_priors[:]
     for p in all_priors:
         inc_priors.append(p)
 
 @command
-def exclude_prior(*f):
+def exclude_prior(env, *f):
     #assert not inc_priors, 'Cannot both include and exclude priors.'
     for p in f:
         i = all_priors.index(p)
         exc_priors.append(all_priors[i])
 
 @command
-def exclude_all_priors():
+def exclude_all_priors(env):
     del inc_priors[:], exc_priors[:]
     for p in all_priors:
         exc_priors.append(p)
