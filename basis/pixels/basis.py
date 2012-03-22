@@ -45,10 +45,71 @@ from log import log as Log
 
 def neighbors(r,s, Rs):
     rs = abs(Rs-r)
-    return argwhere(logical_and(0 < rs, rs <= s)).ravel()
+    return argwhere((0 < rs) * (rs <= s)).ravel()
 
 def all_neighbors(Rs, L):
     return [ [i, r, neighbors(r,s,Rs)] for i,[r,s] in enumerate(izip(Rs, L)) ]
+
+def in_pixel(r, R, size):
+    p = R-r
+    d = abs(p.real) + abs(p.imag)
+    return d < size
+    
+def pixel_containing(r, R, sizes):
+    p = R-r
+    d = abs(p.real) + abs(p.imag)
+    return argmin(d-sizes)
+
+@vectorize
+def ctrunc(c):
+    return complex(trunc(c.real), trunc(c.imag))
+
+def _pixel_neighbors(r0, loc, R, size, sizes, try_hard):
+    n = []
+    dr = R-r0
+    for dx,dy in loc:
+        l = complex(dx,dy)
+        r = dr-l*size
+        d = abs(r)
+        w = where((abs(r.real) < 0.5*size) * (abs(r.imag) < 0.5*size))[0]
+        if len(w) == 0:
+            if try_hard: 
+                w = array([pixel_containing(r0+l*size, R, sizes)])
+            else:
+                continue
+
+        m = w[ argmin(abs(dr)[w]) ]
+        mr = dr[m]
+
+        if [dx,dy] in [[-1,0],[1,0]]: w = w[ where(dr[w].real == mr.real) ]
+        if [dx,dy] in [[0,-1],[0,1]]: w = w[ where(dr[w].imag == mr.imag) ]
+        if [dx,dy] in [[-1,-1],[1,1],[1,-1],[-1,1]]: w = [m]
+        n.extend( w )
+
+    n = np.unique(n)
+    return np.array(n)
+
+def pixel_neighbors(loc, R, sizes, try_hard=True):
+    return [ [i, r, _pixel_neighbors(r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+
+def _pixel_neighbors3(r0, loc, R, size, sizes, try_hard):
+    n = []
+    dr = R-r0
+    for dx,dy in loc:
+        l = complex(dx,dy)
+        r = dr-l*size
+        d = abs(r)
+        w = where((abs(r.real) < 0.5*size) * (abs(r.imag) < 0.5*size))[0]
+        if len(w) == 0:
+            if try_hard: 
+                w = array([pixel_containing(r0+l*size, R, sizes)])
+        n.append( np.array(np.unique(w)) )
+
+    return n
+
+def pixel_neighbors3(loc, R, sizes, try_hard=True):
+    return [ [i, r, _pixel_neighbors3(r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+     
 
 def xy_grid(L, S=1, scale=1):
     """Return a grid with radius L (i.e. diameter=2*L+1) where each
@@ -66,17 +127,23 @@ def xy_list(L, R=0, refine=1):
     gy = atleast_2d(-gx).T
     xy = vectorize(complex)(gx, gy).ravel()
 
-    size = ones(len(xy))
-    rs = []
+    ploc = []
+    size = [] #* len(xy) #ones(len(xy))
+    rs = [] # * len(xy)
     rcs = []        # radial cell size
+    w = []
 
-    if R:
+    #if R:
+    if R==0:
+        size = ones(len(xy))
+        ploc = xy
+    else:
         assert refine%2==1
         f = 1/refine
 
         #print "!@#!", R, refine, (R-1)*refine+(refine-1)
-        rs  = [ r*1/refine for r in xrange((R-1)*refine+(refine-1)) ]
-        rcs = [   1/refine for r in xrange((R-1)*refine+(refine-1)) ]
+        rs  = [ r/refine for r in arange(0, (R*refine-refine//2), 1)]
+        rcs = [ 1/refine for r in arange(0, (R*refine-refine//2), 1)]
 
 #       if R == 1:
 #           rs = rs[:-1]
@@ -85,22 +152,37 @@ def xy_list(L, R=0, refine=1):
         t = []
         v = []
         s = []
-        for i in argwhere(abs(xy) < R):
-            t += [xy[i] + f * complex(x,y) 
-                  for y in linspace(-(refine//2), refine//2, refine) # 'extra' parens are important 
-                  for x in linspace(-(refine//2), refine//2, refine) # because of integer rounding
-                  if not (x == 0 and y == 0) ]
+        #for i in argwhere(abs(xy) < R):
+        #for i,v in enumerate(abs(xy) < R):
+        for i,v in enumerate(np.logical_and(abs(xy.real) < R, abs(xy.imag) < R)):
+            if v:
+                for y in linspace(-(refine//2), refine//2, refine): # 'extra' parens are important 
+                    for x in linspace(-(refine//2), refine//2, refine): # because of integer rounding
+                        t = xy[i] + f * complex(x,y)
+                        if 1: #abs(t) < .8*R: #-0.5:
+                            print '!',t
 
-            s += [f] * (refine**2-1)
-            size[i] = f
+                            size.append(f)
+                            ploc.append(t)
+                            w.append(1)
+                            #rs.append(abs(1.5*t))
+            else:
+                size.append(1)
+                ploc.append(xy[i])
+                w.append(refine**2)
+                #rs.append(abs(1.5*xy[i]))
 
-        xy  = append(xy, t)
-        size = append(size, s)
+        #xy  = append(xy, t)
+        #size = append(size, s)
 
-    rs  += [ r for r in xrange(R, L+1) ]
-    rcs += [ 1 for r in xrange(R, L+1) ]
+    rs   += [ r for r in xrange(R, L+1) ]
+    rcs  += [ 1 for r in xrange(R, L+1) ]
+   # w    += [ refine**2 for r in xrange(R, L+1) ]
+    #size += [ 1 for r in xrange(R, L+1) ]
     
-    return xy.ravel(), size.ravel(), array(rs, 'float'), array(rcs, 'float')
+    #print len(rs), len(rcs)
+    assert len(rs) == len(rcs)
+    return array(ploc), array(size), array(rs, 'float'), array(rcs, 'float'), array(w, 'float')
 
 def fast_correlate(input, weights, output = None, mode = 'reflect', cval = 0.0, origin = 0):
     origins = _ni_support._normalize_sequence(origin, input.ndim)
@@ -123,7 +205,7 @@ def visual_neighbor_verification(self, nbrs):
 
     f=figure(figsize=(8,8))
     sp=f.add_subplot(111)
-    for N in nbrs:
+    for N in [nbrs[0]]+nbrs[225:]:
         sp.clear()
         #plot(self.ploc.real, self.ploc.imag)
         #scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
@@ -131,21 +213,23 @@ def visual_neighbor_verification(self, nbrs):
         loc = self.ploc
         cs = self.cell_size
 
-        i=N[0]
-        sp.plot(loc[:i+1].real, loc[:i+1].imag, 'k-', marker='s')
-        sp.scatter(loc.real, loc.imag, s=(5*cs)**2, marker='s')
         for r,s in izip(loc, cs):
-            sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
+            sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True, facecolor='w'))
+
+        i=N[0]
+        #sp.plot(loc[:i+1].real, loc[:i+1].imag, 'k-', marker='s')
+        sp.scatter(loc.real, loc.imag, s=(5*cs)**2, marker='s')
             #sp.add_artist(Circle([r.real, r.imag], radius=1.5*s, fill=False))
         #scatter(self.ploc.real, self.ploc.imag, s=(5*self.cell_size)**2, marker='s')
 
         sp.set_aspect('equal')
 
         A = []
-#       for n in N[2]:
-#           r = self.ploc[n]
-#           s = self.cell_size[n]
-#           a = sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True))
+        for q in N[2]:
+            for n in q:
+                r = self.ploc[n]
+                s = self.cell_size[n]
+                a = sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True))
 #           A.append(a)
 
         draw()
@@ -276,12 +360,25 @@ class PixelBasis(object):
     def __getattr__(self, name):
         if name == 'nbrs':
             Log( 'Finding neighbors...' )
-            super(PixelBasis, self).__setattr__('nbrs',  all_neighbors(self.int_ploc,            1.5 * self.int_cell_size))
+            #super(PixelBasis, self).__setattr__('nbrs',  all_neighbors(self.int_ploc,            1.5 * self.int_cell_size))
+            super(PixelBasis, self).__setattr__('nbrs', 
+                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0], [1,1], [-1,1], [1,-1], [-1,-1] ], 
+                                self.int_ploc, self.int_cell_size, try_hard=True))
             return self.nbrs
         elif name == 'nbrs2':
             Log( 'Finding neighbors 2...' )
-            super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
+            super(PixelBasis, self).__setattr__('nbrs2', 
+                pixel_neighbors([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
+
+            #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             return self.nbrs2
+        elif name == 'nbrs3':
+            Log( 'Finding neighbors 3...' )
+            super(PixelBasis, self).__setattr__('nbrs3', 
+                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
+
+            #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
+            return self.nbrs3
         else:
             raise AttributeError('Attribute %s not found in PixelBasis' % name)
 
@@ -331,13 +428,17 @@ class PixelBasis(object):
         self.mapextent = self.top_level_cell_size * (2*L + 1)/2
 
 
+        if self.hires_levels is not None:
+            self.subdivision = self.hires_levels
+
         #---------------------------------------------------------------------
-        # Create pixel map -- symmetry not supported
+        # Create pixel map
         #---------------------------------------------------------------------
-        self.xy,        \
-        self.int_cell_size, \
-        self.rs,        \
-        self.int_radial_cell_size = xy_list(L, self.hiresR, self.hires_levels)
+        [ self.xy,
+          self.int_cell_size,
+          self.rs,
+          self.int_radial_cell_size,
+          self.weights ] = xy_list(L, self.hiresR, self.hires_levels)
 
         #print  self.rs
 
@@ -347,15 +448,22 @@ class PixelBasis(object):
         self.int_ploc      = self.xy[insideL]
         self.int_cell_size = self.int_cell_size[insideL]
 
-        print self.rs
+        #print self.rs
         rkeys = array(
             [ 
                 self.rs[ argmin(abs(abs(p)-self.rs)) ] 
                 for p in self.int_ploc
             ])
 
+        rkeys = array(
+            [ 
+                self.rs[ argmin(abs(abs(p)-(self.rs+self.int_radial_cell_size)))+1] if abs(p) > 0 else 0
+                for p in self.int_ploc
+            ])
+
         print rkeys
-#        assert 0
+        print self.rs
+        #assert 0
 
         #---------------------------------------------------------------------
         # By sorting by the arctan2() and abs() of the positions we create a
@@ -437,14 +545,17 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
 
         #---------------------------------------------------------------------
-#       sp=subplot(122)
-#       for i,r in enumerate(self.rings):
-#           plot(self.int_ploc[r].real, self.int_ploc[r].imag)
-#           #scatter(self.ploc[r].real, self.ploc[r].imag, s=(5*cell_size)**2, marker='s', c=pylab.cm.jet(i*20))
-#       for r,s in izip(self.int_ploc, self.int_cell_size):
-#           sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
-#       sp.set_aspect('equal')
-#       show()
+        if 0:
+            sp=subplot(111)
+            for i,r in enumerate(self.rings):
+                plot(self.int_ploc[r].real, self.int_ploc[r].imag)
+                #scatter(self.ploc[r].real, self.ploc[r].imag, s=(5*cell_size)**2, marker='s', c=pylab.cm.jet(i*20))
+            for r,s in izip(self.int_ploc, self.int_cell_size):
+                sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
+            sp.set_aspect('equal')
+            sp.set_xlim(-(L+0.5), L+0.5)
+            sp.set_ylim(-(L+0.5), L+0.5)
+            show()
         #---------------------------------------------------------------------
         if 0:
             f=pl.figure()
@@ -472,9 +583,27 @@ class PixelBasis(object):
         self.ploc               = self.top_level_cell_size * self.int_ploc
         self.xy                *= self.top_level_cell_size
 
+        if 0:
+            clrs = ['b', 'g', 'r', 'c', 'm', 'y']
+            sp=subplot(111)
+            for i,r in enumerate(self.rings):
+                plot(self.ploc[r].real, self.ploc[r].imag)
+                w0 = 1 / (1 + (abs(abs(self.ploc[r]) - self.rs[i])))
+                print i, len(r), w0
+                for R,w,s in zip(self.ploc[r], w0, self.cell_size[r]):
+                    #sp.add_artist(Rectangle([R.real-s/2, R.imag-s/2], s,s, fill=False))
+                    sp.add_artist(Rectangle([R.real-s/2, R.imag-s/2], s,s, fill=True, facecolor=pl.cm.gray(w**10)))
+                    #sp.add_artist(Rectangle([R.real-s/2, R.imag-s/2], s,s, fill=True, facecolor=clrs[i%len(clrs)]))
+                sp.add_artist(Circle([0,0], self.rs[i], fill=False, facecolor='k'))
+                #scatter(self.int_ploc[r].real, self.int_ploc[r].imag, s=(15*self.cell_size[r])**2, marker='s', c=pl.cm.jet(w0*255))
+            sp.set_aspect('equal')
+            #sp.set_xlim(-(L+0.5), L+0.5)
+            #sp.set_ylim(-(L+0.5), L+0.5)
+            show()
 
         #visual_neighbor_verification(self, self.nbrs)
         #visual_neighbor_verification(self, self.nbrs2)
+        #visual_neighbor_verification(self, self.nbrs3)
 
         #visual_neighbor_verification(self, all_neighbors(self.ploc, 1.1*self.cell_size))
         #print self.top_level_cell_size
@@ -531,7 +660,7 @@ class PixelBasis(object):
             Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
 
         if self.srcpos_start == self.srcpos_end:
-            Log( '   osrcpos          %s' % 'None')
+            Log( '    srcpos          %s' % 'None')
         else:
             Log( '    srcpos     % 5i  % 5i' % (self.srcpos_start, self.srcpos_end) )
 
@@ -647,14 +776,21 @@ class PixelBasis(object):
         R = self.mapextent
 
         bins = (2*L+1)
-        Y = self.ploc.imag
         X = self.ploc.real
-        c = histogram2d(Y, X, bins=bins, range=[[-R,R], [-R,R]])[0]
-        w = histogram2d(Y, X, bins=bins, weights=a, range=[[-R,R], [-R,R]])[0]
-        grid= np.nan_to_num(w/c)
+        Y = -self.ploc.imag
+        gridC = histogram2d(Y, X, bins=bins, weights=a*(self.int_cell_size==1), range=[[-R,R], [-R,R]])[0]
         if refinement > 1:
-            grid = repeat(grid, refinement, axis=1)
-            grid = repeat(grid, refinement, axis=0)
+            gridC = repeat(gridC, refinement, axis=1)
+            gridC = repeat(gridC, refinement, axis=0)
+
+        bins = (2*L+1) * refinement
+        gridR = histogram2d(Y, X, bins=bins, weights=a*(self.int_cell_size!=1), range=[[-R,R], [-R,R]])[0]
+        grid = gridC + gridR
+#       grid = histogram2d(Y, X, bins=bins, weights=a*self.cell_size**2, range=[[-R,R], [-R,R]])[0]
+#       grid /= self.top_level_cell_size**2
+#       if refinement > 1
+#           grid = repeat(grid, refinement, axis=1)
+#           grid = repeat(grid, refinement, axis=0)
         return grid
 
     def _to_grid(self, a, refinement=1):
@@ -1070,15 +1206,14 @@ class PixelBasis(object):
         if shear:  sol[o+self.shear_start  : o+self.shear_end]  = shear
         if ptmass: sol[o+self.ptmass_start : o+self.ptmass_end] = ptmass
 
-        for i,s in enumerate(src):
-            assert isinstance(s, (list, tuple)) and len(s) == 2, \
-                   "solution_from_grid(): Each element of src must be a 2 item list"
-            offs = o+self.srcpos_start + 2*i
-            #print '!'*80
-            #print s
-            sol[offs : offs+2] = s
-            sol[offs : offs+2] += self.map_shift
-            sol[offs : offs+2] *= obj.sources[i].zcap
+        if self.srcpos_start < self.srcpos_end:
+            for i,s in enumerate(src):
+                assert isinstance(s, (list, tuple)) and len(s) == 2, \
+                       "solution_from_grid(): Each element of src must be a 2 item list"
+                offs = o+self.srcpos_start + 2*i
+                sol[offs : offs+2] = s
+                sol[offs : offs+2] += self.map_shift
+                sol[offs : offs+2] *= obj.sources[i].zcap
 
         nu = convert('H0^-1 in Gyr to nu', H0inv)
         print "nu", nu

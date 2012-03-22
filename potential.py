@@ -312,7 +312,9 @@ def grad(W,r0,r,a):
         std::complex<double> v(0,0);
         //Py_BEGIN_ALLOW_THREADS
         double xx=0,yy=0;
+        #ifdef OMP_H
         omp_set_num_threads(threads);
+        #endif
         #pragma omp parallel for reduction(+:xx) reduction(+:yy)
         for (i=0; i < l; i++)
         {
@@ -355,9 +357,8 @@ def grad(W,r0,r,a):
 
     l = len(r)
     threads = env().ncpus
-    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'],
-                     extra_compile_args =['-O3 -fopenmp'],
-                     extra_link_args=['-lgomp'],
-                     headers=['<omp.h>'])
+    #kw = dict( extra_compile_args =['-O3 -fopenmp'], extra_link_args=['-lgomp'], headers=['<omp.h>'] )
+    kw = {}
+    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **kw)
     return v
 

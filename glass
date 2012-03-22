@@ -1,7 +1,7 @@
 #!/bin/bash
 
-ROOT="$HOME/GLASS/glass"
-#ROOT="$HOME/GLASS/glass-DEV"
+#ROOT="$HOME/GLASS/glass"
+ROOT="$HOME/GLASS/glass-DEV"
 #ROOT="$HOME/GAGL/glass"
 
 PYTHON=python
@@ -11,7 +11,9 @@ export   LD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PL
 export   LD_LIBRARY_PATH=$ROOT/solvers/rwalk/glpk_build/lib:$LD_LIBRARY_PATH
 export DYLD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$DYLD_LIBRARY_PATH
 export DYLD_LIBRARY_PATH=$ROOT/solvers/rwalk/lp_solve_5.5/lpsolve55:$DYLD_LIBRARY_PATH
-export PYTHONPATH=$HOME/pynbody/build/$PLATDIR:$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$PYTHONPATH
+export PYTHONPATH=$HOME/pynbody/build/$PLATDIR:$PYTHONPATH
+export PYTHONPATH=$HOME/pynbody/pynbody/build/$PLATDIR:$PYTHONPATH
+export PYTHONPATH=$ROOT/solvers/rwalk/lp_solve_5.5/extra/Python/build/$PLATDIR:$PYTHONPATH
 export PYTHONPATH=$ROOT/solvers/rwalk/python-glpk-0.4.43/src/build/$PLATDIR/glpk/:$PYTHONPATH
 
 $GLASS $*

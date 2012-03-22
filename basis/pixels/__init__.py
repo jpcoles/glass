@@ -219,6 +219,12 @@ def solution_to_dict(obj, sol):
 
     return obj.basis.solution_to_dict(sol)
 
+def obj_solution(obj, sol):
+    sol = sol[obj.basis.array_offset:obj.basis.array_offset+obj.basis.nvar_symm]
+    if obj.symm:
+        sol = symm_unfold(obj,sol)
+    return sol
+
 def _model_dict(objs, sol):
     if isinstance(objs, Object):
         objs = [objs]
@@ -227,6 +233,7 @@ def _model_dict(objs, sol):
     print sol
     return {'sol':      sol,
             'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
+            'obj,sol':  zip(objs, map(lambda x: obj_solution(x, sol), objs)),
             'tagged':   False}
 
 @command
@@ -236,12 +243,13 @@ def package_solution(sol, objs, fn_package_sol = None):
     
     return {'sol':  sol,
             'obj,data': zip(objs, map(fn_package_sol, objs)),
+            'obj,sol':  zip(objs, map(lambda x: obj_solution(x, sol), objs)),
             'tagged':  False}
 
 def check_model(objs, ps):
-    Log('WARNING: checks disabled')
-    return
-    for o,data in ps['obj,data']:
+    #Log('WARNING: checks disabled')
+    #return
+    for o,data in ps['obj,sol']:
         for p in acc_objpriors:
             if p.check: p.check(o, data)
     for p in acc_enspriors:

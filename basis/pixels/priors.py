@@ -9,8 +9,8 @@ if __name__ != '__main__':
 else:
     def command(x): pass
 
-import numpy
-from numpy import zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all, dot, sum, loadtxt, amax, flipud
+import numpy as np
+from numpy import amin,amax,zeros, array, empty, cos, sin, compress, sign, logical_or, sort, pi, log10, radians, argwhere, all, dot, sum, loadtxt, amax, flipud
 
 
 all_priors = []
@@ -49,8 +49,11 @@ def object_prior_check(check):
 def include_prior(*f):
     #assert not exc_priors, 'Cannot both include and exclude priors.'
     for p in f:
-        i = all_priors.index(p)
-        inc_priors.append(all_priors[i])
+        try:
+            i = all_priors.index(p)
+            inc_priors.append(all_priors[i])
+        except ValueError:
+            raise Exception("Can't find '%s' from available priors" % p)
 
 @command
 def include_all_priors():
@@ -125,7 +128,6 @@ def lens_eq(o, leq, eq, geq):
 
 @object_prior_check(lens_eq)
 def check_lens_eq(o, sol):
-    Log( "Check Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12)" )
     b    = o.basis
     offs = 0 #b.array_offset
 
@@ -134,6 +136,7 @@ def check_lens_eq(o, sol):
     shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
     ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
 
+    report = ''
     for i,src in enumerate(o.sources):
         res = ''
         for img in src.images:
@@ -159,14 +162,19 @@ def check_lens_eq(o, sol):
             l0 = log10(abs(r0)) if r0 else -15
             l1 = log10(abs(r1)) if r1 else -15
 
-            res += '['
-            res += ' ' if l0 <= -15 else '.' if l0 <= -14 else '-' if l0 <= -13 else '*' if l0 <= -12 else '%-3i' % l0
-            res += ' '
-            res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
-            res += ']'
+            if l0 >= -12 or l1 >= -12:
+                res += '['
+                res += ' ' if l0 <= -15 else '.' if l0 <= -14 else '-' if l0 <= -13 else '*' if l0 <= -12 else '%-3i' % l0
+                res += ' '
+                res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
+                res += ']'
             #res += '[%-4i %-4i]' % (r0, r1)
 
-        Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )
+        if res:
+            report += '\n%s%s  src.zcap=%6.4f %s' % (indent, o.name, src.zcap, res)
+
+    if report:
+        Log( "Check Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
 
 
 @default_prior
@@ -244,9 +252,7 @@ def time_delay(o, leq, eq, geq):
 @object_prior_check(time_delay)
 def check_time_delay(o, sol):
 
-    Log( "Check Time Delay (' ':-12  '.':-11  '-':-10  '*':-9)" )
-
-    return
+    #return
 
 ##  ls = []
 ##  f = lambda x: ls.append(x)
@@ -272,9 +278,10 @@ def check_time_delay(o, sol):
     shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
-    zLp1 = o.z + 1
+    zLp1 = (o.z + 1) * o.dL
     shft = [b.map_shift, b.map_shift]
 
+    report = ''
     for i, src in enumerate(o.sources):
         res = ''
         for img0,img1,delay in src.time_delays:
@@ -327,9 +334,9 @@ def check_time_delay(o, sol):
                     row[nu]  = -l
                     row2[nu] = -u
 
-            r0 = dot(row[1:], sol[1:]) + row[0]
+            r0 = dot(row[1:], sol) + row[0]
             if row2:
-                r1 = dot(row2[1:], sol[1:]) + row2[0]
+                r1 = dot(row2[1:], sol) + row2[0]
 
             l0 = log10(abs(r0)) if r0 else -13
             if row2:
@@ -337,14 +344,19 @@ def check_time_delay(o, sol):
 
             #res += '[%i %i]' % (r0,r1)
 
-            res += '['
-            res += ' ' if l0 <= -12 else '.' if l0 <= -11 else '-' if l0 <= -10 else '*' if l0 <= -9 else '%-3i' % l0
-            if row2:
-                res += ' '
-                res += ' ' if l1 <= -12 else '.' if l1 <= -11 else '-' if l1 <= -10 else '*' if l1 <= -9 else '% 3i' % l1
-            res += ']'
+            if l0 >= 12 or (row2 and l1 >= -12):
+                res += '['
+                res += ' ' if l0 <= -15 else '.' if l0 <= -14 else '-' if l0 <= -13 else '*' if l0 <= -12 else '%-3i' % l0
+                if row2:
+                    res += ' '
+                    res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
+                res += ']'
 
-        Log( '    %s  src.zcap=%6.4f %s' % (o.name, src.zcap, res) )
+        if res:
+            report += '\n%s%s  src.zcap=%6.4f %s' % (indent, o.name, src.zcap, res)
+
+    if report:
+        Log( "Check Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
@@ -786,98 +798,39 @@ def profile_steepness(o, leq, eq, geq):
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
     nrings = len(o.basis.rings)
-    row = new_row(o)
-
-    #---------------------------------------------------------------------------
-    # First handle the central pixel
-    #---------------------------------------------------------------------------
-#   r0,r1 = o.basis.rings[0:2]
-#   lc = (0.5) ** minsteep
-#   lpc = (1.5) ** minsteep
-#   row[pix_start+r0] = lc / len(r0)
-#   row[pix_start+r1] = -lpc / len(r1)
-#   #print r0,r1
-#   #print row
-#   c=1
-#   geq(row)
 
     c = 0
 
-    #---------------------------------------------------------------------------
-    # Now the rest of the rings.
-    #---------------------------------------------------------------------------
-    for l in xrange(0,nrings-1):
-        r0 = o.basis.rings[l]
+    for l,[r0,r1] in enumerate(izip(o.basis.rings[:-1], o.basis.rings[1:])):
 
-        #r0 = o.basis.rings[0]
-        r1 = o.basis.rings[l+1]
+        if not o.basis.hires_levels \
+        or (o.basis.hires_levels and l < (o.basis.hiresR*o.basis.hires_levels - o.basis.hires_levels//2)):
 
-        row = new_row(o)
-        lc  = (l+0.5) ** minsteep
-        lpc = (l+1.5) ** minsteep
-        row[pix_start+r0] =  lc  / len(r0)
-        row[pix_start+r1] = -lpc / len(r1)
+            R0 = (o.basis.rs[l]   + o.basis.radial_cell_size[l]/2)
+            R1 = (o.basis.rs[l+1] + o.basis.radial_cell_size[l+1]/2)
 
-        if minsteep == maxsteep:
-            eq(row)
-        else:
-            geq(row)
+            R0 = l
+            R1 = l+1
 
-            if maxsteep is not None:
-                row = new_row(o)
-                lc  = (l+0.5) ** maxsteep
-                lpc = (l+1.5) ** maxsteep
-                row[pix_start+r0] =  lc  / len(r0)
-                row[pix_start+r1] = -lpc / len(r1)
-                leq(row)
+            w0 = o.basis.cell_size[r0]**2 / sum(o.basis.cell_size[r0]**2)
+            w1 = o.basis.cell_size[r1]**2 / sum(o.basis.cell_size[r1]**2)
 
-#   for l in xrange(nrings-3,nrings-1):
-#       r0 = o.basis.rings[l]
+            row = new_row(o)
+            row[pix_start+r0] =  w0 * R0**minsteep
+            row[pix_start+r1] = -w1 * R1**minsteep
 
-#       #r0 = o.basis.rings[0]
-#       r1 = o.basis.rings[l+1]
+            if minsteep == maxsteep:
+                eq(row)
+            else:
+                geq(row)
 
-#       row = new_row(o)
-#       lc  = (l+0.5) ** minsteep
-#       lpc = (l+1.5) ** minsteep
-#       row[pix_start+r0] =  lc  / len(r0)
-#       row[pix_start+r1] = -lpc / len(r1)
-
-#       if minsteep == maxsteep:
-#           eq(row)
-#       else:
-#           geq(row)
-
-#           row = new_row(o)
-#           lc  = (l+0.5) ** 1
-#           lpc = (l+1.5) ** 1
-#           row[pix_start+r0] =  lc  / len(r0)
-#           row[pix_start+r1] = -lpc / len(r1)
-#           leq(row)
-
-
-#   print "\tmaxsteep=", maxsteep, "minsteep=",minsteep
-#   if maxsteep > minsteep:
-#       row = zeros(1+o.basis.nvar)
-#       r0 = o.basis.rings[1]
-#       r1 = o.basis.rings[-2]
-
-#       lc  = 1
-#       lpc = (nrings) ** maxsteep
-#       row[pix_start+r0] = -lc  / len(r0)
-#       row[pix_start+r1] =  lpc / len(r1)
-#       geq(row)
-#       c += 1
-
-#   r0 = o.basis.rings[0]
-#   r1 = o.basis.rings[-1]
-#   row = zeros(1+o.basis.nvar)
-#   lc  =  1
-#   lpc = -nrings ** minsteep
-#   row[pix_start+r0] = lc  / len(r0)
-#   row[pix_start+r1] = lpc / len(r1)
-#   geq(row)
-#   c += 1
+                if maxsteep is not None:
+                    row = new_row(o)
+                    row[pix_start+r0] =  w0 * R0**maxsteep
+                    row[pix_start+r1] = -w1 * R1**maxsteep
+                    leq(row)
+                    c += 1
+            c += 1
 
     Log( 2*indent + "# eqs = %i" % c )
 
@@ -1040,7 +993,7 @@ def Pgradient(o, leq, eq, geq):
     Log( 2*indent + "gradient eqs = %i" % c )
     Log( 2*indent + "sn=%g" % sn )
 
-@default_prior
+#@default_prior
 @object_prior
 def J2gradient(o, leq, eq, geq):
 
@@ -1051,15 +1004,16 @@ def J2gradient(o, leq, eq, geq):
         #Log( 'J2Gradient NOT ACTIVE' )
         #return
 
-    #Lmin = numpy.sqrt(2)*o.basis.top_level_cell_size
-    Lmin = 1.1*o.basis.top_level_cell_size
+    #Lmin = np.sqrt(2)*o.basis.top_level_cell_size
+    #Lmin = 1.1*o.basis.top_level_cell_size
 
     theta = opts.get('theta', 45)
-    L     = opts.get('size',  Lmin)
+    size  = opts.get('size',  None)
 
-    assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
+    #XXX assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
 
-    Log( indent + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, L) )
+    Log( indent + "J2Gradient (theta=%.2f  size=%s)" % (theta, size) )
+    #Log( indent + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, size) )
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
 
@@ -1071,7 +1025,21 @@ def J2gradient(o, leq, eq, geq):
         #if i in o.basis.rings[-2]: break
         if i == o.basis.central_pixel: continue
 
-        nbrs = neighbors(r,L, o.basis.ploc)
+        if size is None:
+            L = 1.1*o.basis.cell_size[i]
+        else:
+            L = size
+
+        #nbrs = neighbors(r,L, o.basis.ploc)
+        nbrs = o.basis.nbrs2[i][2]
+
+        #if o.basis.int_cell_size[i] < 1 and len(nbrs) < 4: continue
+        #if o.basis.int_cell_size[i] < 1 and np.any(o.basis.int_cell_size[nbrs] > o.basis.int_cell_size[i]): continue
+        #if np.any(o.basis.int_cell_size[nbrs] != o.basis.int_cell_size[i]): continue
+
+        #if len(nbrs) < 4: continue
+        #if np.any(o.basis.cell_size[nbrs] != o.basis.cell_size[i]): continue
+        #if np.any(o.basis.int_cell_size[nbrs] != o.basis.cell_size[i]): continue
 
         px = r.real
         py = r.imag
@@ -1082,11 +1050,17 @@ def J2gradient(o, leq, eq, geq):
         dr = r - o.basis.ploc[nbrs]
         dir = dr / abs(dr)
 
-        dW = abs(dr)*(L + o.basis.top_level_cell_size - abs(dr))
+        dW = abs(dr)*(L + o.basis.cell_size[i] - abs(dr))
+        #dW = abs(dr)*(L + o.basis.top_level_cell_size - abs(dr))
         #dW = abs(dr)*(o.basis.grad_rmax + 1 - abs(dr))
 
+        wght = (o.basis.cell_size[nbrs] / amax(o.basis.cell_size[nbrs]))**2
+        #wght = amax([wght, o.basis.cell_size[i]])
+
+        wght = o.basis.cell_size[nbrs]**2 / sum(o.basis.cell_size[nbrs]**2)
+        #wght = 1 #(o.basis.cell_size[nbrs]/o.basis.cell_size[i])**2
         row = new_row(o)
-        row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real
+        row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real * wght
         geq(row)
         c += 1
 
@@ -1094,7 +1068,7 @@ def J2gradient(o, leq, eq, geq):
             x =  cs*px + sn*py
             y = -sn*px + cs*py
             row = new_row(o)
-            row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real
+            row[pix_start + nbrs] = dW * (dir * complex(x,-y)).real * wght
             geq(row)
             c += 1
 
@@ -1107,6 +1081,66 @@ def J2gradient(o, leq, eq, geq):
 #   row[ [0, pix_start+i[0], pix_start+i[-1]] ] = -1e-2, 1, -1
 #   leq(row)
         
+
+    Log( 2*indent + "gradient eqs = %i" % c )
+    Log( 2*indent + "sn=%g" % sn )
+
+#@default_prior
+@object_prior
+def J3gradient(o, leq, eq, geq):
+
+    opts = o.prior_options.get('J3Gradient', None)
+
+    if not opts:
+        opts = {}
+        #Log( 'J2Gradient NOT ACTIVE' )
+        #return
+
+    #Lmin = np.sqrt(2)*o.basis.top_level_cell_size
+    #Lmin = 1.1*o.basis.top_level_cell_size
+
+    theta = opts.get('theta', 45)
+    size  = opts.get('size',  None)
+
+    #XXX assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
+
+    Log( indent + "J3Gradient (theta=%.2f  size=%s)" % (theta, size) )
+
+    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+
+    phi = radians(90-theta)
+    cs,sn = cos(phi), sin(phi)
+    c = 0
+
+    rs = [ abs(img.pos) for src in o.sources for img in src.images if img.parity_name != 'max']
+    rmin, rmax = amin(rs), amax(rs)
+
+    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+        if i == o.basis.central_pixel: continue
+
+        n,e,s,w = o.basis.nbrs3[i][2]
+
+        px = r.real
+        py = r.imag
+
+        def wght(x):
+            _wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2) if len(x) else 0
+            #_wght = lambda x: 1.0 / len(x) if len(x) else 0
+            return _wght(x)
+
+        for i in ([1,-1] if sn != 0 else [1]):
+
+            x =   cs*px - i*sn*py
+            y = i*sn*px +   cs*py
+
+            row = new_row(o)
+
+            row[pix_start + w] =  wght(w) * x
+            row[pix_start + e] = -wght(e) * x
+            row[pix_start + s] =  wght(s) * y
+            row[pix_start + n] = -wght(n) * y
+            geq(row)
+            c += 1
 
     Log( 2*indent + "gradient eqs = %i" % c )
     Log( 2*indent + "sn=%g" % sn )
@@ -1129,17 +1163,17 @@ def central_pixel_max(o, leq, eq, geq):
     cp = o.basis.central_pixel + 1+o.basis.pix_start
     Log( "Central pixel maximum %i" % cp )
 
-    g = o.prior_options.get('central_pixel_maximum')
-    M     = g['M']
-    H0inv = g['H0inv']
-    nu    = g['nu']
+#   g = o.prior_options.get('central_pixel_maximum')
+#   M     = g['M']
+#   H0inv = g['H0inv']
+#   nu    = g['nu']
 
-    max_nu = env().nu[-1] # should this be min?
+#   max_nu = env().nu[-1] # should this be min?
 
-    M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
+#   M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
 
     row = new_row(o)
-    row[ [0,cp] ] = -M, 1
+    row[ [0,cp] ] = -7, 1
     leq(row)
 
 #@default_prior
@@ -1204,7 +1238,7 @@ def ring_smoothness(o, leq, eq, geq):
 
     Log( 2*indent + "# eqs = %i" % c )
 
-@default_prior
+#@default_prior
 @object_prior
 def PLsmoothness(o, leq, eq, geq):
     """A pixel cannot be more that twice the average of the neighbouring pixels."""
@@ -1225,9 +1259,111 @@ def PLsmoothness(o, leq, eq, geq):
         if not include_central_pixel and i == o.basis.central_pixel: continue
 
         row = new_row(o)
+        #w0 = o.basis.cell_size[nbrs]**2 / sum(o.basis.cell_size[nbrs]**2)
+
         row[pix_start + nbrs] = 1
         row[pix_start + i]    = -len(nbrs) / smoothness_factor
 
+        #print 'PLs', row[row != 0]
+        geq(row)
+        c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+#@default_prior
+@object_prior
+def PLsmoothness2(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "[DISABLED] PLSmoothness2" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( indent + "PLSmoothness2 (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    wght = lambda x: 1.0 / len(x) if len(x) else 0
+    for i,r,nbrs in o.basis.nbrs:
+        if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        row = new_row(o)
+        for d in o.basis.nbrs3[i][2]:
+            row[pix_start + d] = wght(d)
+        row[pix_start + i] = -1 / smoothness_factor
+
+        #print 'PLs', row[row != 0]
+        geq(row)
+        c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+#@default_prior
+@object_prior
+def PLsmoothness3(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "[DISABLED] PLSmoothness3" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( indent + "PLSmoothness3 (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    #wght = lambda x: 1.0 / len(x) if len(x) else 0
+    wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2)
+    for i,r,nbrs in o.basis.nbrs:
+        if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        row = new_row(o)
+        #N = sum( (sum(wght(d)) for d in o.basis.nbrs3[i][2]) )
+        for d in o.basis.nbrs3[i][2]:
+            row[pix_start + d] = wght(d) / len(o.basis.nbrs3[i][2])
+
+        row[pix_start + i] = -1 / smoothness_factor
+
+        #print 'PLs', row[row != 0]
+        geq(row)
+        c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+@object_prior
+def pixel_smoothness(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "[DISABLED] pixel_smoothness" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( indent + "PLSmoothness2 (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    wght = lambda x: 1.0 / len(x) if len(x) else 0
+    for i,r,nbrs in o.basis.nbrs:
+        if i != o.basis.central_pixel: continue
+        #if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        for d in o.basis.nbrs3[i][2]:
+            row = new_row(o)
+            row[pix_start + d] = wght(d)
+            row[pix_start + i] = -1 / smoothness_factor
+
+        #print 'PLs', row[row != 0]
         geq(row)
         c += 1
 
@@ -1586,7 +1722,7 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     
 
 #   print data[11] / data[12]
-#   from numpy import cos,sin,arctan2, arctan, angle
+#   from np import cos,sin,arctan2, arctan, angle
 #   xs = cos(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
 #   ys = sin(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
 

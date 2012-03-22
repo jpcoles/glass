@@ -73,12 +73,12 @@ def lpsolve(f, *args):
         r = g.glp_simplex(lp, lp.glpk_parms)
         if r == 0:
             r = g.glp_get_status(lp)
-            if r == g.GLP_OPT: return OPTIMAL
-            if r == g.GLP_FEAS: return SUBOPTIMAL
+            if r == g.GLP_OPT:    return OPTIMAL
+            if r == g.GLP_FEAS:   return SUBOPTIMAL
             if r == g.GLP_INFEAS: return INFEASIBLE
             if r == g.GLP_NOFEAS: return INFEASIBLE
-            if r == g.GLP_UNBND: return UNBOUNDED
-            if r == g.GLP_UNDEF: return DEGENERATE
+            if r == g.GLP_UNBND:  return UNBOUNDED
+            if r == g.GLP_UNDEF:  return DEGENERATE
         else:
             return r
 

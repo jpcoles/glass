@@ -123,10 +123,11 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
     done = should_stop(id,stopq)
     time_begin = time.clock()
     models_since_last_eval = 0
-    for i in xrange(nmodels):
+    for i in xrange(window_size + nmodels):
 
-        if (models_since_last_eval / n_stored) > 0.25:
-        #if (n_stored % 20) == 0:
+        #if (models_since_last_eval / n_stored) > 0.25:
+        if n_stored < window_size and (n_stored % 10) == 0:
+        #if (n_stored % int(0.1*window_size+1)) == 0:
             print ' '*39, 'Computing eigenvalues...'
             samplex.compute_eval_evec(store, eval, evec, n_stored, window_size)
             eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
@@ -191,8 +192,8 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
         store[:,n_stored] = vec
         n_stored += 1
-        #if i >= window_size:
-        q.put([id,vec.copy('A')])
+        if n_stored >= window_size:
+            q.put([id,vec.copy('A')])
 
 
     time_end = time.clock()
@@ -419,8 +420,8 @@ class Samplex:
         a = -dir 
         w = a > 0
         if w.any():
-            dtmp = pt / a
-            dist = amin([dist, amin(dtmp[w])])
+            dtmp = pt[w] / a[w]
+            dist = amin([dist, amin(dtmp)])
             #print '???dist', dist
 
         assert dist != inf
@@ -621,7 +622,7 @@ class Samplex:
 
             Log('Refining inner point, step %i/20' % i)
 
-            o = 2000*random(lpsolve('get_Ncolumns', self.lp)) - 1000
+            o = 2*random(lpsolve('get_Ncolumns', self.lp)) - 1
             lpsolve('set_sense', self.lp, False)
 
             lpsolve('set_obj_fn', self.lp, o.tolist())
@@ -918,7 +919,7 @@ class Samplex:
         #s.vertex[1+nvars:1+nvars+nslack] = slack
         s.vertex[0] = objv
 
-        s.vertex[abs(s.vertex) < 1e-15] = 0
+        s.vertex[abs(s.vertex) < 1e-14] = 0
 
         assert all(s.vertex[1:] >= 0), s.vertex[s.vertex < 0]
 

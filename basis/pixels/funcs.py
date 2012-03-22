@@ -1,6 +1,7 @@
 from __future__ import division
 from scales import convert
-from numpy import cumsum, mean, average, array, where, pi, dot, abs
+import numpy as np
+from numpy import cumsum, mean, array, where, pi, dot, abs
 from environment import DArray
 from potential import poten, poten_dx, poten_dy
 
@@ -102,11 +103,14 @@ def default_post_process(m):
     #print ps['R']['arcsec']
     #print ps['R']['kpc']
     #assert 0
+    
+    def mean_kappa(x):
+        return sum(ps['kappa'][x] * b.cell_size[x]**2) /  sum(b.cell_size[x]**2)
 
     ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
-    ps['Sigma(R)']  =  array([average(ps['kappa'][r]                  )*dscale2 for r in b.rings])
-    ps['kappa(R)']  =  array([average(ps['kappa'][r]                  )         for r in b.rings])
-    ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]) for r in b.rings]) / cumsum([len(r) for r in b.rings])
+    ps['Sigma(R)']  =  array([mean_kappa(r)*dscale2 for r in b.rings])
+    ps['kappa(R)']  =  array([mean_kappa(r)         for r in b.rings])
+    ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2) for r in b.rings]) / cumsum([sum(b.cell_size[r]**2) for r in b.rings])
 
     ps['Rlens'] = {}
     ps['Rlens']['arcsec'] = [ estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]

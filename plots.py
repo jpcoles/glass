@@ -260,13 +260,40 @@ def kappa_plot(model, obj_index, with_contours=False, only_contours=False, cleve
 
     #grid[grid >= 1] = 0
 
-    kw = default_kw(R, vmin=0, vmax=2)
+    kw = default_kw(R, vmin=-1, vmax=2)
 
     if not only_contours:
         #matshow(log10(grid), **kw)
         matshow(grid, **kw)
         #imshow(grid, fignum=False, **kw)
         #matshow(grid, fignum=False, **kw)
+        if with_colorbar: 
+            glscolorbar()
+
+    if with_contours:
+        kw.pop('cmap')
+        over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
+
+    xlabel('arcsec')
+    ylabel('arcsec')
+
+@command
+def grad_kappa_plot(model, obj_index, which='x', with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
+    obj, data = model['obj,data'][obj_index]
+
+    R = obj.basis.mapextent
+
+    grid = obj.basis.kappa_grid(data)
+    grid = grid.copy()
+
+    kw = default_kw(R, vmin=-1, vmax=2)
+
+    if not only_contours:
+        print '!!!!!!', grid.shape
+        if which == 'x': grid = diff(grid, axis=1)
+        if which == 'y': grid = diff(grid, axis=0)
+        print '!!!!!!', grid.shape
+        matshow(grid, **kw)
         if with_colorbar: 
             glscolorbar()
 
@@ -328,11 +355,11 @@ def arrival_plot(model, obj_index=None, src_index=None, only_contours=True, clev
     def plot_one(obj,data,src_index,g,lev,kw):
         matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
         loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
-        kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
         if not only_contours:
             kw.update({'zorder':-100})
-            matshow(g, **kw)
+            matshow(log10(g), **kw)
             if with_colorbar: glscolorbar()
+        kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
         if clevels:
             kw.update({'zorder':0})
             contour(g, clevels, **kw)
@@ -574,7 +601,7 @@ def _data_plot2(models, X,Y, **kwargs):
     accepted_kw = {'zorder':500,  'drawstyle':'steps', 'alpha':0.5}
 
     normal_kw   = {'zorder':0,    'alpha':1.0}
-    hilite_kw   = {'zorder':1000, 'alpha':1.0, 'marker': '.', 'ls':'-'}
+    hilite_kw   = {'zorder':1000, 'alpha':1.0, 'marker': '', 'ls':'-', 'lw':2}
     accepted_kw = {'zorder':500,  'alpha':0.5}
 
     if kwargs.has_key('normal_kw'): normal_kw.update(kwargs['normal_kw'])
@@ -719,7 +746,7 @@ def _data_error_plot(models, X,Y, **kwargs):
         #print len(v['xs'])
         #print len(avg)
         #assert 0
-        errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color='grey', marker='.')
+        errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color='k', marker='.')
         pl.yscale(yscale)
         pl.xscale(xscale)
 

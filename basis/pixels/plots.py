@@ -10,9 +10,11 @@ from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, log
                   text, axvline, axhline, xlim
 
 import matplotlib.cm as cm  
+from matplotlib.lines import Line2D
 import mpl_toolkits.mplot3d as p3
 
 from environment import env, command
+from .. plots import default_kw
 
 def glscolorbar():
     rows,cols,_ = gca().get_geometry()
@@ -388,4 +390,63 @@ def radial_chi2_plot(models, model0):
 #   print np.log(np.sum(rchi2[0]) / np.sum(rchi2[1]))
 #   print '+'*80
 #   print '+'*80
+
+
+@command
+def gradient_plot(model, obj_index):
+    obj,data = model['obj,data'][obj_index]
+    b = obj.basis
+    kappa = data['kappa']
+
+    #wght = lambda x: 1.0 / len(x) if len(x) else 0
+    wght = lambda x: b.cell_size[x]**2 / np.sum(b.cell_size[x]**2)
+    for i,r in enumerate(b.ploc):
+        n,e,s,w = b.nbrs3[i][2]
+
+        dx = np.sum(kappa[w] * wght(w)) - np.sum(kappa[e] * wght(e))
+        dy = np.sum(kappa[s] * wght(s)) - np.sum(kappa[n] * wght(n))
+
+        dx*=-1
+        dy*=-1
+
+        #print dx, dy
+
+        dr = np.sqrt(dx**2 + dy**2)
+        dx /= dr
+        dy /= dr
+        dx *= .9 * b.cell_size[i]/2
+        dy *= .9 * b.cell_size[i]/2
+
+        x0,y0 = r.real, r.imag
+        x1,y1 = x0 + dx, y0 + dy
+        gca().add_artist(Line2D([x0,x1], [y0,y1], linewidth=1))
+
+@command
+def gradient_grid_plot(model, obj_index):
+    obj,data = model['obj,data'][obj_index]
+    b = obj.basis
+    kappa = data['kappa']
+    grid = np.zeros_like(kappa)
+
+    #wght = lambda x: 1.0 / len(x) if len(x) else 0
+    wght = lambda x: b.cell_size[x]**2 / np.sum(b.cell_size[x]**2)
+    for i,r in enumerate(b.ploc):
+        n,e,s,w = b.nbrs3[i][2]
+
+        dx = np.sum(kappa[w] * wght(w)) - np.sum(kappa[e] *  wght(e))
+        dy = np.sum(kappa[s] * wght(s)) - np.sum(kappa[n] *  wght(n))
+
+        dx*=-1
+        dy*=-1
+
+        #print dx, dy
+
+        dr = np.sqrt(dx**2 + dy**2)
+        grid[i] = dr 
+
+    grid = grid
+    kw = default_kw(b.mapextent, vmin=amin(grid), vmax=amax(grid))
+    grid = b._to_grid(grid, b.subdivision)
+    matshow(grid, **kw)
+    glscolorbar()
 

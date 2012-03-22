@@ -9,7 +9,7 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
-from potential import poten, poten_dx, poten_dy
+from potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
 from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
@@ -115,6 +115,15 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         r = src - theta + obj.basis.deflect(theta, ps) / zcap
         return r.real, r.imag
 
+    def lenseq_prime(theta0):
+        theta = complex(*theta0)
+        dist  = theta - obj.basis.ploc
+        dxdx = -1 + dot(ps['kappa'], (poten_dxdx(dist,obj.basis.cell_size))) / zcap
+        dydy = -1 + dot(ps['kappa'], (poten_dydy(dist,obj.basis.cell_size))) / zcap
+        dxdy = -1 + dot(ps['kappa'], (poten_dxdy(dist,obj.basis.cell_size))) / zcap
+        dydx = -1 + dot(ps['kappa'], (poten_dydx(dist,obj.basis.cell_size))) / zcap
+        return [ [dxdx, dydx], [dxdy, dydy] ]
+
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
@@ -135,6 +144,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             xs.append([img, r, leq])
         else:
             print 'Image at %s rejected. %e' % (r, leq)
+
 
     #---------------------------------------------------------------------------
     # (3) Sort by how well we were able to minimize each function.
