@@ -8,7 +8,7 @@ from itertools import izip
 from numpy import logical_and, logical_not, where
 from pylab import gca, gcf
 
-from glass.environment import command
+from glass.command import command
 from glass.plots import default_kw
 
 

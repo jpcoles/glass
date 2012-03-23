@@ -958,7 +958,7 @@ class PixelBasis(object):
         #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
         #s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
                     #dot(kappa, (poten_dy(dist,self.cell_size))))
-        s = potential.grad(kappa,theta, self.ploc, self.cell_size)
+        s = glass.potential.grad(kappa,theta, self.ploc, self.cell_size)
         if obj.shear:
             s1,s2 = data['shear']
             s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
@@ -1006,7 +1006,7 @@ class PixelBasis(object):
 #                   if (i%100) == 0: 
 #                       print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
 #                       x = True
-                    deflect[i] = potential.grad(kappa,theta,ploc,cell_size)
+                    deflect[i] = glass.potential.grad(kappa,theta,ploc,cell_size)
                     if obj.shear:
                         s1,s2 = data['shear']
                         s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),

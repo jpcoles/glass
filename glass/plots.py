@@ -24,7 +24,8 @@ from collections import defaultdict
 #import matplotlib.axes3d as p3
 import mpl_toolkits.mplot3d as p3
 
-from environment import env, Object, command
+from environment import env, Object
+from command import command
 from log import log as Log
 
 
@@ -768,13 +769,15 @@ def _data_error_plot(models, X,Y, **kwargs):
     #ylim(0, ymax)
 
 @command
-def glplot(env, models, ptype, xkeys, ykeys=[], **kwargs):
+def glplot(env, ptype, xkeys, ykeys=[], models=None, **kwargs):
     if not ykeys: ykeys = ptype
+    if models is None: models = env.models
     _data_plot2(models, xkeys, ykeys, **kwargs)
 
 @command
-def glerrorplot(env, models, ptype, xkeys, ykeys=[], **kwargs):
+def glerrorplot(env, ptype, xkeys, ykeys=[], models=None, **kwargs):
     if not ykeys: ykeys = ptype
+    if models is None: models = env.models
     _data_error_plot(models, xkeys, ykeys, **kwargs)
 
 _enckappa_xlabel = r'$R$ (arcsec)'

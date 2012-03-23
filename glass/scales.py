@@ -1,5 +1,5 @@
 from __future__ import division
-from environment import command
+from command import command
 #from cosmo import scales
 
 N = 206265

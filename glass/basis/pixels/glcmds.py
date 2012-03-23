@@ -1,5 +1,5 @@
 from __future__ import division
-from glass.environment import command
+from glass.command import command
 #from solvers.samplex.samplex import Samplex
 #from solvers.samplexsimple.samplex import Samplex
 #from solvers.lpsolve.samplex import Samplex

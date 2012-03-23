@@ -2,18 +2,17 @@ from __future__ import division
 from math import sin,sinh, sqrt
 from numpy import abs
 from scipy.integrate import quadrature, quad
-from environment import env
 
-def age_factor():
-    M = env().omega_matter
-    L = env().omega_lambda
+def age_factor(env):
+    M = env.omega_matter
+    L = env.omega_lambda
     K = 1 - (M+L)
     f = lambda a: a / sqrt(a*M + a**4 * L + a**2 * K)
     q = quad(f, 0, 1)[0]
     return q
 
-def angdist(zi, zf):
-    return _angdist(zi,zf, env().omega_matter, env().omega_lambda, env().filled_beam)
+def angdist(env, zi, zf):
+    return _angdist(zi,zf, env.omega_matter, env.omega_lambda, env.filled_beam)
 
 def _angdist(zi, zf, M,L, filled_beam, tol=1e-4):
 

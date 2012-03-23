@@ -3,6 +3,10 @@ import numpy, os, subprocess
 from numpy import arctan2, pi, linspace, atleast_2d, abs, ndarray, asarray
 from collections import defaultdict 
 import traceback
+import glass.cosmo
+from glass.command import Commands
+
+print 'LOADING environment'
 
 def _detect_cpus():
     """
@@ -80,8 +84,8 @@ class Image:
         
 
 class Source:
-    def __init__(self, zsrc, zlens):
-        self.zcap = cosmo.angdist(0,zsrc) / cosmo.angdist(zlens,zsrc)
+    def __init__(self, env, zsrc, zlens):
+        self.zcap = glass.cosmo.angdist(env, 0,zsrc) / glass.cosmo.angdist(env, zlens,zsrc)
         self.images = []
         self.time_delays = []
         self.z = zsrc
@@ -146,7 +150,14 @@ class Environment:
 
     def clear(self):
         self.__init__()
-        
+
+    def __getattr__(self, name):
+        try:
+            f = Commands.glass_command_list[name][0]
+            return lambda *args, **kwargs: f(self, *args, **kwargs)
+        except:
+            raise AttributeError(name)
+
 class DArray(ndarray):
     def __new__(cls, input_array, ul=None):
         obj = asarray(input_array).view(cls)
@@ -170,31 +181,20 @@ class DArray(ndarray):
         self.units = p[1]
         self.label = p[2]
 
-_env = Environment()
+#_env = Environment()
 def env():
-    return _env
+    #return _env
+    return Commands.get_env()
 
-def new_env():
-    inp = env().input_file
-    ncpus = env().ncpus
-    set_env(Environment())
-    env().ncpus = ncpus
-    env().input_file = inp
+#def new_env():
+#    inp = env().input_file
+#    ncpus = env().ncpus
+#    set_env(Environment())
+#    env().ncpus = ncpus
+#    env().input_file = inp
 
 #FIXME: Resetting the environment discards options set on the commandline (e.g., ncpus)
-def set_env(env):
-    global _env
-    _env = env
+#def set_env(env):
+#    global _env
+#    _env = env
 
-if not globals().has_key('glass_command_list'):
-    glass_command_list = {}
-
-def command(f):
-    def g(*args, **kwargs):
-        #print 'calling', f.__name__, env(), args, kwargs
-        return f(env(), *args, **kwargs)
-    glass_command_list[f.__name__] = [f,g]
-    return g
-
-
-import cosmo

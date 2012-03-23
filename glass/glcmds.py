@@ -1,16 +1,17 @@
-from __future__ import division, with_statement
+from __future__ import division, with_statement, absolute_import
 import time
 import numpy as np
 from numpy import arctan2, savez, load, array, pi
 from itertools import izip, count, repeat
 
-import cosmo
+import glass.cosmo
+from  glass.report import report
 
-from environment import set_env, Image, Source, command
-from shear import Shear
-from scales import convert
-from glass import report
-from log import log as Log, setup_log
+from glass.environment import Image, Source
+from glass.command import command
+from glass.shear import Shear
+from glass.scales import convert
+from glass.log import log as Log, setup_log
 
 @command
 def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
@@ -42,7 +43,7 @@ def zlens(env, z):
     o = env.current_object()
     assert o.z is None, 'zlens() can only be called once per object.'
     o.z = z
-    o.dL = cosmo.angdist(0,o.z)
+    o.dL = glass.cosmo.angdist(env,0,o.z)
 
 @command
 def omega(env, om, ol):
@@ -62,7 +63,7 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
     assert o.z is not None, "zlens() must first be specified."
     assert zsrc >= o.z, "Source is not behind lens."
 
-    src = Source(zsrc, o.z)
+    src = Source(env, zsrc, o.z)
 
     if kwargs.has_key('loc'):
         src.pos = complex(kwargs['loc'][0], kwargs['loc'][1])
@@ -104,7 +105,7 @@ def symm(env, v=True):
 def universe_age(env, *args):
     """Set age of the Universe in Gyr"""
     assert len(env.objects) == 0, 'universe_age() must be used before any objects are created.'
-    nu       = convert('age in Gyr to nu', array(args), cosmo.age_factor())
+    nu       = convert('age in Gyr to nu', array(args), glass.cosmo.age_factor(env))
     env.nu = array([nu[-1], nu[0]])
 
 @command
@@ -162,7 +163,7 @@ def loadstate(env, fname, setenv=True):
     environment.  
     """
     x = load(fname)['arr_0'].item()
-    if setenv: set_env(x)
+    #if setenv: set_env(x)
     return x
 
 @command
@@ -202,7 +203,7 @@ def model(env, nmodels=None, *args, **kwargs):
     for o in env.objects:
         o.init()
 
-    report()
+    report(env)
 
     #init_model_generator(nmodels)
 

@@ -299,10 +299,10 @@ def maginv_new5(r, a, c, s):
     return [delta, alpha, beta]
 
 
-
+_kw = None
 def grad(W,r0,r,a):
+    global _kw
     from scipy import weave
-    from numpy import empty_like
 
     if type(r) == type(complex(0,0)):
         assert 0, "Shouldn't use potential.grad() for none array-based positions."
@@ -312,7 +312,7 @@ def grad(W,r0,r,a):
         std::complex<double> v(0,0);
         //Py_BEGIN_ALLOW_THREADS
         double xx=0,yy=0;
-        #ifdef OMP_H
+        #ifdef WITH_OMP
         omp_set_num_threads(threads);
         #endif
         #pragma omp parallel for reduction(+:xx) reduction(+:yy)
@@ -351,14 +351,21 @@ def grad(W,r0,r,a):
             xx += vx;
             yy += vy;
         }
+
         //Py_END_ALLOW_THREADS
         return_val = std::complex<double>(xx,yy);
     """
 
     l = len(r)
     threads = environment.env().ncpus
-    #kw = dict( extra_compile_args =['-O3 -fopenmp'], extra_link_args=['-lgomp'], headers=['<omp.h>'] )
-    kw = {}
-    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **kw)
+    if _kw is None:
+        try:
+            kw = dict( extra_compile_args =['-O3 -fopenmp -DWITH_OMP -Wall -Wno-unused-variable'], extra_link_args=['-lgomp'], headers=['<omp.h>'] )
+            weave.inline(' ', **kw)
+        except:
+            kw = {}
+        _kw = kw
+
+    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **_kw)
     return v
 

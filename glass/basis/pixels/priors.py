@@ -1,6 +1,7 @@
 from __future__ import division
 if __name__ != '__main__':
-    from glass.environment import env, command
+    from glass.environment import env
+    from glass.command import command
     from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
     from itertools import izip
     from glass.log import log as Log

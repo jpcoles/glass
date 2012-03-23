@@ -4,7 +4,9 @@ from numpy import mean, zeros, argwhere
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from glass.log import log as Log
-from glass.environment import env, Object, command
+from glass.environment import env, Object
+from glass.command import command
+
 
 from . import glcmds
 from . import funcs
