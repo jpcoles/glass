@@ -128,7 +128,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
         #if (models_since_last_eval / n_stored) > 0.25:
         if n_stored < window_size and (n_stored % 10) == 0:
         #if (n_stored % int(0.1*window_size+1)) == 0:
-            print ' '*39, 'Computing eigenvalues...'
+            print ' '*39, 'Computing eigenvalues... %i left.' % ((window_size-n_stored) / 10)
             samplex.compute_eval_evec(store, eval, evec, n_stored, window_size)
             eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
             models_since_last_eval = 0
@@ -153,11 +153,11 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
                 break
 
 
-            accepted,rejected = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+            accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
 
             r = accepted / (accepted + rejected)
             #lock.acquire()
-            print ' '*39, 'THREAD %i %.3f Acceptance rate  (%i Accepted  %i Rejected  %e twiddle)' % (id, r, accepted, rejected, twiddle)
+            print ' '*39, 'THREAD %3i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (id, 100*r, accepted, rejected, twiddle, t, (window_size+nmodels-i))
             #lock.release()
 
             #-------------------------------------------------------------------
@@ -509,7 +509,7 @@ class Samplex:
                 eval[r] = (tmax2 - tmax1) / sqrt(12)
 
         evec[:] = evec0
-        print 'eval(inside)', eval
+        #print 'eval(inside)', eval
         if nzero != self.eq_count:
             print '-'*80
             Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )

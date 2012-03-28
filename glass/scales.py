@@ -11,8 +11,7 @@ Munit = 11.988 # Msun
 #    assert obj.scales, "Scaling requires that zlens() be set first."
 #    return obj,v,H0inv
 
-@command
-def convert(env, type, v, *args):
+def convert(type, v, *args):
 
     s,d = type.split('to')
     if s.strip() == d.strip(): return v

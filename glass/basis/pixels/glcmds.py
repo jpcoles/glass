@@ -77,9 +77,9 @@ def local_gradient(env, theta=None, L=None):
 
     if theta is not None: 
         assert (0 < theta <= 90), "local_gradient: need 0 < theta <= 90"
-        o.prior_options['J2Gradient']['theta'] = theta
+        o.prior_options['J3Gradient']['theta'] = theta
 
-    if L is not None: o.prior_options['J2Gradient']['size']  = L
+    if L is not None: o.prior_options['J3Gradient']['size']  = L
 
 @command
 def min_kappa(env, v):
@@ -95,7 +95,7 @@ def min_annular_density(env, v):
 def min_kappa_particles(env, X,Y,M,H0inv):
 
     o = env.current_object()
-    o.prior_options['min_kappa_particles']['grid'] = [X,Y,M]
+    o.prior_options['min_kappa_particles']['particles'] = [X,Y,M]
     o.prior_options['min_kappa_particles']['H0inv'] = H0inv
     o.prior_options['min_kappa_particles']['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
 
@@ -182,4 +182,10 @@ def leier_grid(env, fname, size, units='arcsec'):
     o.prior_options['minkappa Leier grid']['filename'] = fname
     o.prior_options['minkappa Leier grid']['grid radius'] = size
     o.prior_options['minkappa Leier grid']['grid radius units'] = units
+
+
+@command
+def extended_source_size(env, size):
+    o = env.current_object()
+    o.prior_options['extended source size'] = size
 

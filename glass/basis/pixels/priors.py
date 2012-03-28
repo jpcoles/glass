@@ -6,7 +6,7 @@ if __name__ != '__main__':
     from itertools import izip
     from glass.log import log as Log
     from glass.scales import convert
-    from . basis import neighbors
+    from . basis import neighbors, irrhistogram2d
 else:
     def command(x): pass
 
@@ -1506,26 +1506,36 @@ def min_kappa_particles(o, leq, eq, geq):
     g = o.prior_options.get('min_kappa_particles')
 
     if not g: 
-        Log( "[DISABLED] Minimum Kappa Particles" )
+        Log( "[DISABLED] Minimum Kappa (Particles)" )
         return
 
-    Log( indent + "Minimum Kappa Particles" )
+    Log( indent + "Minimum Kappa (Particles)" )
 
-    X,Y,M = g['grid']
+    X,Y,M = g['particles']
     H0inv = g['H0inv']
     nu    = g['nu']
 
-    #max_nu = env().nu[-1]
-
-    g  = o.basis.grid_mass(X,Y,M, H0inv, to_kappa=False)
-    g *= convert('Msun/ly^2 to kappa',  1., o.dL, nu)
+    phys_cell_size = convert('arcsec to kpc', o.basis.cell_size, o.dL, nu)
+    phys_ploc = convert('arcsec to kpc', o.basis.ploc, o.dL, nu)
+    h = irrhistogram2d(-Y, X, phys_ploc, phys_cell_size, weights=M) / phys_cell_size**2
+    h *= convert('Msun/kpc^2 to kappa',  1., o.dL, nu)
+    if 0:
+        import pylab as pl
+        pl.matshow(o.basis._to_grid(h,o.basis.subdivision)) #, vmin=0, vmax=4)
+        pl.colorbar()
+        #Rmap = o.basis.mapextent
+        #rx = convert('arcsec to kpc', Rmap, o.dL, nu)
+        #ry = convert('arcsec to kpc', Rmap, o.dL, nu)
+        #g = pl.histogram2d(-Y, X, bins=21, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
+        #pl.matshow(g) #, vmin=0, vmax=4)
+        #pl.colorbar()
+        pl.show()
+        assert 0
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
-    a = g.ravel()[o.basis.insideL].take(o.basis.pmap)
-
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
-        row[ [0,j] ] = -a[i], 1
+        row[ [0,j] ] = -h[i], 1
         geq(row)
 
 #@object_prior
@@ -1756,6 +1766,25 @@ def min_kappa_leier_grid(o, leq, eq, geq):
         row[ [0,j] ] = -a[i], 1
         geq(row)
 
+#@default_prior
+@object_prior
+def extended_source_size(o, leq,eq,geq):
+    d = o.prior_options['extended source size']
+    b = o.basis
+    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+
+    for i1 in xrange(len(o.sources[:-1])):
+        i2 = i1 + 1
+        x1 = srcpos_start + 2*i1 + 0
+        x2 = srcpos_start + 2*i2 + 0
+        y1 = srcpos_start + 2*i1 + 1
+        y2 = srcpos_start + 2*i2 + 1
+
+        row = new_row(o,4)
+        row[0, [0,x1,x2]] = -d, 1, -1; leq(row[0])
+        row[1, [0,x1,x2]] = +d, 1, -1; geq(row[1])
+        row[2, [0,y1,y2]] = -d, 1, -1; leq(row[2])
+        row[3, [0,y1,y2]] = +d, 1, -1; geq(row[3])
 
 if __name__ == '__main__':
     import pylab as pl

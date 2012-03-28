@@ -138,11 +138,11 @@ def savestate(env, fname):
 
     Log('Saving state to %s' % fname)
 
-    header = '''\
-GLASS version 0.1
-CREATED ON: %s''' % time.asctime()
+    env.meta_info['glheader'] = '\n'.join([
+        'GLASS version 0.1',
+        'CREATED ON: %s' % time.asctime()
+    ])
 
-    env.creation_info = [header]
     #ppf = env.post_process_funcs
     #pff = env.post_filter_funcs
     #env.post_process_funcs = []
@@ -221,11 +221,12 @@ def model(env, nmodels=None, *args, **kwargs):
         models.append(m)
     else:
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
-            Log( 'Model %i/%i complete.' % (i+1, nmodels) )
+            print 'Model %i/%i complete.' % (i+1, nmodels)
             models.append(m)
             solutions.append(m['sol'])
             #print 'glcmds.py:model ???', id(m['sol'])
 
+        Log( 'Generated %i model(s).' % len(models) )
         _post_process(models)
 
     env.accepted_models = env.models
@@ -235,12 +236,17 @@ def model(env, nmodels=None, *args, **kwargs):
 
 def _post_process(models):
     nmodels = len(models)
+    nProcessed = 0
     for i,m in enumerate(models):
+        has_ppfs = False
         for o,data in m['obj,data']:
             if o.post_process_funcs:
-                Log( 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name) )
+                has_ppfs = True
+                #print 'Post processing ... Model %i/%i Object %s' % (i+1, nmodels, o.name)
                 for f,args,kwargs in o.post_process_funcs:
                     f((o,data), *args, **kwargs)
+        nProcessed += has_ppfs
+    Log('Post processed %i model(s), %i had post processing functions applied.' % (nmodels, nProcessed) )
 
 # Although this is technically a command, we need it here so that it
 # can see 'init_model_generator' which will be defined by the executed
@@ -338,4 +344,9 @@ def time_delay_chi2(env, models, model0):
             n_chi2 += np.sum((v1 - v0)**2)
             d_chi2 += np.sum(v0**2)
     return n_chi2 / d_chi2
+
+@command
+def meta(env, *args, **kwargs):
+    assert len(args) == 0, 'meta() only takes named arguments'
+    env.meta_info = kwargs
 

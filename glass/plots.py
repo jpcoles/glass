@@ -24,9 +24,10 @@ from collections import defaultdict
 #import matplotlib.axes3d as p3
 import mpl_toolkits.mplot3d as p3
 
-from environment import env, Object
-from command import command
-from log import log as Log
+from glass.environment import env
+from glass.command import command
+from glass.log import log as Log
+from glass.scales import convert
 
 
 from scipy.ndimage.filters import correlate1d
@@ -101,7 +102,7 @@ def show_plots(env):
     show()
 
 @command
-def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False):
+def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False, tight=False):
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]
 
@@ -112,6 +113,7 @@ def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=N
 #   else:
 #       obj = model
 
+    rmax = 0
     si = style_iterator()
     for i,src in enumerate(obj.sources):
         if src_index is not None and i not in src_index: continue
@@ -134,10 +136,17 @@ def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=N
 
         if xs and ys:
             over(scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
-            if with_guide:
+            if with_guide or tight:
                 a = gca()
                 for x,y in zip(xs,ys):
-                    a.add_artist(Circle((0,0),sqrt(x**2 + y**2), fill=False))
+                    r = sqrt(x**2 + y**2)
+                    rmax = amax([r,rmax])
+                    if with_guide:
+                        a.add_artist(Circle((0,0),r, fill=False))
+
+    if tight and rmax > 0:
+        pl.gca().set_xlim(-rmax, rmax)
+        pl.gca().set_ylim(-rmax, rmax)
 
 @command
 def Re_plot(env, models=None, obj_index=0, color=None):
@@ -494,6 +503,7 @@ def inout_plot(env, model, obj_index, src_index):
     deriv(model, obj_index, src_index, arrival, 1, R)
 
 def _data_plot(models, X,Y, x_label, y_label, **kwargs):
+    assert 0, "DEPRECATED"
     with_legend = False
     use = [0,0,0]
     if models is None:
@@ -579,10 +589,6 @@ def _find_key(xs, key):
 def _data_plot2(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
-    if models is None:
-        models = env.models
-    elif not hasattr(models, '__getslice__'):
-        models = [models]
 
     x_label = None
     y_label = None
@@ -680,10 +686,6 @@ def _data_plot2(models, X,Y, **kwargs):
 def _data_error_plot(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
-    if models is None:
-        models = env.models
-    elif not hasattr(models, '__getslice__'):
-        models = [models]
 
     x_label = None
     y_label = None

@@ -33,7 +33,7 @@ import scipy.ndimage._nd_image as _nd_image
 from math import atan2, pi
 from itertools import izip
 
-from glass.environment import env
+from glass.environment import Environment
 import glass.potential
 from glass.potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
 from glass.scales import convert
@@ -320,6 +320,46 @@ def intersect_frac(A,B):
     #print r-l, t-b
     return (max(r-l,0) * max(t-b,0)) / areaB
 
+def irrhistogram2d(R,C,rbin,binsize, weights=None):
+    assert weights is not None # for now
+    assert len(rbin) == len(binsize)
+
+    h = zeros(len(rbin))
+
+    from scipy import weave
+    code="""
+        int i;
+        #ifdef WITH_OMP
+        omp_set_num_threads(threads);
+        #endif
+        #pragma omp parallel for
+        for (i=0; i < Nrbin[0]; i++)
+        {
+            long j;
+            const float left   = std::real(rbin[i]) - binsize[i]/2;
+            const float right  = std::real(rbin[i]) + binsize[i]/2;
+            const float top    = std::imag(rbin[i]) + binsize[i]/2;
+            const float bottom = std::imag(rbin[i]) - binsize[i]/2;
+            for (j=0; j < NR[0]; j++)
+            {
+                if (left <= C[j] && C[j] < right)
+                {
+                    if (bottom < R[j] && R[j] <= top)
+                    {
+                        h[i] += weights[j];
+                    }
+                }
+            }
+        }
+    """
+    nbins = len(rbin)
+    threads = Environment.global_opts['ncpus']
+    kw = Environment.global_opts['omp_opts']
+    C = np.array(C)
+    v = weave.inline(code, ['h', 'R', 'C', 'rbin','binsize', 'weights', 'threads'], **kw)
+
+    return h
+    
 
 class PixelBasis(object): 
 
@@ -391,6 +431,7 @@ class PixelBasis(object):
         # Get all image positions (except maximums near the center)
         #---------------------------------------------------------------------
         rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
+        max_zcap = amax([src.zcap for src in obj.sources])
 
         Log( '=' * 80 )
         Log( 'PIXEL BASIS for %s' % obj.name )
@@ -411,15 +452,16 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
         self.maprad = obj.maprad
         if self.maprad is None:
-            self.maprad = rmax * 1.1 
-            self.maprad = rmax * 1.5
-            self.maprad = rmax / (L-1) * L
-            self.maprad = rmax * amax([1.2, L/(L-2)])
+            #self.maprad = rmax * 1.1 
+            #self.maprad = rmax * 1.5
+            #self.maprad = rmax / (L-1) * L
+            #self.maprad = rmax * amax([1.2, L/(L-2)])
             #print self.maprad, rmax, amax([1.2, L/(L-2)])
             #assert 0
             #Log( 'Adjusting maprad to allow one ring outside images.' )
             #self.maprad = rmax+rmin
-            self.maprad = rmax + amin([rmin, rmax-rmin])
+            #self.maprad = rmax + amin([rmin, rmax-rmin])
+            self.maprad = rmax + amax([(rmin * max_zcap)/2, 2*(2*rmax/(2*L+1))])
 
         self.map_shift = self.maprad        # [arcsec]
 
@@ -634,15 +676,15 @@ class PixelBasis(object):
             self.symmetric = True
             self.nvar_symm -= (npix-1) // 2
 
-        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', env().H0inv_ref)
+        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', Environment.H0inv_ref)
         Log( 'Pixel basis' )
         Log( '    Pixel radius         = %i'  % self.pixrad )
         Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
         Log( '    Map Extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
         Log( '    top_level_cell_size  = %.4f [arcsec]'  % self.top_level_cell_size )
-        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), env().H0inv_ref))
-        Log( '    Map Extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), env().H0inv_ref ))
-        Log( '    top_level_cell       = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), env().H0inv_ref ))
+        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref))
+        Log( '    Map Extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
+        Log( '    top_level_cell       = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
         Log( '    Number of rings      = %i'    % len(self.rings) )
         Log( '    Number of pixels     = %i'    % npix )
         Log( '    Number of variables  = %i'    % self.nvar )
@@ -1124,7 +1166,13 @@ class PixelBasis(object):
         #binsX = self.ploc.real - cell_size
         #binsY = self.ploc.imag - cell_size
         #bins = [binsX, binsY]
+
+        phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
+
         grid = histogram2d(-Y, X, bins=bins, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
+#       if not self.hires_levels:
+#       else:
+#           grid = irrhistogram2d(-Y, X, self.ploc, phys_cell_size, weights=M)
 
 #       kernel = array([[1,4,7,4,1], 
 #                       [4,16,26,16,4],
@@ -1139,7 +1187,6 @@ class PixelBasis(object):
         #-----------------------------------------------------------------------
         # Convert physical units to internal units.
         #-----------------------------------------------------------------------
-        phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
         grid /= phys_cell_size**2
         #grid *= MsunKpc2_to_Kappa(obj, 1, nu)
 
@@ -1147,10 +1194,10 @@ class PixelBasis(object):
             grid *= convert('Msun/ly^2 to kappa', 1., obj.dL, nu)
 
 
-        #figure()
-        #matshow(grid, extent=[-Rmap,Rmap,-Rmap,Rmap])
+        #pl.figure()
+        #pl.matshow(self._to_grid(grid,self.subdivision), extent=[-Rmap,Rmap,-Rmap,Rmap])
         #over(contour, grid, 50, extent=[-Rmap,Rmap,-Rmap,Rmap])
-        #show()
+        #pl.show()
 
         return grid
 

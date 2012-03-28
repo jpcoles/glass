@@ -199,7 +199,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
         ks /= ds
         ds = 1
 
-    xs = np.arange(Nk)[::every]
+    xs = np.arange(len(obj.basis.ploc))[::every]
     ys = ks[int(N*0.50),:][::every]
     #ds = data0[bs][::every]
 
@@ -210,7 +210,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
     hi = ks[hi100,:][::every]
     lo = ks[lo100,:][::every]
     es = np.vstack((ys-lo, hi-ys))
-    pl.errorbar(xs, ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
+    pl.errorbar(xs[plist], ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
 
     bad = []
 
@@ -221,7 +221,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
     hi = ks[hi68,:][::every]
     lo = ks[lo68,:][::every]
     es = np.vstack((ys-lo, hi-ys))
-    pl.errorbar(xs, ys, es, ecolor="#555555", ls='None', barsabove=True)
+    pl.errorbar(xs[plist], ys, es, ecolor="#555555", ls='None', barsabove=True)
     #pl.plot(xs, models[0]['obj,data'][obj_index][1]['kappa'][plist] / data0, 'b-')
 
     if mark and mark == '1sigma':
@@ -263,7 +263,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
     else:
         pl.xlabel('Pixel index')
     pl.ylabel(r'$\kappa$')
-    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    pl.xlim(xmin=0, xmax=obj.basis.rings[-1][-1])
 
 
 @command

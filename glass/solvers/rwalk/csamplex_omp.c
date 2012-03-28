@@ -193,6 +193,8 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     //fprintf(stderr, "redo %ld\n", redo);
     //fprintf(stderr, "accepted/rejected/twiddle %ld %ld %e\n", accepted,rejected,twiddle);
 
+    double redo_etime, redo_stime;
+
     Py_BEGIN_ALLOW_THREADS
 
     for (i=0; i < eqs.rows; i++)
@@ -209,7 +211,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     long walk_step;
     long dir_index;
 
-    double redo_stime = CPUTIME;
+    redo_stime = CPUTIME;
     for (walk_step = 0; walk_step < redo; walk_step++)
     {
         /* Choose a random eigen direction */
@@ -267,12 +269,12 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
             rejected++;
         }
     }
-    double redo_etime = CPUTIME;
+    redo_etime = CPUTIME;
 
-    fprintf(stderr, "TOTAL TOOK %fs\n", redo_etime-redo_stime);
+    //fprintf(stderr, "%40sTOTAL TOOK %fs\n", " ", redo_etime-redo_stime);
 
     Py_END_ALLOW_THREADS
 
-    return Py_BuildValue("ll", accepted, rejected);
+    return Py_BuildValue("llf", accepted, rejected, redo_etime-redo_stime);
     return PyInt_FromLong(0);
 }

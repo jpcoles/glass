@@ -1,7 +1,7 @@
 from __future__ import division
 from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos
-from . import environment
+from glass.environment import Environment
 
 @vectorize
 def poten2d(x,y,a):
@@ -299,9 +299,7 @@ def maginv_new5(r, a, c, s):
     return [delta, alpha, beta]
 
 
-_kw = None
 def grad(W,r0,r,a):
-    global _kw
     from scipy import weave
 
     if type(r) == type(complex(0,0)):
@@ -357,15 +355,8 @@ def grad(W,r0,r,a):
     """
 
     l = len(r)
-    threads = environment.env().ncpus
-    if _kw is None:
-        try:
-            kw = dict( extra_compile_args =['-O3 -fopenmp -DWITH_OMP -Wall -Wno-unused-variable'], extra_link_args=['-lgomp'], headers=['<omp.h>'] )
-            weave.inline(' ', **kw)
-        except:
-            kw = {}
-        _kw = kw
-
-    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **_kw)
+    threads = Environment.global_opts['ncpus']
+    kw = Environment.global_opts['omp_opts']
+    v = weave.inline(code, ['l', 'W','r0','r', 'pi', 'a', 'threads'], **kw)
     return v
 

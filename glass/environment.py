@@ -5,31 +5,8 @@ from collections import defaultdict
 import traceback
 import glass.cosmo
 from glass.command import Commands
+from glass.scales import convert
 
-print 'LOADING environment'
-
-def _detect_cpus():
-    """
-    Detects the number of CPUs on a system.
-    From http://codeliberates.blogspot.com/2008/05/detecting-cpuscores-in-python.html
-    From http://www.artima.com/weblogs/viewpost.jsp?thread=230001
-    """
-    # Linux, Unix and MacOS:
-    if hasattr(os, "sysconf"):
-        if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):
-            # Linux & Unix:
-            ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
-            if isinstance(ncpus, int) and ncpus > 0:
-                return ncpus
-        else: # OSX:
-            #return int(os.popen2("sysctl -n hw.ncpu")[1].read())
-            return int(subprocess.Popen("sysctl -n hw.ncpu",shell=True,stdout=subprocess.PIPE).communicate()[0])
-    # Windows:
-    if os.environ.has_key("NUMBER_OF_PROCESSORS"):
-        ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
-        if ncpus > 0:
-            return ncpus
-    return 1 # Default
 
 class Object:
 
@@ -109,6 +86,9 @@ class Source:
 
 class Environment:
 
+    H0inv_ref    = 13.7
+    global_opts = {}
+
     def __init__(self):
         self.objects = []
         self._current_object = None
@@ -119,28 +99,32 @@ class Environment:
         self.models = None
         self.accepted_models = None
         self.basis_options = {}
+        self.meta_info = {}
 
         # For use in cosmo.py. Based on WMAP7+BAO
         self.omega_matter = 0.28
         self.omega_lambda = 0.72
-        self.H0inv_ref    = 13.7
 
         self.nu           = None
         self.filled_beam  = True
 
-        self.ncpus_detected = _detect_cpus()
-        self.ncpus          = self.ncpus_detected
+        #self.ncpus_detected = _detect_cpus()
+        #self.ncpus          = self.ncpus_detected
+        #self.omp_opts       = _detect_omp()
         #self.ncpus = 40
-        self.argv = []
+        #self.argv = []
 
-        self.withgfx = True
+        #self.withgfx = True
         self.bw_styles = False
 
 #   def __getattr__(self, name):
 #       f = glass_command_list.get(name, None)
 #       assert f is not None, 'Glass command %s not found.' % name
 
-    def current_object(self):
+    def current_object(self, o=None):
+        if o is not None:
+            assert o in self.objects
+            self._current_object = o
         return self._current_object
 
     def new_object(self, name):

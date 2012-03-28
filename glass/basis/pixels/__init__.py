@@ -4,9 +4,8 @@ from numpy import mean, zeros, argwhere
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from glass.log import log as Log
-from glass.environment import env, Object
+from glass.environment import env, Environment
 from glass.command import command
-
 
 from . import glcmds
 from . import funcs
@@ -35,8 +34,8 @@ else:
     assert 0, 'Unknown solver %s' % opts['solver']
 
 
-if env().withgfx:
-    import plots
+if Environment.global_opts['withgfx']:
+    from . import plots
 
 def symm_fold(o, row):
 
@@ -121,11 +120,11 @@ def _expand_array(nvars, offs, f, symm=None):
 
     return work
 
-def init_model_generator(nmodels, regenerate=False):
+def init_model_generator(env, nmodels, regenerate=False):
     """Construct the linear constraint equations by applying all the
        enabled priors."""
 
-    objs = env().objects
+    objs = env.objects
 
     # ------------- 
 
@@ -172,12 +171,12 @@ def init_model_generator(nmodels, regenerate=False):
     #---------------------------------------------------------------------------
     # Initialize our model generator, the simplex.
     #---------------------------------------------------------------------------
-    opts = env().model_gen_options
+    opts = env.model_gen_options
     opts['ncols'] = nvars
-    if not opts.has_key('nthreads'): opts['nthreads'] = env().ncpus
+    if not opts.has_key('nthreads'): opts['nthreads'] = Environment.global_opts['ncpus']
 
-    #mg = env().model_gen = env().model_gen_factory(env().model_gen_options)
-    mg = env().model_gen = Samplex(**env().model_gen_options)
+    #mg = env.model_gen = env.model_gen_factory(env.model_gen_options)
+    mg = env.model_gen = Samplex(**env.model_gen_options)
 
     #---------------------------------------------------------------------------
     # Apply the object priors
@@ -228,7 +227,7 @@ def obj_solution(obj, sol):
     return sol
 
 def _model_dict(objs, sol):
-    if isinstance(objs, Object):
+    if type(objs) != type([]):
         objs = [objs]
 
     print objs
@@ -273,7 +272,7 @@ def generate_models(env, objs, n, *args, **kwargs):
         ps = _particle_model(objs[0], *data)
 
         if opts.get('solver', None):
-            init_model_generator(n)
+            init_model_generator(env, n)
             check_model(objs, ps)
 
         yield ps
@@ -287,7 +286,7 @@ def generate_models(env, objs, n, *args, **kwargs):
         ps = _grid_model(objs[0], *data)
 
         if opts.get('solver', None):
-            init_model_generator(n)
+            init_model_generator(env, n)
             check_model(objs, ps)
 
         yield ps
@@ -307,7 +306,7 @@ def generate_models(env, objs, n, *args, **kwargs):
     else:
 
         if opts.get('solver', None):
-            init_model_generator(n)
+            init_model_generator(env, n)
             mg = env.model_gen
             mg.start()
             for sol in mg.next(n):
@@ -318,13 +317,14 @@ def generate_models(env, objs, n, *args, **kwargs):
     for o in objs:
         o.post_process_funcs.append([default_post_process, [], {}])
 
-def regenerate_models(objs):
+@command
+def regenerate_models(env, objs):
 
-    assert env().solutions is not None
+    assert env.solutions is not None
 
-    init_model_generator(len(env().solutions))
+    init_model_generator(len(env.solutions))
 
-    for sol in env().solutions:
+    for sol in env.solutions:
         yield package_solution(sol, objs)
 #       yield {'sol':  sol,
 #              'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
@@ -333,7 +333,7 @@ def regenerate_models(objs):
 @command
 def make_ensemble_average(env):
 #   Log( "s*********" )
-#   for m in env().models:
+#   for m in env.models:
 #       Log( m['sol'] )
 #   Log( "s*********" )
 

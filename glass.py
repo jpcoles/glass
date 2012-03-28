@@ -1,23 +1,46 @@
 from __future__ import division, with_statement, absolute_import
 import sys, getopt, os, traceback
-import numpy
 
-from glass.environment import env, DArray, Environment
-
-import glass.report 
-from glass.log import log as Log, setup_log
-from glass.scales import convert
-from numpy import abs
-import glass.basis as basis
+from glass.environment import env, Environment
 from glass.command import command, Commands
 
-#GlassEnvironment = Environment
+def _detect_cpus():
+    """
+    Detects the number of CPUs on a system.
+    From http://codeliberates.blogspot.com/2008/05/detecting-cpuscores-in-python.html
+    From http://www.artima.com/weblogs/viewpost.jsp?thread=230001
+    """
+    # Linux, Unix and MacOS:
+    if hasattr(os, "sysconf"):
+        if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):
+            # Linux & Unix:
+            ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
+            if isinstance(ncpus, int) and ncpus > 0:
+                return ncpus
+        else: # OSX:
+            #return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+            return int(subprocess.Popen("sysctl -n hw.ncpu",shell=True,stdout=subprocess.PIPE).communicate()[0])
+    # Windows:
+    if os.environ.has_key("NUMBER_OF_PROCESSORS"):
+        ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
+        if ncpus > 0:
+            return ncpus
+    return 1 # Default
 
-
-#if not globals().has_key('glass_command_list'):
-#    print 'Resetting command list!'
-#    glass_command_list = {}
-
+_omp_opts = None
+def _detect_omp():
+    global _omp_opts
+    if _omp_opts is not None: return _omp_opts
+    try:
+        from scipy import weave
+        kw = dict( extra_compile_args = ['-O3','-fopenmp','-DWITH_OMP','-Wall','-Wno-unused-variable'], 
+                   extra_link_args = ['-lgomp'], 
+                   headers = ['<omp.h>'] )
+        #weave.inline(' ', **kw)
+    except:
+        kw = {}
+    _omp_opts = kw
+    return kw
 
 def Ximport_functions(pkg):
     f = __import__(pkg, globals(), locals())
@@ -48,20 +71,29 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2: help()
 
+    Environment.global_opts['ncpus_detected'] = _detect_cpus()
+    Environment.global_opts['ncpus'] = Environment.global_opts['ncpus_detected']
+    Environment.global_opts['omp_opts'] = _detect_omp()
+    Environment.global_opts['withgfx'] = True
+
     Commands.set_env(Environment())
 
     optlist, arglist = getopt.getopt(sys.argv[1:], 't:h', ['nw'])
+
     for opt in optlist:
         if   opt[0] == '-h':
             help()
         elif opt[0] == '-t':
             ncpus = int(opt[1])
             assert ncpus > 0
-            Commands.get_env().ncpus = ncpus
+            #Commands.get_env().ncpus = ncpus
+            Environment.global_opts['ncpus'] = ncpus
         elif opt[0] == '--nw':
-            Commands.get_env().withgfx = False
+            #Commands.get_env().withgfx = False
+            Environment.global_opts['withgfx'] = False
 
-    if Commands.get_env().withgfx:
+
+    if Environment.global_opts['withgfx']:
         import glass.plots 
 
     import glass.glcmds
@@ -71,7 +103,8 @@ if __name__ == "__main__":
     with open(arglist[0], 'r') as f:
         Commands.get_env().input_file = f.read()
 
-    Commands.get_env().argv = arglist
+    Environment.global_opts['argv'] = arglist
+    #Commands.get_env().argv = arglist
 
 
     execfile(arglist[0]) #, globals(), globals())
