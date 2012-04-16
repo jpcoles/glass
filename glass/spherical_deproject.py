@@ -314,7 +314,7 @@ def dlnrhodlnr(rmin,rmax,alphalim,r,rho,mass,R,sigma,massp,rin):
     jl =  1 if rmin < r[1]  else argmin(abs(r-rmin)) 
     jr = -1 if rmax > r[-1] else argmin(abs(r-rmax))        
 
-    print rmin, rmax, r[jl], r[jr]
+    #print rmin, rmax, r[jl], r[jr]
 
     rmin = r[jl]
     rmax = r[jr]

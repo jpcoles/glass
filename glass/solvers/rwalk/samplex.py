@@ -27,7 +27,7 @@ if 0:
     from pylab import figimage, show, imshow, hist, matshow, figure
 
 try:
-    from log import log as Log
+    from glass.log import log as Log
 except ImportError:
     def l(x):
         print x
@@ -122,18 +122,13 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
     done = should_stop(id,stopq)
     time_begin = time.clock()
-    models_since_last_eval = 0
     for i in xrange(window_size + nmodels):
 
-        #if (models_since_last_eval / n_stored) > 0.25:
-        if n_stored < window_size and (n_stored % 10) == 0:
+        if i < window_size and (i % int(0.1*len(eval) + 1)) == 0:
         #if (n_stored % int(0.1*window_size+1)) == 0:
-            print ' '*39, 'Computing eigenvalues... %i left.' % ((window_size-n_stored) / 10)
-            samplex.compute_eval_evec(store, eval, evec, n_stored, window_size)
+            print ' '*39, 'Computing eigenvalues... %i left.' % (window_size-i)
+            samplex.compute_eval_evec(store, eval, evec, n_stored)
             eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
-            models_since_last_eval = 0
-
-        models_since_last_eval += 1
 
         vec[:] = dot(evec.T, vec)
         #print vec
@@ -141,6 +136,11 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
         #ok,v = samplex.in_simplex_matrix(vec, eqs)
         #print ok,v
         #assert ok
+
+        state = ' '
+
+        if i < window_size:
+            state = 'B'
 
         while not done:
             accepted = 0
@@ -152,12 +152,13 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
                 done = True
                 break
 
-
             accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
 
             r = accepted / (accepted + rejected)
             #lock.acquire()
-            print ' '*39, 'THREAD %3i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (id, 100*r, accepted, rejected, twiddle, t, (window_size+nmodels-i))
+            print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, (nmodels + (window_size-i)))
+            if len(state) == 1:
+                state += 'R'
             #lock.release()
 
             #-------------------------------------------------------------------
@@ -178,7 +179,7 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
             twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
             twiddle = max(1e-14,twiddle)
             #lock.acquire()
-            print ' '*39, 'RESTARTING r =',r, twiddle
+            #print ' '*39, 'RESTARTING r =',r, twiddle
             #lock.release()
 
         if done:
@@ -192,13 +193,13 @@ def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, win
 
         store[:,n_stored] = vec
         n_stored += 1
-        if n_stored >= window_size:
+        if i >= window_size:
             q.put([id,vec.copy('A')])
 
 
     time_end = time.clock()
     q.put(['TIME', time_end-time_begin])
-    print ' '*39, 'RWALK THREAD %i LEAVING  n_stored=%i  time=%.4fs' % (id,i,time_end-time_begin)
+    #print ' '*39, 'RWALK THREAD %i LEAVING  n_stored=%i  time=%.4fs' % (id,i,time_end-time_begin)
 
 class Samplex:
     INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
@@ -215,6 +216,7 @@ class Samplex:
         self.accept_rate     = kw.get('acceptance rate', 0.25)
         self.accept_rate_tol = kw.get('acceptance tol', 0.05)
         self.redo_factor     = kw.get('redo factor', 1)
+        self.redo_exp        = kw.get('redo exp', 2)
         self.twiddle         = kw.get('twiddle', 2.4)
 
         Log( "Samplex created" )
@@ -491,8 +493,8 @@ class Samplex:
 
         return avg
 
-    def compute_eval_evec(self, store, eval, evec, n_stored, window_size):
-        s = min(max(0,n_stored - window_size), window_size)
+    def compute_eval_evec(self, store, eval, evec, n_stored): #, window_size):
+        #s = min(max(0,n_stored - window_size), window_size)
 
         eval0,evec0 = eigh(cov(store[:,  :n_stored]))
         avg = store[:,  :n_stored].mean(axis=1)
@@ -616,16 +618,14 @@ class Samplex:
 
         np = np.copy()
         np2 = None
-        i=1
-        while i < 20:
-            i += 1
+        for i in xrange(2,21): # start at 2 to get the average right on the first iteration
 
             Log('Refining inner point, step %i/20' % i)
 
             o = 2*random(lpsolve('get_Ncolumns', self.lp)) - 1
             lpsolve('set_sense', self.lp, False)
-
             lpsolve('set_obj_fn', self.lp, o.tolist())
+
             self.next_solution()
 
             v1 = self.package_solution()
@@ -694,11 +694,10 @@ class Samplex:
 
         dim = self.nVars
         dof = dim - self.eq_count
-        #window_size = max(10, int(0.1 * dim))
 
-        window_size = 2*dim #max(10, int(1.5 * dim))
+        window_size = max(10,  int(1.5 * dim))
+        redo        = max(1,  int((dim ** self.redo_exp) * self.redo_factor))
 
-        redo = max(100, int((dim ** 2) * self.redo_factor))
         nmodels = nsolutions
         nthreads = self.nthreads
 
@@ -710,10 +709,10 @@ class Samplex:
         self.redo = redo
 
         print window_size, nmodels
-        store = zeros((dim, window_size+nmodels+1), order='Fortran', dtype=numpy.float64)
+        store = zeros((dim, (1+2*dim)+window_size+nmodels), order='Fortran', dtype=numpy.float64)
+        np    = zeros(dim, order='C', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
         evec  = zeros((dim,dim), order='F', dtype=numpy.float64)
-        np    = zeros(dim, order='C', dtype=numpy.float64)
 
         self.eqs = zeros((self.eqn_count+dim,dim+1), order='C', dtype=numpy.float64)
         for i,[c,e] in enumerate(self.eq_list_no_noise):
@@ -783,7 +782,7 @@ class Samplex:
         n_stored = self.initial_store(np, ev, eval, evec, store)
         store[:,n_stored] = np
         n_stored += 1
-        self.compute_eval_evec(store, eval, evec, n_stored, window_size)
+        self.compute_eval_evec(store, eval, evec, n_stored)
         time_end_est_eigenvectors = time.clock()
 
         #-----------------------------------------------------------------------
@@ -867,15 +866,15 @@ class Samplex:
         max_time_threads = amax(time_threads) if time_threads else 0
         avg_time_threads = mean(time_threads) if time_threads else 0
         time_end_next += max_time_threads
-        print '-'*80
-        print 'SAMPLEX TIMINGS'
-        print '-'*80
-        print 'Initial inner point    %.2fs' % (time_end_inner_point - time_begin_inner_point)
-        print 'Estimate middle point  %.2fs' % (time_end_middle_point - time_begin_middle_point)
-        print 'Estimate eigenvectors  %.2fs' % (time_end_est_eigenvectors - time_begin_est_eigenvectors)
-        print 'Modeling               %.2fs' % (time_end_get_models - time_begin_get_models)
-        print 'Max/Avg thread time    %.2fs %.2fs' % (max_time_threads, avg_time_threads)
-        print 'Total time             %.2fs' % (time_end_next - time_begin_next);
+        Log( '-'*80 )
+        Log( 'SAMPLEX TIMINGS' )
+        Log( '-'*80 )
+        Log( 'Initial inner point    %.2fs' % (time_end_inner_point - time_begin_inner_point) )
+        Log( 'Estimate middle point  %.2fs' % (time_end_middle_point - time_begin_middle_point) )
+        Log( 'Estimate eigenvectors  %.2fs' % (time_end_est_eigenvectors - time_begin_est_eigenvectors) )
+        Log( 'Modeling               %.2fs' % (time_end_get_models - time_begin_get_models) )
+        Log( 'Max/Avg thread time    %.2fs %.2fs' % (max_time_threads, avg_time_threads) )
+        Log( 'Total time             %.2fs' % (time_end_next - time_begin_next) )
 
     def next_solution(self, lp=None):
         if lp is None: lp = self.lp

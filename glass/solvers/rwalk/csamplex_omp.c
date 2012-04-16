@@ -104,7 +104,7 @@ PyObject *set_rwalk_seed(PyObject *self, PyObject *args)
     srand48(seed);
 #endif
 
-    fprintf(stderr, "First random number is %f\n", U01());
+    //fprintf(stderr, "First random number is %f\n", U01());
 
     return Py_None;
 }
@@ -195,7 +195,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 
     double redo_etime, redo_stime;
 
-    Py_BEGIN_ALLOW_THREADS
+    //Py_BEGIN_ALLOW_THREADS
 
     for (i=0; i < eqs.rows; i++)
     {
@@ -210,6 +210,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     double step;
     long walk_step;
     long dir_index;
+    double stddev = twiddle/sqrt(dof);
 
     redo_stime = CPUTIME;
     for (walk_step = 0; walk_step < redo; walk_step++)
@@ -221,7 +222,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         } while (fabs(eval[dir_index]) < 1e-14);
 
         if (!(walk_step & 1))
-            normal(twiddle/sqrt(dof), 0, &r, &r1);
+            normal(stddev, 0, &r, &r1);
         else
             r = r1;
 
@@ -230,7 +231,6 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         /* Check if we are still in the simplex */
         long offs = leq_offs * eqs.cols + dir_index + 1;
         data_ptr = eqs.data + offs;
-        int accept = 1;
 
 #if 0
         for (i=eq_offs; accept && i < (eq_offs + eq_count); i++, data_ptr += eqs.cols)
@@ -241,39 +241,35 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 #endif
 
         // equalities are ignored
-        for (i=leq_offs; accept && i < (leq_offs + leq_count); i++, data_ptr += eqs.cols)
+        for (i=leq_offs; i < (leq_offs + leq_count); i++, data_ptr += eqs.cols)
         {
             S0[i] = S[i] + (step * *data_ptr);
-            accept = S0[i] <= 0;
+            if (S0[i] > 0) goto reject;
         }
 
         //for (i=geq_offs; accept && i < (geq_offs + geq_count); i++, data_ptr += eqs.cols)
-        for (i=geq_offs; accept && i < eqs.rows; i++, data_ptr += eqs.cols)
+        for (i=geq_offs; i < eqs.rows; i++, data_ptr += eqs.cols)
         {
             S0[i] = S[i] + (step * *data_ptr);
-            accept = S0[i] >= 0;
+            if (S0[i] < 0) goto reject;
         }
 
-        assert(!accept || i==eqs.rows);
+        //assert(!accept || i==eqs.rows);
 
+        /* Take the new point as the current vector for the next round */
+        vec[dir_index] += step;
+        memcpy(S, S0, sizeof(*S) * eqs.rows);
+        accepted++;
+        continue;
 
-        /* Maybe take the new point as the current vector for the next round */
-        if (accept)
-        {
-            vec[dir_index] += step;
-            memcpy(S, S0, sizeof(*S) * eqs.rows);
-            accepted++;
-        }
-        else
-        {
-            rejected++;
-        }
+reject:
+        rejected++;
     }
     redo_etime = CPUTIME;
 
     //fprintf(stderr, "%40sTOTAL TOOK %fs\n", " ", redo_etime-redo_stime);
 
-    Py_END_ALLOW_THREADS
+    //Py_END_ALLOW_THREADS
 
     return Py_BuildValue("llf", accepted, rejected, redo_etime-redo_stime);
     return PyInt_FromLong(0);

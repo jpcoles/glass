@@ -2,28 +2,29 @@ from __future__ import division
 from numpy import logspace, sin, log10, amin, amax
 from scipy.integrate.quadrature import simps as integrator
 from spherical_deproject import cumsolve, sigpsolve, sigpsingle, dlnrhodlnr, masstot, abelsolve
-from scales import density_to_physical, distance_to_physical
+from glass.scales import convert
 
-def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
+def sigp(objmodel, lightC, lpars, aperture, beta, alphalim=3.5, interpnts=None):
 
     obj, data = objmodel
+
+    arcsec2kpc = convert('arcsec to kpc', 1, obj.dL, data['nu'])
 
     #-------------------------------------------------------------------------
     # Find the inner and outer images for the object.
     #-------------------------------------------------------------------------
     rs = [ abs(img.pos) for src in obj.sources for img in src.images ]
-    imagemin, imagemax = distance_to_physical(objmodel, amin(rs)), \
-                         distance_to_physical(objmodel, amax(rs))
+    imagemin, imagemax = amin(rs)*arcsec2kpc, amax(rs)*arcsec2kpc
 
-    mass2d  = data['encmass']
-    R       = data['R_kpc']
-    sigma   = data['sigma']
+    mass2d  = data['M(<R)']
+    R       = data['R']['kpc']
+    sigma   = data['Sigma(R)']
 
     intpnts = lpars[-1]
 
-    aperture_phys = distance_to_physical(objmodel, aperture)
+    aperture_phys = aperture * arcsec2kpc
     lpars_phys    = lpars[:]
-    lpars_phys[1] = distance_to_physical(objmodel, lpars_phys[1])
+    lpars_phys[1] = lpars_phys[1] * arcsec2kpc
 
     #print aperture_phys, lpars_phys
 
@@ -54,7 +55,8 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
     #-------------------------------------------------------------------------
     #units of M=Msun, L=kpc, V=km/s:
     Gsp      = 6.67e-11 * 1.989e30 / 3.086e19
-    light.set_pars(lpars_phys)
+    #light.set_pars(lpars_phys)
+    light = lightC(lpars_phys)
 
     sigp = sigpsolve(r,  rho,mass3d, 
                      R,sigma,mass2d,
@@ -89,7 +91,7 @@ def sigp(objmodel, light, lpars, aperture, beta, alphalim=3, interpnts=None):
     #print data['sigma_phys']
     #print data['encmass_phys']
 
-    print 'Final rms mean projected vel. dispersion:', sigpsing
+    #print 'Final rms mean projected vel. dispersion:', sigpsing
 
 def sigpf(objmodel, vdisp, tol, chisq_cut):
     """Return True if chi-squared value for the object's sigp is <= chisq_cut."""

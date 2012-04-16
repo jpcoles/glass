@@ -24,5 +24,9 @@ def samplex_redo_factor(env, f):
     env.model_gen_options['redo factor'] = f
 
 @command
+def samplex_redo_exponent(env, e):
+    env.model_gen_options['redo exp'] = e
+
+@command
 def samplex_start_twiddle(env, t):
     env.model_gen_options['twiddle'] = t

@@ -188,9 +188,9 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
             lw,ls,c = si.next()
             cs.append(c) #system_color(i))
         if hilite:
-            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='d', alpha=1.0)
+            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='x', alpha=1.0)
         else:
-            over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5)
+            over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
 
     if isinstance(models, dict):
         si = style_iterator()
@@ -280,7 +280,7 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
         if with_colorbar: 
             glscolorbar()
 
-    if with_contours:
+    if only_contours or with_contours:
         kw.pop('cmap')
         over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
 
@@ -371,10 +371,10 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
             if with_colorbar: glscolorbar()
         kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
         if clevels:
-            kw.update({'zorder':0})
+            kw.update({'zorder':-1000})
             contour(g, clevels, **kw)
         if lev:
-            kw.update({'zorder':100})
+            kw.update({'zorder':1000})
             kw.update({'colors': 'k', 'linewidths':2, 'cmap':None})
             #kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
             contour(g, lev, **kw)
@@ -719,8 +719,8 @@ def _data_error_plot(models, X,Y, **kwargs):
                 xs = _find_key(data, X)
                 ys = _find_key(data, Y)
 
-                x_label = xs.label
-                y_label = ys.label
+                x_label = "" #xs.label
+                y_label = "" #ys.label
 
                 if not objplot[obj].has_key('xs'): objplot[obj]['xs']  = xs
                 objplot[obj]['ymax']  = np.amax((objplot[obj].get('ymax', ys), ys), axis=0)

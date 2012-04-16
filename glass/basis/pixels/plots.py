@@ -446,3 +446,44 @@ def gradient_grid_plot(env, model, obj_index):
     pl.matshow(grid, **kw)
     glscolorbar()
 
+@command
+def misc_gradient_plot(env, kappa, obj):
+    b = obj.basis
+
+    #wght = lambda x: 1.0 / len(x) if len(x) else 0
+    max_dr = 0
+    wght = lambda x: b.cell_size[x]**2 / np.sum(b.cell_size[x]**2)
+    for i,r in enumerate(b.ploc):
+        n,e,s,w = b.nbrs3[i][2]
+
+        dx = np.sum(kappa[w] * wght(w)) - np.sum(kappa[e] * wght(e))
+        dy = np.sum(kappa[s] * wght(s)) - np.sum(kappa[n] * wght(n))
+
+        dx*=-1
+        dy*=-1
+
+        #print dx, dy
+
+        dr = np.sqrt(dx**2 + dy**2)
+        if dr > max_dr: max_dr = dr
+
+    for i,r in enumerate(b.ploc):
+        n,e,s,w = b.nbrs3[i][2]
+
+        dx = np.sum(kappa[w] * wght(w)) - np.sum(kappa[e] * wght(e))
+        dy = np.sum(kappa[s] * wght(s)) - np.sum(kappa[n] * wght(n))
+
+        dx*=-1
+        dy*=-1
+
+        #print dx, dy
+
+        dx /= max_dr
+        dy /= max_dr
+        dx *= .9 * b.cell_size[i]/2
+        dy *= .9 * b.cell_size[i]/2
+
+        x0,y0 = r.real, r.imag
+        x1,y1 = x0 + dx, y0 + dy
+        gca().add_artist(Line2D([x0,x1], [y0,y1], linewidth=1))
+

@@ -127,11 +127,12 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     xs = []
     if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
-        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True) #, xtol=1e-12)
+        #x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], fprime=lenseq_prime, full_output=True) #, xtol=1e-12)
+        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-10)
         #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
 
         if not ier: 
-            print ier
+            print mesg
             continue
 
         r = complex(*x)
@@ -139,7 +140,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         # if an initial guess was poor then the minimum will not be near zero.
         # Only accept solutions that are very close to zero.
         leq = abs(complex(*lenseq(x)))
-        if leq < 2e-8:
+        if leq < 2e-10:
             #print leq
             xs.append([img, r, leq])
         else:
@@ -296,28 +297,29 @@ def check_model_magnifications(model, **kw_orig):
 
     #obj,ps = model['obj,data'][obj_index]
 
-    for obj,ps in model['obj,data']:
-        for src_index,_ in enumerate(obj.sources):
-            kw = kw_orig.copy()
+    #for obj,ps in model['obj,data']:
+    obj,ps = model
+    for src_index,_ in enumerate(obj.sources):
+        kw = kw_orig.copy()
 
-            rt_imgs  = raytrace([obj,ps,src_index],**kw)
-            Mrt = sum( [ abs(mu) for _,_,[mu,_],_ in rt_imgs ] )
+        rt_imgs  = raytrace([obj,ps,src_index],**kw)
+        Mrt = sum( [ abs(mu) for _,_,[mu,_],_ in rt_imgs ] )
 
-            kw['initial_guess'] = [x.pos for x in obj.sources[src_index].images]
+        kw['initial_guess'] = [x.pos for x in obj.sources[src_index].images]
 
+        obj_imgs = raytrace([obj,ps,src_index],**kw)
+        Mobj = sum( [ abs(mu) for _,_,[mu,_],_ in obj_imgs ] )
+
+        if abs(Mrt-Mobj) / Mobj > 0.05: 
+            print src_index
+            print 'Rejected:', abs(Mrt-Mobj), Mobj
+            for r,t,[mu,_],p in rt_imgs: print r,t,mu,p
+            print '-----'
+            for r,t,[mu,_],p in obj_imgs: print r,t,mu,p
+            del kw['initial_guess']
+            #kw['viz'] = True
             obj_imgs = raytrace([obj,ps,src_index],**kw)
-            Mobj = sum( [ abs(mu) for _,_,[mu,_],_ in obj_imgs ] )
-
-            if abs(Mrt-Mobj) / Mobj > 0.05: 
-                print src_index
-                print 'Rejected:', abs(Mrt-Mobj), Mobj
-                for r,t,[mu,_],p in rt_imgs: print r,t,mu,p
-                print '-----'
-                for r,t,[mu,_],p in obj_imgs: print r,t,mu,p
-                del kw['initial_guess']
-                kw['viz'] = True
-                obj_imgs = raytrace([obj,ps,src_index],**kw)
-                return False
+            return False
 
     return True
     #return abs(Mrt-Mobj) / Mobj < 0.05, Mrt, Mobj

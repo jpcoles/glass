@@ -5,10 +5,10 @@ from distutils.sysconfig import get_python_lib
 libraries=[#'profiler', 'gomp'
 ]
 #libraries=None #['rt']
-extra_compile_args = [#'-mssse3', 
+extra_compile_args = ['-msse3', 
                       #'-mfpmath=sse',
                       '-ftree-vectorizer-verbose=4', '-ftree-vectorize',
-                      '-funsafe-math-optimizations',
+                      #'-funsafe-math-optimizations',
                       '-fno-omit-frame-pointer',
                       #'-floop-optimize2',
                       '-funroll-loops',
@@ -19,7 +19,8 @@ extra_compile_args = [#'-mssse3',
                       #'-I/local/ATLAS/include',
                       #'-malign-double',
                       #'-march=core2',
-                      #'-O0',
+                      '-O3',
+                      '-mtune=native',
                       '-Wall']
 
 #extra_compile_args += ['-fnested-functions']

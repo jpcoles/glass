@@ -708,7 +708,7 @@ def external_shear(o, leq, eq, geq):
 
     for s in xrange(1+o.basis.shear_start, 1+o.basis.shear_end):
         row = new_row(o)
-        row[ [0,s] ] = v, -1
+        row[ [0,s] ] = v, -0.1
         geq(row)
         on = [v, -1]
 
@@ -794,6 +794,7 @@ def profile_steepness(o, leq, eq, geq):
     Log( indent + "Profile Steepness %s" % steep )
 
     minsteep, maxsteep = steep
+
     assert maxsteep is None or maxsteep >= minsteep
 
     pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
@@ -813,6 +814,9 @@ def profile_steepness(o, leq, eq, geq):
             R0 = l
             R1 = l+1
 
+            if l == 0:
+                R0,R1 = 1,1
+
             w0 = o.basis.cell_size[r0]**2 / sum(o.basis.cell_size[r0]**2)
             w1 = o.basis.cell_size[r1]**2 / sum(o.basis.cell_size[r1]**2)
 
@@ -825,7 +829,7 @@ def profile_steepness(o, leq, eq, geq):
             else:
                 geq(row)
 
-                if maxsteep is not None:
+                if l > 0 and maxsteep is not None:
                     row = new_row(o)
                     row[pix_start+r0] =  w0 * R0**maxsteep
                     row[pix_start+r1] = -w1 * R1**maxsteep

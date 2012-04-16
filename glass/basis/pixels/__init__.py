@@ -315,7 +315,7 @@ def generate_models(env, objs, n, *args, **kwargs):
                 yield ps
 
     for o in objs:
-        o.post_process_funcs.append([default_post_process, [], {}])
+        o.post_process_funcs.insert(0, [default_post_process, [], {}])
 
 @command
 def regenerate_models(env, objs):
