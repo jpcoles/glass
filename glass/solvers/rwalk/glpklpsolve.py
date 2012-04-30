@@ -46,22 +46,20 @@ def lpsolve(f, *args):
 
     if f == 'add_constraint':
         lp = args[0]
-        args = args[1:]
         g.glp_add_rows(lp, 1)
         nr = g.glp_get_num_rows(lp)
         nc = g.glp_get_num_cols(lp)
-        #print 'lp has %i %i' % (nr, nc)
         a = g.doubleArray(nc+1)
         b = g.intArray(nc+1)
-        for i,v in enumerate(args[0]):
+        for i,v in enumerate(args[1]):
             a[i+1] = v
             b[i+1] = i+1
 
         assert i == nc-1
 
-        if args[1] == EQ: g.glp_set_row_bnds(lp, nr, g.GLP_FX, args[2], 0)
-        if args[1] == LE: g.glp_set_row_bnds(lp, nr, g.GLP_UP, 0,args[2])
-        if args[1] == GE: g.glp_set_row_bnds(lp, nr, g.GLP_LO, args[2], 0)
+        if args[2] == EQ: g.glp_set_row_bnds(lp, nr, g.GLP_FX, args[3], 0)
+        if args[2] == LE: g.glp_set_row_bnds(lp, nr, g.GLP_UP, 0,args[3])
+        if args[2] == GE: g.glp_set_row_bnds(lp, nr, g.GLP_LO, args[3], 0)
 
         g.glp_set_mat_row(lp,nr, nc, b, a)
 
@@ -103,10 +101,7 @@ def lpsolve(f, *args):
 
     if f == 'get_variables':
         lp = args[0]
-        v = []
-        for i in range(g.glp_get_num_cols(lp)):
-            v.append(g.glp_get_col_prim(lp, i+1))
-        return [v]
+        return [[ g.glp_get_col_prim(lp, i+1) for i in xrange(g.glp_get_num_cols(lp)) ]]
 
     if f == 'get_Norig_columns':
         return g.glp_get_num_cols(args[0])
