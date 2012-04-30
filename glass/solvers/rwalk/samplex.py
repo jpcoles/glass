@@ -102,7 +102,7 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
     print ' '*39, 'STARTING rwalk_async THREAD %i' % id
 
     eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
-    vec[:] = dot(evec.T, vec)
+    #vec[:] = dot(evec.T, vec)
     I = eye(evec.shape[0]).copy('F')
 
     csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
@@ -116,23 +116,19 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
 
         state = 'B'
 
-        accepted = 0
-        rejected = 0
-
         done = False
         try:
-            block = False
             while not done:
-                cmd = cmdq.get(block=block)
-                block = False
-                if cmd[0] == 'NEW EV':
-                    vec[:] = dot(evec, vec)
-                    eval[:],evec[:] = cmd[1]
+                cmd = cmdq.get()
+                if cmd[0] == 'CONT':
+                    break
+                elif cmd[0] == 'NEW DATA':
+                    eval[:],evec[:],twiddle = cmd[1]
                     eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
-                    vec[:] = dot(evec.T, vec)
+                elif cmd[0] == 'REQ TWIDDLE':
+                    ackq.put(twiddle)
                 elif cmd[0] == 'WAIT':
                     ackq.put('OK')
-                    block = True
                 elif cmd[0] == 'STOP':
                     done = True
                 elif cmd[0] == 'RWALK':
@@ -143,32 +139,39 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
         if done:
             break
 
-        accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+        vec[:] = dot(evec.T, vec)
 
-        r = accepted / (accepted + rejected)
-        print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs' % (state, id, i, 100*r, accepted, rejected, twiddle, t)
-        #if len(state) == 1:
-            #state += 'R'
+        while True:
+            accepted = 0
+            rejected = 0
 
-        #-------------------------------------------------------------------
-        # If the actual acceptance rate was OK then leave this loop,
-        # otherwise change our step size twiddle factor to improve the rate.
-        # Even if the accepance rate was OK, we adjust the twiddle but only
-        # with a certain probability. This drives the acceptance rate to 
-        # the specified one even if we are within the tolerance but doesn't
-        # throw away the results if we are not so close. This allows for
-        # a larger tolerance.
-        #-------------------------------------------------------------------
-        if abs(r - samplex.accept_rate) >= samplex.accept_rate_tol:
-            twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
-            twiddle = max(1e-14,twiddle)
-            continue
+            accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+
+            r = accepted / (accepted + rejected)
+            print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs' % (state, id, i, 100*r, accepted, rejected, twiddle, t)
+            #if len(state) == 1:
+                #state += 'R'
+
+            #-------------------------------------------------------------------
+            # If the actual acceptance rate was OK then leave this loop,
+            # otherwise change our step size twiddle factor to improve the rate.
+            # Even if the accepance rate was OK, we adjust the twiddle but only
+            # with a certain probability. This drives the acceptance rate to 
+            # the specified one even if we are within the tolerance but doesn't
+            # throw away the results if we are not so close. This allows for
+            # a larger tolerance.
+            #-------------------------------------------------------------------
+            if abs(r - samplex.accept_rate) >= samplex.accept_rate_tol:
+                twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
+                twiddle = max(1e-14,twiddle)
+            else:
+                break
+
+        vec[:] = dot(evec, vec)
 
         if random() < abs(r - samplex.accept_rate)/samplex.accept_rate_tol:
             twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
             twiddle = max(1e-14,twiddle)
-
-        vec[:] = dot(evec, vec)
 
         assert numpy.all(vec >= 0), vec[vec < 0]
         if numpy.any(vec < 0): sys.exit(0)
@@ -177,8 +180,6 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
 
         i += 1
         q.put([id,vec.copy('A')])
-
-        vec[:] = dot(evec.T, vec)
 
     if cmd[0] == 'RWALK':
         rwalk(id, nmodels, samplex, q, cmdq, vec, twiddle, eval, evec)
@@ -192,10 +193,6 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
 
     S   = zeros(samplex.eqs.shape[0])
     S0  = zeros(samplex.eqs.shape[0])
-
-    cmd = cmdq.get()
-    assert cmd[0] == 'NEW EV'
-    eval,evec = cmd[1]
 
     vec  = vec.copy('A')
     eqs  = samplex.eqs.copy('A')
@@ -219,31 +216,13 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
         rejected = 0
 
         done = False
-        try:
-            block = False
-            while not done:
-                cmd = cmdq.get(block=block)
-                if cmd[0] == 'WAIT':
-                    ackq.put('OK')
-                    block = True
-                elif cmd[0] == 'STOP':
-                    ackq.put('OK')
-                    done = True
-        except QueueEmpty:
-            pass
 
-        if done:
-            break
-
-        accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, 
-                                             accepted,rejected)
+        vec[:] = dot(evec.T, vec)
+        accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+        vec[:] = dot(evec, vec)
 
         r = accepted / (accepted + rejected)
-        print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, i)
-        #if len(state) == 1:
-            #state += 'R'
-
-        vec[:] = dot(evec, vec)
+        print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i)
         assert numpy.all(vec >= 0), vec[vec < 0]
         if numpy.any(vec < 0): sys.exit(0)
 
@@ -251,7 +230,6 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
 
         q.put([id,vec.copy('A')])
 
-        vec[:] = dot(evec.T, vec)
 
 def rwalk_async(id, nmodels, samplex, store, n_stored, q,stopq, vec,twiddle, window_size, eval,evec):
 
@@ -386,7 +364,7 @@ class Samplex:
 
         ncols                = kw.get('ncols', None)
         nthreads             = kw.get('nthreads', 1)
-        rngseed              = kw.get('rngseed',  0)
+        rngseed              = kw.get('rngseed',  None)
         self.with_noise      = kw.get('add noise', 1e-6)
         self.stride          = kw.get('stride', 1)
         self.accept_rate     = kw.get('acceptance rate', 0.25)
@@ -400,7 +378,10 @@ class Samplex:
         if ncols is not None:
             self.nVars = ncols
 
-        self.random_seed = rngseed
+        if rngseed is None:
+            self.random_seed = int(time.time())
+        else:
+            self.random_seed = rngseed
 
         self.nthreads = nthreads
 
@@ -567,10 +548,15 @@ class Samplex:
         return dist
 
     def compute_eval_evec(self, store, eval, evec, n_stored): #, window_size):
-        #s = min(max(0,n_stored - window_size), window_size)
+        #assert n_stored >= (2*self.dof+1)
+        #s = min(n_stored - (2*self.dof+1), (2*self.dof+1))
 
-        eval0,evec0 = eigh(cov(store[:,  :n_stored]))
-        avg = store[:,  :n_stored].mean(axis=1)
+        #assert n_stored >= 1
+        #s = min(n_stored - 1, 1)
+        s = 0
+
+        eval0,evec0 = eigh(cov(store[:,  s:n_stored]))
+        avg = store[:,  s:n_stored].mean(axis=1)
         nzero = 0
         for r in range(eval.shape[0]):
             if eval0[r] < 1e-12:
@@ -629,7 +615,7 @@ class Samplex:
         #print np
         #print len(np)
         #assert 0
-        #return np
+        return np
 
         np = np.copy()
         np2 = None
@@ -709,8 +695,8 @@ class Samplex:
         dim = self.nVars
         dof = dim - self.eq_count
 
-        window_size = max(10,  int(1.5 * dim))
-        redo        = max(1,  int((dim ** self.redo_exp) * self.redo_factor))
+        window_size = max(10, int(10 * dof))
+        redo        = max(100,  int((dof ** self.redo_exp) * self.redo_factor))
 
         nmodels = nsolutions
         nthreads = self.nthreads
@@ -781,12 +767,10 @@ class Samplex:
         #-----------------------------------------------------------------------
         # Estimate a point in the middle of the simplex
         #-----------------------------------------------------------------------
-        print 'Estimating middle point'
+#       print 'Estimating middle point'
         time_begin_middle_point = time.clock()
-        np = self.estimated_middle(np, ev, evec)
+#       np = self.estimated_middle(np, ev, evec)
         time_end_middle_point = time.clock()
-#       ok,fail_count = self.in_simplex(np)
-#       assert ok
 
         #-----------------------------------------------------------------------
         # Estimate the eigenvectors of the simplex
@@ -794,10 +778,14 @@ class Samplex:
         print 'Estimating eigenvectors'
         time_begin_est_eigenvectors = time.clock()
         n_stored = self.initial_store(np, ev, eval, evec, store)
+        #store[:,n_stored] = np
+        #n_stored += 1
+        #self.compute_eval_evec(store, eval, evec, n_stored)
+        time_end_est_eigenvectors = time.clock()
+
+        n_stored = 0
         store[:,n_stored] = np
         n_stored += 1
-        self.compute_eval_evec(store, eval, evec, n_stored)
-        time_end_est_eigenvectors = time.clock()
 
         #-----------------------------------------------------------------------
         # Now we can start the random walk
@@ -815,28 +803,28 @@ class Samplex:
         q = Queue()
 
         threads = []
-        models_per_thread = ceil(nmodels / nthreads)
+        models_per_thread = int(ceil(nmodels / nthreads))
         models_over       = nthreads*models_per_thread - nmodels
-        N = 0
-        for i in range(nthreads):
-            n = int(max(0, min(models_per_thread, nmodels - N)))
-            if i < models_over:
+        id,N = 0,0
+        while id < nthreads and N < nmodels:
+            n = max(0, min(models_per_thread, nmodels - N))
+            if n > 1 and i < models_over:
                 n -= 1
-            assert n >= 0
-            if n == 0:
-                Log('Skipping thread %i. Not enough work.' % i)
-                continue
+            assert n > 0
+            print 'Thread %i gets %i' % (id,n)
             cmdq = Queue()
             ackq = Queue()
-            thr = Process(target=rwalk_burnin, args=(i, n, self, q, cmdq, ackq, np, self.twiddle, eval.copy('A'), evec.copy('A')))
+            thr = Process(target=rwalk_burnin, args=(id, n, self, q, cmdq, ackq, np, self.twiddle, eval.copy('A'), evec.copy('A')))
             #thr = Process(target=rwalk_async, args=(i, n, self, store,n_stored, q, cmdq, np,self.twiddle, window_size, eval.copy('A'), evec.copy('A')))
             threads.append([thr,cmdq,ackq])
             N += n
+            id += 1
 
         assert N == nmodels
 
-        for thr,_,_ in threads:
+        for thr,cmdq,_ in threads:
             thr.start()
+            cmdq.put(['CONT'])
 
         def drainq(q):
             try:
@@ -850,31 +838,42 @@ class Samplex:
                 cmdq.put(['WAIT'])
                 assert ackq.get() == 'OK'
 
+        def adjust_threads(cont_cmd):
+            pause_threads(threads)
+            drainq(q)
+            print 'Computing eigenvalues... [%i/%i]' % (i, window_size)
+            self.compute_eval_evec(store, eval, evec, n_stored)
+
+            t = 0
+            for _,cmdq,ackq in threads:
+                cmdq.put(['REQ TWIDDLE'])
+                t += ackq.get()
+            t /= len(threads)
+
+            print 'New twiddle', t
+            for _,cmdq,_ in threads:
+                cmdq.put(['NEW DATA', [eval.copy('A'), evec.copy('A'), t]])
+                cmdq.put([cont_cmd])
+
         time_begin_get_models = time.clock()
         time_threads = []
+        compute_eval_window = 2 * self.dof
         for i in xrange(window_size):
             k,vec = q.get()
+
             store[:, n_stored] = vec
             n_stored += 1
 
-            if (i % int(0.1*window_size + 1)) == 0:
-                pause_threads(threads)
-                drainq(q)
-                print 'Computing eigenvalues... [%i/%i]' % (i, window_size)
-                self.compute_eval_evec(store, eval, evec, n_stored)
+            if ((i+1) % compute_eval_window) == 0:
+                adjust_threads('CONT')
+                compute_eval_window = int(0.1*window_size + 1)
+            elif len(threads) < compute_eval_window:
+                threads[k][1].put(['CONT'])
 
-                for _,cmdq,_ in threads:
-                    cmdq.put(['NEW EV', [eval.copy('A'), evec.copy('A')]])
+        adjust_threads('RWALK')
 
-        pause_threads(threads)
-        drainq(q)
-        self.compute_eval_evec(store, eval, evec, n_stored)
-
-        for _,cmdq,_ in threads:
-            cmdq.put(['RWALK'])
-            cmdq.put(['NEW EV', [eval.copy('A'), evec.copy('A')]])
-
-        for i in xrange(nmodels):
+        i=0
+        while i < nmodels:
             k,vec = q.get()
             if k == 'TIME':
                 time_threads.append(vec)
@@ -885,7 +884,9 @@ class Samplex:
 
             t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
             t[1:] = vec
+            i += 1
             yield t
+
         time_end_get_models = time.clock()
 
         for _,cmdq,ackq in threads:

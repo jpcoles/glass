@@ -247,6 +247,10 @@ def package_solution(env, sol, objs, fn_package_sol = None):
             'obj,sol':  zip(objs, map(lambda x: obj_solution(x, sol), objs)),
             'tagged':  False}
 
+@command
+def fast_package_solution(env, sol, objs, fn_package_sol = None):
+    return {'sol':  sol, 'tagged':  False}
+
 def check_model(objs, ps):
     #Log('WARNING: checks disabled')
     #return

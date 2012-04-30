@@ -283,6 +283,7 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
     if only_contours or with_contours:
         kw.pop('cmap')
         over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
+        gca().set_aspect('equal')
 
     xlabel('arcsec')
     ylabel('arcsec')
@@ -719,8 +720,8 @@ def _data_error_plot(models, X,Y, **kwargs):
                 xs = _find_key(data, X)
                 ys = _find_key(data, Y)
 
-                x_label = "" #xs.label
-                y_label = "" #ys.label
+                x_label = xs.label
+                y_label = ys.label
 
                 if not objplot[obj].has_key('xs'): objplot[obj]['xs']  = xs
                 objplot[obj]['ymax']  = np.amax((objplot[obj].get('ymax', ys), ys), axis=0)
