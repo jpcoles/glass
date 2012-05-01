@@ -502,7 +502,7 @@ class Samplex:
         # Actual random walk
         #-----------------------------------------------------------------------
         time_begin_get_models = time.clock()
-        adjust_threads('RWALK')
+        adjust_threads(burnin_len, 'RWALK')
         i=0
         while i < nmodels:
             k,vec = q.get()
