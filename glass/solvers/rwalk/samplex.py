@@ -71,7 +71,7 @@ class SamplexSolution:
         self.lhv = None
         self.vertex = None
 
-def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
+def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
 
     S   = zeros(samplex.eqs.shape[0])
     S0  = zeros(samplex.eqs.shape[0])
@@ -97,7 +97,6 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
     while True:
         j+= 1
 
-        state = 'B'
 
         done = False
         try:
@@ -124,16 +123,15 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
 
         vec[:] = dot(evec.T, vec)
 
-        while True:
-            accepted = 0
-            rejected = 0
+        accepted = False
+        while not accepted:
+            Naccepted = 0
+            Nrejected = 0
 
-            accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+            Naccepted,Nrejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, Naccepted,Nrejected)
 
-            r = accepted / (accepted + rejected)
-            print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs' % (state, id, i, 100*r, accepted, rejected, twiddle, t)
-            #if len(state) == 1:
-                #state += 'R'
+            r = Naccepted / (Naccepted + Nrejected)
+            msg = 'THREAD %3i]  %i/%i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs' % (id, i, burnin_len, 100*r, Naccepted, Nrejected, twiddle, t)
 
             #-------------------------------------------------------------------
             # If the actual acceptance rate was OK then leave this loop,
@@ -144,11 +142,15 @@ def rwalk_burnin(id, nmodels, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
             # throw away the results if we are not so close. This allows for
             # a larger tolerance.
             #-------------------------------------------------------------------
-            if abs(r - samplex.accept_rate) >= samplex.accept_rate_tol:
+            accepted =  abs(r - samplex.accept_rate) < samplex.accept_rate_tol
+
+            state = 'B'
+            if not accepted:
                 twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
                 twiddle = max(1e-14,twiddle)
-            else:
-                break
+                state = 'R' + state
+
+            print ' '*36, '% 2s %s' % (state, msg)
 
         vec[:] = dot(evec, vec)
 
@@ -221,15 +223,16 @@ class Samplex:
 
     def __init__(self, **kw):
 
-        ncols                = kw.get('ncols', None)
-        nthreads             = kw.get('nthreads', 1)
-        rngseed              = kw.get('rngseed',  None)
-        self.stride          = kw.get('stride', 1)
-        self.accept_rate     = kw.get('acceptance rate', 0.25)
-        self.accept_rate_tol = kw.get('acceptance tol', 0.05)
-        self.redo_factor     = kw.get('redo factor', 1)
-        self.redo_exp        = kw.get('redo exp', 2)
-        self.twiddle         = kw.get('twiddle', 2.4)
+        ncols                   = kw.get('ncols', None)
+        nthreads                = kw.get('nthreads', 1)
+        rngseed                 = kw.get('rngseed',  None)
+        self.stride             = kw.get('stride', 1)
+        self.accept_rate        = kw.get('acceptance rate', 0.25)
+        self.accept_rate_tol    = kw.get('acceptance tol', 0.05)
+        self.redo_factor        = kw.get('redo factor', 1)
+        self.redo_exp           = kw.get('redo exp', 2)
+        self.twiddle            = kw.get('twiddle', 2.4)
+        self.burnin_factor = kw.get('burnin factor', 10)
 
         assert ncols is not None
         self.nVars = ncols
@@ -316,7 +319,7 @@ class Samplex:
         dim = self.nVars
         dof = dim - self.eq_count
 
-        window_size = max(10, int(10 * dof))
+        burnin_len  = max(10, int(self.burnin_factor * dof))
         redo        = max(100,  int((dof ** self.redo_exp) * self.redo_factor))
 
         nmodels = nsolutions
@@ -332,7 +335,7 @@ class Samplex:
         accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
-        store = zeros((dim, 1+window_size), order='Fortran', dtype=numpy.float64)
+        store = zeros((dim, 1+burnin_len), order='Fortran', dtype=numpy.float64)
         np    = zeros(dim, order='C', dtype=numpy.float64)
         eval  = zeros(dim, order='C', dtype=numpy.float64)
         evec  = zeros((dim,dim), order='F', dtype=numpy.float64)
@@ -363,7 +366,7 @@ class Samplex:
         Log( "dof = %s" % self.dof)
         Log( "sample distance = max(100,%s * %s^%s) = %s" % (self.redo_factor, self.dof, self.redo_exp, redo) )
         Log( "starting twiddle = %s" % self.twiddle )
-        Log( "burn-in size = %s" % window_size )
+        Log( "burn-in length = %s" % burnin_len )
 
         time_begin_next = time.clock()
 
@@ -433,7 +436,7 @@ class Samplex:
             print 'Thread %i gets %i' % (id,n)
             cmdq = Queue()
             ackq = Queue()
-            thr = Process(target=rwalk_burnin, args=(id, n, self, q, cmdq, ackq, np, self.twiddle, eval.copy('A'), evec.copy('A')))
+            thr = Process(target=rwalk_burnin, args=(id, n, int(ceil(burnin_len/nthreads)), self, q, cmdq, ackq, np, self.twiddle, eval.copy('A'), evec.copy('A')))
             threads.append([thr,cmdq,ackq])
             N += n
             id += 1
@@ -459,7 +462,7 @@ class Samplex:
         def adjust_threads(cont_cmd):
             pause_threads(threads)
             drainq(q)
-            print 'Computing eigenvalues... [%i/%i]' % (i, window_size)
+            print 'Computing eigenvalues... [%i/%i]' % (i, burnin_len)
             self.compute_eval_evec(store, eval, evec, n_stored)
 
             # new twiddle <-- average twiddle
@@ -479,7 +482,7 @@ class Samplex:
         #-----------------------------------------------------------------------
         time_begin_burnin = time.clock()
         compute_eval_window = 2 * self.dof
-        for i in xrange(window_size):
+        for i in xrange(burnin_len):
             k,vec = q.get()
 
             store[:, n_stored] = vec
@@ -487,7 +490,7 @@ class Samplex:
 
             if ((i+1) % compute_eval_window) == 0:
                 adjust_threads('CONT')
-                compute_eval_window = int(0.1*window_size + 1)
+                compute_eval_window = int(0.1*burnin_len + 1)
             elif len(threads) < compute_eval_window:
                 threads[k][1].put(['CONT'])
         time_end_burnin = time.clock()
@@ -591,7 +594,7 @@ class Samplex:
 
         return dist
 
-    def compute_eval_evec(self, store, eval, evec, n_stored): #, window_size):
+    def compute_eval_evec(self, store, eval, evec, n_stored):
         eval0,evec0 = eigh(cov(store[:,  :n_stored]))
         avg = store[:,  :n_stored].mean(axis=1)
         nzero = 0
@@ -610,8 +613,9 @@ class Samplex:
         #print 'eval(inside)', eval
         if nzero != self.eq_count:
             print '-'*80
-            Log( 'WARNING:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
+            Log( 'ERROR:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
             print '-'*80
+            sys.exit(0)
 
     def project(self,x):
         if self.Apinv is not None:
@@ -632,20 +636,13 @@ class Samplex:
 
         for eq,a in self.eq_list:
             l = (a[1:]).tolist()
-            if eq == 'eq':
-                l.append(0)
-                lpsolve('add_constraint', lp, l, EQ, -a[0])
-            if eq == 'leq':
-                l.append(1)
-                lpsolve('add_constraint', lp, l, LE, -a[0])
-            if eq == 'geq':
-                l.append(1)
-                lpsolve('add_constraint', lp, l, GE, -a[0])
+            if eq ==  'eq': l.append(0); lpsolve('add_constraint', lp, l, EQ, -a[0])
+            if eq == 'leq': l.append(1); lpsolve('add_constraint', lp, l, LE, -a[0])
+            if eq == 'geq': l.append(1); lpsolve('add_constraint', lp, l, GE, -a[0])
 
         for i in range(self.nVars):
             q = zeros(self.nVars+1)
-            q[i] = -1
-            q[-1] = 1
+            q[[i,-1]] = -1, 1
             lpsolve('add_constraint', lp, q.tolist(), LE, 0)
 
         o = zeros(self.nVars+1)
@@ -668,10 +665,6 @@ class Samplex:
         del lp
 
         v1 = v1[:-1] # Remove the temporary variable that tracks the distance from the simplex boundary
-        #nvars = len(vars)
-        #v1 = empty(nvars)
-        #v1[1:nvars+1] = vars
-        #v1[0] = objv
         v1[abs(v1) < 1e-14] = 0
         assert all(v1 >= 0), v1[v1 < 0]
 

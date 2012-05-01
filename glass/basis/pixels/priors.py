@@ -596,7 +596,7 @@ def L1parity(o, leq, eq, geq):
 @object_prior
 def magnification(o, leq, eq, geq):
 
-    Log( "Magnification" )
+    Log( indent + "Magnification" )
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
@@ -617,9 +617,7 @@ def magnification(o, leq, eq, geq):
             rows[4,0] = [-eps,   eps,   eps][parity] * src.zcap
             rows[5,0] = [-eps,   eps,   eps][parity] * src.zcap
 
-            print "42", img.angle, k1, k2, eps
             xy,xx,yy = maginv(img.pos - o.basis.ploc, img.angle, o.basis.cell_size)
-            #print "MAG", xx, yy, xy
             if parity == MINIMUM:
                 rows[0, pix_start:pix_end] = -k1*xx + yy
                 rows[1, pix_start:pix_end] = -k2*yy + xx
@@ -627,7 +625,6 @@ def magnification(o, leq, eq, geq):
                 rows[3, pix_start:pix_end] =    -xy + xx*eps
                 rows[4, pix_start:pix_end] =     xy + yy*eps
                 rows[5, pix_start:pix_end] =    -xy + yy*eps
-                print "43", rows[0, pix_start], img.pos-o.basis.ploc[0], xx[0], yy[0], xy[0], src.zcap
 
             if parity == SADDLE:
                 rows[0, pix_start:pix_end] = -k1*xx - yy

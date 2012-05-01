@@ -77,6 +77,7 @@ def lpsolve(f, *args):
             if r == g.GLP_NOFEAS: return INFEASIBLE
             if r == g.GLP_UNBND:  return UNBOUNDED
             if r == g.GLP_UNDEF:  return DEGENERATE
+            assert 0
         else:
             return r
 
