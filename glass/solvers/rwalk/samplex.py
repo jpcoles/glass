@@ -459,7 +459,7 @@ class Samplex:
                 cmdq.put(['WAIT'])
                 assert ackq.get() == 'OK'
 
-        def adjust_threads(cont_cmd):
+        def adjust_threads(i, cont_cmd):
             pause_threads(threads)
             drainq(q)
             print 'Computing eigenvalues... [%i/%i]' % (i, burnin_len)
@@ -492,7 +492,7 @@ class Samplex:
 
             if j == compute_eval_window:
                 j = 0
-                adjust_threads('CONT')
+                adjust_threads(i+1,'CONT')
                 compute_eval_window = int(0.1*burnin_len + 1)
             elif len(threads) < compute_eval_window:
                 threads[k][1].put(['CONT'])
