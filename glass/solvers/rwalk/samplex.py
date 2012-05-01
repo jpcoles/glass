@@ -422,13 +422,13 @@ class Samplex:
         # Launch the threads
         #-----------------------------------------------------------------------
         threads = []
-        models_per_thread = int(ceil(nmodels / nthreads))
-        models_over       = nthreads*models_per_thread - nmodels
+        models_per_thread = nmodels // nthreads
+        models_under      = nmodels - nthreads*models_per_thread
         id,N = 0,0
         while id < nthreads and N < nmodels:
-            n = max(0, min(models_per_thread, nmodels - N))
-            if n > 1 and i < models_over:
-                n -= 1
+            n = models_per_thread
+            if id < models_under:
+                n += 1
             assert n > 0
             print 'Thread %i gets %i' % (id,n)
             cmdq = Queue()
