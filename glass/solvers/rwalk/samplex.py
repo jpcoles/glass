@@ -482,13 +482,16 @@ class Samplex:
         #-----------------------------------------------------------------------
         time_begin_burnin = time.clock()
         compute_eval_window = 2 * self.dof
+        j = 0
         for i in xrange(burnin_len):
+            j += 1
             k,vec = q.get()
 
             store[:, n_stored] = vec
             n_stored += 1
 
-            if ((i+1) % compute_eval_window) == 0:
+            if j == compute_eval_window:
+                j = 0
                 adjust_threads('CONT')
                 compute_eval_window = int(0.1*burnin_len + 1)
             elif len(threads) < compute_eval_window:
