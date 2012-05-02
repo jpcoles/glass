@@ -31,21 +31,21 @@ extra_compile_args += ['-msse2']
 #extra_link_args = ['-lgomp']
 
 incdir = os.path.join(get_python_lib(plat_specific=1), 'numpy/core/include')
-csamplex = Extension('glass.solvers.samplex.csamplex',
-                     sources = ['glass/solvers/samplex/csamplex_omp.c'],
-		     include_dirs=[incdir],
-             undef_macros=['DEBUG'],
-             libraries=libraries,
-             extra_compile_args=extra_compile_args,
-             extra_link_args=extra_link_args)
-
-csamplexsimple = Extension('glass.solvers.samplexsimple.csamplex',
-                     sources = ['glass/solvers/samplexsimple/csamplex_omp.c'],
-		     include_dirs=[incdir],
-             undef_macros=['DEBUG'],
-             libraries=libraries,
-             extra_compile_args=extra_compile_args,
-             extra_link_args=extra_link_args)
+#csamplex = Extension('glass.solvers.samplex.csamplex',
+#                     sources = ['glass/solvers/samplex/csamplex_omp.c'],
+#		     include_dirs=[incdir],
+#             undef_macros=['DEBUG'],
+#             libraries=libraries,
+#             extra_compile_args=extra_compile_args,
+#             extra_link_args=extra_link_args)
+#
+#csamplexsimple = Extension('glass.solvers.samplexsimple.csamplex',
+#                     sources = ['glass/solvers/samplexsimple/csamplex_omp.c'],
+#		     include_dirs=[incdir],
+#             undef_macros=['DEBUG'],
+#             libraries=libraries,
+#             extra_compile_args=extra_compile_args,
+#             extra_link_args=extra_link_args)
 
 crwalk = Extension('glass.solvers.rwalk.csamplex',
                      sources = ['glass/solvers/rwalk/csamplex_omp.c', 'glass/solvers/rwalk/WELL44497a.c'],
@@ -62,10 +62,8 @@ setup(name = 'Glass',
       description = 'Gravitational Lensing and Something Something',
       package_dir = {'glass': 'glass'},
       packages = ['', 'glass', 
-                  'glass.solvers', 'glass.solvers.samplex', 'glass.solvers.lpsolve', 
-                  'glass.solvers.samplexsimple',
-                  'glass.solvers.rwalk',
+                  'glass.solvers', 'glass.solvers.rwalk',
                   'glass.basis', 'glass.basis.pixels', 'glass.basis.bessel',
                   'glass.massmodel', 'glass.misc'],
-      ext_modules = [csamplex, csamplexsimple, crwalk])
+      ext_modules = [crwalk])
 
