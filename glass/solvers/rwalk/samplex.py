@@ -128,7 +128,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
             Naccepted = 0
             Nrejected = 0
 
-            Naccepted,Nrejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, Naccepted,Nrejected)
+            Naccepted,Nrejected,t = csamplex.rwalk(samplex, eqs, vec,eval,S,S0, twiddle, Naccepted,Nrejected)
 
             r = Naccepted / (Naccepted + Nrejected)
             msg = 'THREAD %3i]  %i/%i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs' % (id, i, burnin_len, 100*r, Naccepted, Nrejected, twiddle, t)
@@ -191,7 +191,6 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
     print ' '*39, 'STARTING rwalk THREAD %i [this thread makes %i models]' % (id,nmodels)
 
     eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
-    I = eye(evec.shape[0]).copy('F')
 
     csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
 
@@ -204,7 +203,7 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
         done = False
 
         vec[:] = dot(evec.T, vec)
-        accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,I,S,S0, twiddle, accepted,rejected)
+        accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,S,S0, twiddle, accepted,rejected)
         vec[:] = dot(evec, vec)
 
         r = accepted / (accepted + rejected)
@@ -250,6 +249,8 @@ class Samplex:
 
         self.eq_list = []
         self.ineqs = []
+
+        self.avg0 = None
 
 
     def start(self):
@@ -332,6 +333,8 @@ class Samplex:
         self.dof = dof
         self.redo = redo
 
+        self.burnin_len = burnin_len
+
         accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
@@ -402,8 +405,32 @@ class Samplex:
         ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
         assert ok
 
+        self.avg0 = np
+
+#       eqs  = self.eqs.copy('A')
+#       eqs[:,1:] = dot(self.eqs[:,1:], evec)
+
+#       print np
+
+#       S = zeros(self.eqs.shape[0])
+#       np[:] = dot(evec.T, np)
+#       np0 = np.copy()
+#       steps = np.copy()
+#       for q in range(100):
+#           csamplex.refine_center(self, eqs, np, ev, S, steps)
+#           d = np - np0
+#           #print d
+#           print norm(d)
+#           #print
+#           np0 = np.copy()
+
+#       #assert 0
+#       np[:] = dot(evec, np)
+
+
         store[:,0] = np
         n_stored = 1
+
 
         #-----------------------------------------------------------------------
         # Estimate the eigenvectors of the simplex
@@ -598,8 +625,17 @@ class Samplex:
         return dist
 
     def compute_eval_evec(self, store, eval, evec, n_stored):
-        eval0,evec0 = eigh(cov(store[:,  :n_stored]))
-        avg = store[:,  :n_stored].mean(axis=1)
+
+        #s = max(0, n_stored - ceil(0.5*self.burnin_len))
+        s = 0
+
+        eval0,evec0 = eigh(cov(store[:,  s:n_stored]))
+        avg = store[:,  s:n_stored].mean(axis=1)
+
+        if self.avg0 is not None:
+            print 'average store delta', norm(avg-self.avg0)
+        self.avg0 = avg.copy()
+
         nzero = 0
         for r in range(eval.shape[0]):
             if eval0[r] < 1e-12:

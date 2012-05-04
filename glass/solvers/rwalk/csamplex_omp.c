@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include <assert.h>
 
 #include <time.h>
@@ -57,12 +58,14 @@ typedef struct
 } matrix_t __attribute__ ((aligned(8)));
 
 PyObject *samplex_rwalk(PyObject *self, PyObject *args);
+PyObject *samplex_refine_center(PyObject *self, PyObject *args);
 PyObject *set_rwalk_seed(PyObject *self, PyObject *args);
 
 static PyMethodDef csamplex_methods[] = 
 {
     {"rwalk", samplex_rwalk, METH_VARARGS, "rwalk"},
     {"set_rwalk_seed", set_rwalk_seed, METH_O, "set_rwalk_seed"},
+    {"refine_center", samplex_refine_center, METH_VARARGS, "refine_center"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -139,7 +142,7 @@ void normal(double stddev, double mean, double *r0, double *r1)
 PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 {
     int32_t i,j;
-    matrix_t evec, eqs;
+    matrix_t eqs;
 
     DBG(3) fprintf(stderr, "5> pivot()\n");
 
@@ -149,16 +152,12 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
 
     PyObject *po_vec;
     PyObject *po_eval;
-    PyObject *po_evec;
     PyObject *po_eqs;
     PyObject *po_S;
     PyObject *po_S0;
 
-    if (!PyArg_ParseTuple(args, "OOOOOOOdll", &self, &po_eqs, &po_vec, &po_eval, &po_evec, &po_S, &po_S0, &twiddle, &accepted, &rejected))
+    if (!PyArg_ParseTuple(args, "OOOOOOdll", &self, &po_eqs, &po_vec, &po_eval, &po_S, &po_S0, &twiddle, &accepted, &rejected))
         return NULL;
-
-    assert(PyArray_CHKFLAGS(po_evec, NPY_F_CONTIGUOUS));
-    //assert(PyArray_CHKFLAGS(po_eval, NPY_C));  // One dimensional, so we don't need to check
 
           long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
     const long dim = PyInt_AsLong(PyObject_GetAttrString(self, "dim"));
@@ -173,10 +172,6 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
            * restrict S    = (dble_t * restrict)PyArray_DATA(po_S),
            * restrict S0   = (dble_t * restrict)PyArray_DATA(po_S0);
 
-    /* Remember, this is in C order */
-    evec.data = (dble_t * restrict)PyArray_DATA(po_evec);
-    evec.rows = PyArray_DIM(po_evec,0);
-    evec.cols = PyArray_DIM(po_evec,1);
 
     double * data_ptr;
     eqs.data = (double * restrict)PyArray_DATA(po_eqs);
@@ -274,3 +269,138 @@ reject:
     return Py_BuildValue("llf", accepted, rejected, redo_etime-redo_stime);
     return PyInt_FromLong(0);
 }
+
+double distance_to_plane(int dir, long dir_index, 
+                         dble_t * restrict S, 
+                         const long leq_offs, const long leq_count, 
+                         const long geq_offs, 
+                         matrix_t *eqs)
+{
+    long i;
+    double step;
+    double min_step = DBL_MAX;
+    double a;
+
+    long offs = leq_offs * eqs->cols + dir_index + 1;
+    double *data_ptr = eqs->data + offs;
+
+#if 0
+    // equalities are ignored
+    for (i=eq_offs; accept && i < (eq_offs + eq_count); i++, data_ptr += eqs.cols)
+    {
+        S0[i] = S[i] + (step * *data_ptr);
+        accept = fabs(S0[i]) < 1e-8;
+    }
+#endif
+
+    for (i=leq_offs; i < (leq_offs + leq_count); i++, data_ptr += eqs->cols)
+    {
+        a = dir * *data_ptr;
+        if (a > 0)
+        {
+            step = -S[i] / a;
+            if (step < min_step) min_step = step;
+        }
+    }
+
+    for (i=geq_offs; i < eqs->rows; i++, data_ptr += eqs->cols)
+    {
+        a = dir * *data_ptr;
+        if (a < 0)
+        {
+            step = -S[i] / a;
+            if (step < min_step) min_step = step;
+        }
+    }
+
+    if (min_step <= 0)
+        fprintf(stderr, "min_step %e\n", min_step);
+
+    assert(min_step > 0);
+    assert(min_step != DBL_MAX);
+
+    return min_step;
+}
+
+PyObject *samplex_refine_center(PyObject *self, PyObject *args)
+{
+    int32_t i,j;
+    matrix_t eqs;
+
+    PyObject *po_vec;
+    PyObject *po_eval;
+    PyObject *po_eqs;
+    PyObject *po_S;
+    PyObject *po_steps;
+
+    if (!PyArg_ParseTuple(args, "OOOOOO", &self, &po_eqs, &po_vec, &po_eval, &po_S, &po_steps))
+        return NULL;
+
+          long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
+    const long dim = PyInt_AsLong(PyObject_GetAttrString(self, "dim"));
+    const long dof = PyInt_AsLong(PyObject_GetAttrString(self, "dof"));
+
+    const long  eq_count = PyInt_AsLong(PyObject_GetAttrString(self, "eq_count"));
+    const long geq_count = PyInt_AsLong(PyObject_GetAttrString(self, "geq_count"));
+    const long leq_count = PyInt_AsLong(PyObject_GetAttrString(self, "leq_count"));
+
+    dble_t * restrict vec   = (dble_t * restrict)PyArray_DATA(po_vec), 
+           * restrict eval  = (dble_t * restrict)PyArray_DATA(po_eval),
+           * restrict S     = (dble_t * restrict)PyArray_DATA(po_S),
+           * restrict steps = (dble_t * restrict)PyArray_DATA(po_steps);
+
+    eqs.data = (double * restrict)PyArray_DATA(po_eqs);
+    eqs.rows = PyArray_DIM(po_eqs,0);
+    eqs.cols = PyArray_DIM(po_eqs,1);
+
+    const long eq_offs = 0;
+    const long leq_offs = eq_offs + eq_count;
+    const long geq_offs = leq_offs + leq_count;
+
+    double redo_etime, redo_stime;
+
+    double step;
+    long walk_step;
+    long dir_index;
+
+    dir_index = -1;
+    redo_stime = CPUTIME;
+    for (walk_step = 0; walk_step < dim; walk_step++)
+    {
+
+        for (i=0; i < eqs.rows; i++)
+        {
+            long offs = i * eqs.cols;
+
+            S[i] = eqs.data[offs++];
+            for (j=0; j < dim; j++)
+                S[i] += vec[j] * eqs.data[offs++];
+        }
+
+        //fprintf(stderr, "walk_step %ld\n", walk_step);
+        for (j = 0; j < dim; j++)
+        {
+            if (fabs(eval[j]) < 1e-5) continue;
+            assert(1-fabs(eval[j]) < 1e-5);
+
+            double step_p = distance_to_plane(+1, j, S, leq_offs, leq_count, geq_offs, &eqs);
+            double step_n = distance_to_plane(-1, j, S, leq_offs, leq_count, geq_offs, &eqs);
+
+            step = (step_p-step_n)/2;
+            steps[j] = step / dof;
+
+            vec[j] += steps[j];
+        }
+
+//      for (i=0; i < eqs.rows; i++)
+//      {
+//          long offs = i * eqs.cols + 1;
+//          for (j=0; j < dim; j++)
+//              S[i] += steps[j] * eqs.data[offs++];
+//      }
+    }
+    redo_etime = CPUTIME;
+
+    return PyInt_FromLong(0);
+}
+
