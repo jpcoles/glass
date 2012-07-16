@@ -699,6 +699,7 @@ def _data_error_plot(models, X,Y, **kwargs):
     hilite_color = kwargs.get('hilite_color', 'm')
     yscale = kwargs.get('yscale', 'log')
     xscale = kwargs.get('xscale', 'linear')
+    connect = kwargs.get('connect_points', True)
 
     normal_kw   = {'zorder':0,    'drawstyle':'steps', 'alpha':1.0}
     hilite_kw   = {'zorder':1000, 'drawstyle':'steps', 'alpha':1.0, 'lw':4, 'ls':'--'}
@@ -745,12 +746,17 @@ def _data_error_plot(models, X,Y, **kwargs):
             #xmin, xmax = min(xmin, amin(data[X])), max(xmax, amax(data[X]))
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
+    if connect:
+        ls = '-'
+    else:
+        ls = 'None'
+
     for k,v in objplot.iteritems():
         avg = v['ysum'] / (mi+1)
         #print len(v['xs'])
         #print len(avg)
         #assert 0
-        errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color='k', marker='.')
+        errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color='k', marker='.', ls=ls)
         pl.yscale(yscale)
         pl.xscale(xscale)
 
