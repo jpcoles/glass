@@ -243,7 +243,7 @@ def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels
     return kappa_plot(model, obj_index, with_contours, only_contours, clevels)
 
 @command
-def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
+def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True, vmin=-1,vmax=2):
     obj, data = model['obj,data'][obj_index]
 
 #   print gca()
@@ -270,7 +270,7 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
 
     #grid[grid >= 1] = 0
 
-    kw = default_kw(R, vmin=-1, vmax=2)
+    kw = default_kw(R, vmin, vmax)
 
     if not only_contours:
         #matshow(log10(grid), **kw)
