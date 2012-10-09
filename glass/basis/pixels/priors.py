@@ -1704,7 +1704,7 @@ def intersect(A,B):
 @object_prior
 def min_kappa_leier_grid(o, leq, eq, geq):
 
-    assert 0
+    #assert 0
 
     g = o.prior_options.get('minkappa Leier grid')
 
