@@ -11,7 +11,7 @@ from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, log
                   hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
                   suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
                   text, xlim, ylim
-from itertools import islice, count, izip, product
+from itertools import count, izip, product
 import matplotlib
 import matplotlib.cm as cm  
 from matplotlib import rc
@@ -61,7 +61,7 @@ def style_iterator():
     else:
         return _style_iterator()
 
-def default_kw(R, cmap=cm.gist_stern, vmin=-2, vmax=0):
+def default_kw(R, vmin=-2, vmax=0, cmap=cm.gist_stern):
     kw = {}
     kw['extent'] = [-R,R,-R,R]
     kw['interpolation'] = 'nearest'
@@ -113,13 +113,16 @@ def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=N
 #   else:
 #       obj = model
 
+    oxlim, oylim = xlim(), ylim()
+
     rmax = 0
     si = style_iterator()
     for i,src in enumerate(obj.sources):
+        lw,ls,c = si.next()
+
         if src_index is not None and i not in src_index: continue
         xs,ys,cs = [], [], []
 
-        lw,ls,c = si.next()
         for img in src.images:
             #print img.pos
             if not with_maximum and img.parity_name == 'max': continue
@@ -143,6 +146,8 @@ def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=N
                     rmax = amax([r,rmax])
                     if with_guide:
                         a.add_artist(Circle((0,0),r, fill=False))
+
+    xlim(oxlim); ylim(oylim)
 
     if tight and rmax > 0:
         pl.gca().set_xlim(-rmax, rmax)
@@ -177,6 +182,8 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
 
     if models is None: models = env.models
 
+    oxlim, oylim = xlim(), ylim()
+
     def plot(model, si, hilite=False):
         obj, data = model
         xs = []
@@ -190,7 +197,8 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
         if hilite:
             over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='x', alpha=1.0)
         else:
-            over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
+            scatter(xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
+            #over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
 
     if isinstance(models, dict):
         si = style_iterator()
@@ -200,6 +208,8 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
             for m in model['obj,data']:
                 si = style_iterator()
                 plot(m, si, mi==hilite_model)
+
+    xlim(oxlim); ylim(oylim)
 
     #if isinstance(models, (list,tuple)) and len(models)>0 and isinstance(models[0], (list,tuple)):
     #else:
@@ -261,6 +271,7 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
     R = obj.basis.mapextent
 
     grid = obj.basis.kappa_grid(data)
+    #grid = obj.basis._to_grid(data['kappa'],1)
     grid = log10(grid.copy() + 1e-4)
 #   grid2 = grid.copy() 
 #   for i in xrange(grid.shape[0]):
@@ -270,7 +281,7 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
 
     #grid[grid >= 1] = 0
 
-    kw = default_kw(R, vmin, vmax)
+    kw = default_kw(R, vmin=vmin, vmax=vmax)
 
     if not only_contours:
         #matshow(log10(grid), **kw)
@@ -365,15 +376,19 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
 
     def plot_one(obj,data,src_index,g,lev,kw):
         matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
-        loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
+        #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
         if not only_contours:
             kw.update({'zorder':-100})
             matshow(log10(g), **kw)
             if with_colorbar: glscolorbar()
         kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
         if clevels:
+            loglev=clevels
+            #loglev = logspace(1, log(g.ptp()), clevels, base=math.e) + amin(g)
+            #loglev = 1 / logspace(1/ log(amax(g)-amin(g)), 1, clevels, base=math.e) + amin(g)
+            #loglev = 1 / logspace(1/ log10(amax(g)-amin(g)), 1, clevels) + amin(g)
             kw.update({'zorder':-1000})
-            contour(g, clevels, **kw)
+            contour(g, loglev, **kw)
         if lev:
             kw.update({'zorder':1000})
             kw.update({'colors': 'k', 'linewidths':2, 'cmap':None})
@@ -382,19 +397,20 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
 
     for obj,data in model['obj,data'][obj_slice]:
         lev = obj.basis.arrival_contour_levels(data)
-        src_index = src_slice
         levels=None
-        for src_index,g \
-            in izip(islice(count(), src_slice.start, src_slice.stop, src_slice.step), 
-                    obj.basis.arrival_grid(data)):
+        arrival_grid = obj.basis.arrival_grid(data)
+        for i,src in enumerate(obj.sources[src_slice]):
 
-            if lev: levels = lev[src_index]
+            if lev: levels = lev[src.index]
+            g = arrival_grid[src.index]
 
             S = obj.basis.subdivision
             R = obj.basis.mapextent
             kw = default_kw(R)
 
-            plot_one(obj,data,src_index,g,levels,kw)
+            plot_one(obj,data,src.index,g,levels,kw)
+            xlim(-obj.basis.mapextent, obj.basis.mapextent)
+            ylim(-obj.basis.mapextent, obj.basis.mapextent)
 
     gca().set_aspect('equal')
     xlabel('arcsec')
@@ -503,83 +519,6 @@ def inout_plot(env, model, obj_index, src_index):
     deriv(model, obj_index, src_index, arrival, 0, R)
     deriv(model, obj_index, src_index, arrival, 1, R)
 
-def _data_plot(models, X,Y, x_label, y_label, **kwargs):
-    assert 0, "DEPRECATED"
-    with_legend = False
-    use = [0,0,0]
-    if models is None:
-        models = env.models
-    elif not hasattr(models, '__getslice__'):
-        models = [models]
-
-
-    every = kwargs.get('every', 1)
-    plotf = kwargs.get('plotf', loglog)
-    mark_images = kwargs.get('mark_images', True)
-    hilite_model = kwargs.get('hilite_model', None)
-    hilite_color = kwargs.get('hilite_color', 'y')
-
-    normal_kw   = {'zorder':0, 'drawstyle':'steps-pre', 'alpha':0.5}
-    hilite_kw   = {'zorder':1000, 'drawstyle':'steps-pre', 'alpha':1.0, 'lw':4}
-    accepted_kw = {'zorder':500,  'drawstyle':'steps-pre', 'alpha':0.5}
-
-    convert = (lambda x: x) if mark_images == 'arcsec' \
-              else (lambda x: Arcsec_to_Kpc([obj,data], x))
-
-    normal = []
-    hilite = []
-    accepted = []
-    imgs = {}
-    xmin, xmax = inf, -inf
-    ymin, ymax = inf, -inf
-    for mi,m in enumerate(models[::every]):
-        for [obj, data] in m['obj,data']:
-
-            if not data.has_key(X): 
-                print "Missing information for object %s with key %s. Skipping plot." % (obj.name,X)
-                continue
-            if not data.has_key(Y): 
-                print "Missing information for object %s with %s. Skipping plot." % (obj.name,Y)
-                continue
-
-            si = m.get('accepted', 2)
-            use[si] = 1
-
-            s = _styles[si]
-
-            #xmin, xmax = min(xmin, amin(data[X])), max(xmax, amax(data[X]))
-            #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
-
-            if hilite_model == mi:
-                hilite += [data[X], data[Y], hilite_color + s['ls']]
-            elif si == 1:
-                accepted += [data[X], data[Y], s['c'] + s['ls']]
-            else:
-                normal += [data[X], data[Y], s['c'] + s['ls']]
-
-            if mark_images:
-                for i,src in enumerate(obj.sources):
-                    for img in src.images:
-                        imgs[convert(abs(img.pos))] = 0
-
-    if normal:   plotf(*normal, **normal_kw)
-    if hilite:   plotf(*hilite, **hilite_kw)
-    if accepted: plotf(*accepted, **accepted_kw)
-
-    for x in imgs.iterkeys():
-        axvline(x, c=system_color(0), ls='-', zorder=-2, alpha=0.5)
-
-    if use[0] or use[1]:
-        lines  = [s['line']  for s,u in zip(_styles, use) if u]
-        labels = [s['label'] for s,u in zip(_styles, use) if u]
-        legend(lines, labels)
-
-    #axis('scaled')
-    xlabel(x_label)
-    ylabel(y_label)
-    #xlim(xmin, xmax)
-    #ylim(0, ymax)
-
 def _find_key(xs, key):
     if hasattr(key, '__iter__'):
         for k in key[:-1]:
@@ -627,11 +566,18 @@ def _data_plot2(models, X,Y, **kwargs):
         for [obj, data] in m['obj,data']:
 
             try:
-                xs = _find_key(data, X)
-                ys = _find_key(data, Y)
 
-                x_label = xs.label
-                y_label = ys.label
+                x_units, x_label = X
+                y_units, y_label = Y
+
+                xs = data[x_units]
+                ys = data[y_units]
+
+                #xs = _find_key(data, X)
+                #ys = _find_key(data, Y)
+
+                #x_label = 
+                #y_label = ys.label
 
                 #xsl = [0.] + xs.tolist()
                 #ysl = [ys[0]] + ys.tolist()
@@ -684,24 +630,37 @@ def _data_plot2(models, X,Y, **kwargs):
     xlim(xmin=xlim()[0] - 0.01*(xlim()[1] - xlim()[0]))
     #ylim(0, ymax)
 
+def _axis_label(data, units):
+    label = '%s' % data.symbol
+    if units is not None: label += ' (%s)' % data.label(units)
+    return label
+
 def _data_error_plot(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
 
+    if isinstance(X, basestring): X = [X,None]
+    if isinstance(Y, basestring): Y = [Y,None]
+
+    x_prop, x_units = X
+    y_prop, y_units = Y
+
     x_label = None
     y_label = None
 
-    every = kwargs.get('every', 1)
-    upto = kwargs.get('upto', len(models))
-    plotf = kwargs.get('plotf', semilogy)
-    mark_images = kwargs.get('mark_images', True)
-    hilite_model = kwargs.get('hilite_model', None)
-    hilite_color = kwargs.get('hilite_color', 'm')
-    yscale = kwargs.get('yscale', 'log')
-    xscale = kwargs.get('xscale', 'linear')
-    connect = kwargs.get('connect_points', True)
-    color = kwargs.get('color', 'k')
-    marker = kwargs.get('marker', '.')
+
+    every = kwargs.pop('every', 1)
+    upto = kwargs.pop('upto', len(models))
+    plotf = kwargs.pop('plotf', semilogy)
+    mark_images = kwargs.pop('mark_images', True)
+    hilite_model = kwargs.pop('hilite_model', None)
+    hilite_color = kwargs.pop('hilite_color', 'm')
+    yscale = kwargs.pop('yscale', 'log')
+    xscale = kwargs.pop('xscale', 'linear')
+
+    kwargs.setdefault('color', 'k')
+    kwargs.setdefault('marker', '.')
+    kwargs.setdefault('ls', '-')
 
     normal_kw   = {'zorder':0,    'drawstyle':'steps', 'alpha':1.0}
     hilite_kw   = {'zorder':1000, 'drawstyle':'steps', 'alpha':1.0, 'lw':4, 'ls':'--'}
@@ -716,31 +675,43 @@ def _data_error_plot(models, X,Y, **kwargs):
     ymin, ymax = inf, -inf
 
     objplot = defaultdict(dict)
-    for mi,m in enumerate(models[:upto:every]):
+    for mi in xrange(0,upto,every):
+        m = models[mi]
+
+        si = m.get('accepted', 2)
+        tag = ''
+        if si==False: tag = 'rejected'
+        if si==True: tag = 'accepted'
+
         for [obj, data] in m['obj,data']:
 
             try:
-                xs = _find_key(data, X)
-                ys = _find_key(data, Y)
+                xs = data[x_prop][x_units]
+                ys = data[y_prop][y_units]
 
-                x_label = xs.label
-                y_label = ys.label
+                x_label = _axis_label(xs, x_units)
+                y_label = _axis_label(ys, y_units)
 
-                if not objplot[obj].has_key('xs'): objplot[obj]['xs']  = xs
-                objplot[obj]['ymax']  = np.amax((objplot[obj].get('ymax', ys), ys), axis=0)
-                objplot[obj]['ymin']  = np.amin((objplot[obj].get('ymin', ys), ys), axis=0)
-                objplot[obj]['ysum']  = objplot[obj].get('ysum', np.zeros_like(ys)) + ys
+                objplot[obj].setdefault('%s:xs'%tag, xs)
+                objplot[obj].setdefault('%s:ymax'%tag, ys)
+                objplot[obj].setdefault('%s:ymin'%tag, ys)
+                objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
+                objplot[obj].setdefault('%s:count'%tag, 0)
+
+                objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
+                objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
+                objplot[obj]['%s:ysum'%tag] += ys
+                objplot[obj]['%s:count'%tag] += 1
 
                 if mark_images:
                     for i,src in enumerate(obj.sources):
                         for img in src.images:
-                            imgs[i].add(convert('arcsec to %s' % xs.units, abs(img.pos), obj.dL, data['nu']))
+                            imgs[i].add(convert('arcsec to %s' % x_units, abs(img.pos), obj.dL, data['nu']))
 
             except KeyError as bad_key:
                 print "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key)
                 continue
 
-            si = m.get('accepted', 2)
             use[si] = 1
 
             s = _styles[si]
@@ -748,19 +719,20 @@ def _data_error_plot(models, X,Y, **kwargs):
             #xmin, xmax = min(xmin, amin(data[X])), max(xmax, amax(data[X]))
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
-    if connect:
-        ls = '-'
-    else:
-        ls = 'None'
+    for i,tag in enumerate(['rejected', 'accepted', '']):
+        for k,v in objplot.iteritems():
+            if not v.has_key('%s:count'%tag): break
+            avg = v['%s:ysum'%tag] / v['%s:count'%tag]
+            #print len(v['xs'])
+            #print len(avg)
+            #assert 0
+            if tag == 'rejected':
+                errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), c=_styles[0]['c'], zorder=_styles[0]['z'])
+            else:
+                errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), **kwargs)
 
-    for k,v in objplot.iteritems():
-        avg = v['ysum'] / (mi+1)
-        #print len(v['xs'])
-        #print len(avg)
-        #assert 0
-        errorbar(v['xs'], avg, yerr=(avg-v['ymin'], v['ymax']-avg), color=color, marker=marker, ls=ls)
-        pl.yscale(yscale)
-        pl.xscale(xscale)
+    pl.yscale(yscale)
+    pl.xscale(xscale)
 
     si = style_iterator()
     for k,v in imgs.iteritems():
@@ -768,9 +740,14 @@ def _data_error_plot(models, X,Y, **kwargs):
         for img_pos in v:
             axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
 
-    if use[0] or use[1]:
-        lines  = [s['line']  for s,u in zip(_styles, use) if u]
-        labels = [s['label'] for s,u in zip(_styles, use) if u]
+#   if use[0] or use[1]:
+#       lines  = [s['line']  for s,u in zip(_styles, use) if u]
+#       labels = [s['label'] for s,u in zip(_styles, use) if u]
+#       legend(lines, labels)
+
+    if use[0]:
+        lines  = [ _styles[0]['line'] ]
+        labels = [ _styles[0]['label'] ]
         legend(lines, labels)
 
     #axis('scaled')
@@ -780,101 +757,24 @@ def _data_error_plot(models, X,Y, **kwargs):
     #ylim(0, ymax)
 
 @command
-def glplot(env, ptype, xkeys, ykeys=[], models=None, **kwargs):
+def glplot(env, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
-    if models is None: models = env.models
+    models = kwargs.pop('models', env.models)
     _data_plot2(models, xkeys, ykeys, **kwargs)
 
 @command
-def glerrorplot(env, ptype, xkeys, ykeys=[], models=None, **kwargs):
+def glerrorplot(env, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
-    if models is None: models = env.models
+    models = kwargs.pop('models', env.models)
     _data_error_plot(models, xkeys, ykeys, **kwargs)
-
-_enckappa_xlabel = r'$R$ (arcsec)'
-_enckappa_ylabel = r'$\kappa(<R)$'
-@command
-def enckappa_plot(env, models=None, **kwargs):
-    #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
-    kwargs.setdefault('mark_images', 'arsec')
-    _data_plot(models, 'R', 'kappa(<R)', _enckappa_xlabel, _enckappa_ylabel, plotf=plot,**kwargs)
-
-_kappa_prof_xlabel = r'$R$ (arcsec)$'
-_kappa_prof_ylabel = r'$\langle\kappa(R)\rangle$'
-@command
-def kappa_prof_plot(env, models=None, **kwargs):
-    #if not kwargs.has_key('mark_images'): kwargs['mark_images'] = 'arcsec'
-    kwargs.setdefault('mark_images', 'arsec')
-    _data_plot(models, 'R', 'kappa(R)', _kappa_prof_xlabel, _kappa_prof_ylabel, plotf=plot,**kwargs)
-
-_sigma_xlabel = r'$R$ (kpc)'
-_sigma_ylabel = r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'
-@command
-def sigma_plot(env, models, **kwargs):
-    kwargs.setdefault('mark_images', 'arsec')
-    xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
-    xlabel = kwargs.setdefault('xlabel',      _sigma_xlabel)
-    kwargs.setdefault('plotf',       semilogy)
-    _data_plot(models, xaxis, 'sigma', xlabel, _sigma_ylabel, **kwargs)
-
-_sigp_xlabel = r'$R$ (kpc)'
-_sigp_ylabel = r'$\sigma_p$ $()$'
-@command
-def sigp_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, plotf=semilogx, **kwargs)
-    #_data_plot(models, 'sigp:R', 'sigp:sigp', _sigp_xlabel, _sigp_ylabel, kwargs, plotf=plot)
-
-_mass3d_xlabel = r'$r$ (kpc)'
-_mass3d_ylabel = r'$M$'
-@command
-def mass3d_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:mass3d', _mass3d_xlabel, _mass3d_ylabel, plotf=loglog, **kwargs)
-
-_rho_xlabel = r'$r$ (kpc)'
-_rho_ylabel = r'$\rho$ $()$'
-@command
-def rho_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:rho', _rho_xlabel, _rho_ylabel, **kwargs)
-
-_rhoint_xlabel = r'$r$ (kpc)'
-_rhoint_ylabel = r'$\rho$ $()$'
-@command
-def rhoint_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:rhoint', _rhoint_xlabel, _rhoint_ylabel, **kwargs)
-
-_drho_xlabel = r'$r$ (kpc)'
-_drho_ylabel = r'$d\ln\rho/d\ln r$'
-@command
-def drho_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:drho', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
-
-_rhoa_xlabel = r'$r$ (kpc)'
-_rhoa_ylabel = r'$\rho_\mathrm{abel}$ $()$'
-@command
-def rhoa_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:rhoa', _rho_xlabel, _rho_ylabel, **kwargs)
-
-_drhoa_xlabel = r'$r$ (kpc)'
-_drhoa_ylabel = r'$d\ln\rho_\mathrm{abel}/d\ln r$'
-@command
-def drhoa_plot(env, models, **kwargs):
-    _data_plot(models, 'sigp:r', 'sigp:drhoa', _drho_xlabel, _drho_ylabel, plotf=semilogx, **kwargs)
-
-_encmass_xlabel = r'$R$ (kpc)'
-_encmass_ylabel = r'$M(<R)$ $(M_\odot)$'
-@command
-def encmass_plot(env, models, **kwargs):
-    kwargs.setdefault('mark_images', 'arsec')
-    xaxis  = kwargs.setdefault('xaxis',       'R_kpc')
-    xlabel = kwargs.setdefault('xlabel',      _encmass_xlabel)
-    kwargs.setdefault('plotf',       semilogy)
-    _data_plot(models, xaxis, 'encmass', xlabel, _encmass_ylabel, **kwargs)
-    #_data_plot(models, 'R_kpc', 'encmass', _encmass_xlabel, _encmass_ylabel, plotf=plot, **kwargs)
 
 _H0inv_xlabel = r'$H_0^{-1}$ (Gyr)'
 @command
-def H0inv_plot(env, models=None, objects=None, key='accepted'):
-    if models is None: models = env.models
+def H0inv_plot(env, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    objects = kwargs.pop('objects', None)
+    key = kwargs.pop('key', 'accepted')
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -893,7 +793,7 @@ def H0inv_plot(env, models=None, objects=None, key='accepted'):
         if d:
             #print len(d), d
             #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
     if not_accepted or accepted:
         legend()
@@ -928,7 +828,10 @@ def H0inv_plot(env, models=None, objects=None, key='accepted'):
 _H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command
 def H0_plot(env, models=None, obj_index=0, key='accepted'):
-    if models is None: models = env.models
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', 0)
+    key = kwargs.pop('key', 'accepted')
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -948,7 +851,7 @@ def H0_plot(env, models=None, obj_index=0, key='accepted'):
         if d:
             #print len(d), d
             #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
     if not_accepted or accepted:
         legend()
@@ -986,8 +889,12 @@ def H0_plot(env, models=None, obj_index=0, key='accepted'):
 
 _time_delays_xlabel = r'Time delay (days)'
 @command
-def time_delays_plot(env, models=None, obj_index=0, src_index=0, key='accepted'):
-    if models is None: models = env.models
+def time_delays_plot(env, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', 0)
+    src_index = kwargs.pop('src_index', 0)
+    key = kwargs.pop('key', 'accepted')
 
     d = defaultdict(list)
     for m in models:
@@ -1002,7 +909,7 @@ def time_delays_plot(env, models=None, obj_index=0, src_index=0, key='accepted')
         #print 'td plot', k, len(v)
         #print v
         lw,ls = s.next()
-        hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)))
+        hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
 
     #xlim(xmin=0)
     ylim(ymin=0)
@@ -1015,8 +922,10 @@ def time_delays_plot(env, models=None, obj_index=0, src_index=0, key='accepted')
 
 _scale_factor_xlabel = r'Scale factor'
 @command
-def scale_factor_plot(env, models=None, objects=None, key='accepted'):
-    if models is None: models = env.models
+def scale_factor_plot(env, **kwargs):
+    models = kwargs.pop('models', env.models)
+    objects = kwargs.pop('objects', None)
+    key = kwargs.pop('key', 'accepted')
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1029,7 +938,7 @@ def scale_factor_plot(env, models=None, objects=None, key='accepted'):
 
     for d,s in zip(l, _styles):
         if d:
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False)
+            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
 
     if not_accepted or accepted:
         legend()
@@ -1040,8 +949,10 @@ def scale_factor_plot(env, models=None, objects=None, key='accepted'):
 
 _chisq_xlabel = r'$\chi^2$'
 @command
-def chisq_plot(env, models=None, objects=None, key='accepted'):
-    if models is None: models = env.models
+def chisq_plot(env, **kwargs):
+    models = kwargs.pop('models', env.models)
+    objects = kwargs.pop('objects', None)
+    key = kwargs.pop('key', 'accepted')
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1054,7 +965,7 @@ def chisq_plot(env, models=None, objects=None, key='accepted'):
 
     for d,s in zip(l, _styles):
         if d:
-            hist(d, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False)
+            hist(d, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
 
     if not_accepted or accepted:
         legend()
@@ -1063,21 +974,34 @@ def chisq_plot(env, models=None, objects=None, key='accepted'):
     ylabel(r'Count')
 
 @command
-def shear_plot(env, models=None, obj_index=None, src_index=None, key='accepted'):
-    if models is None: models = env.models
+def shear_plot(env, models=None, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', None)
+    src_index = kwargs.pop('src_index', None)
+    key = kwargs.pop('key', 'accepted')
+
     obj_slice = index_to_slice(obj_index)
     src_slice = index_to_slice(src_index)
 
+    s0 = [ [] for o in env.objects ]
+    s1 = [ [] for o in env.objects ]
     for mi,m in enumerate(models):
         # For H0 we only have to look at one model because the others are the same
         for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
+            #s0[oi].append(90-np.degrees(np.arctan2(*data['shear'])))
+            s0[oi].append(data['shear'][0])
+            s1[oi].append(data['shear'][1])
 
-            s0,s1 = data['shear']
-            Log( 'Model %i  Object %i  Shear %.4f %.4f' % (mi, oi, s0,s1) )
+            #s0,s1 = data['shear']
+            #Log( 'Model %i  Object %i  Shear %.4f %.4f' % (mi, oi, s0,s1) )
+
+    hist(s0[0], histtype='step', **kwargs)
+    hist(s1[0], histtype='step', **kwargs)
 
 _chi2_xlabel = r'$\ln \chi^2$'
 @command
-def chi2_plot(env, models, model0):
+def chi2_plot(env, models, model0, **kwargs):
     v = []
     n_chi2 = 0
     d_chi2 = 0
@@ -1091,7 +1015,7 @@ def chi2_plot(env, models, model0):
             n_chi2 += np.sum((mass1 - mass0)**2)
             d_chi2 += np.sum(mass0**2)
         v.append(np.log(n_chi2/d_chi2))
-    hist(v, histtype='step', log=False)
+    hist(v, histtype='step', log=False, **kwargs)
     xlabel(_chi2_xlabel)
     ylabel(r'Count')
 
