@@ -53,11 +53,11 @@ def Ximport_functions(pkg):
             print name
             g[name.split('glcmd__')[1]] = func
 
-@command
+@command('Load a glass basis set')
 def glass_basis(env, name, **kwargs):
     env.basis_options = kwargs
     f = __import__(name, globals(), locals())
-    for name,[f,g] in Commands.glass_command_list.iteritems():
+    for name,[f,g,help_text] in Commands.glass_command_list.iteritems():
         if __builtins__.__dict__.has_key(name):
             print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name])
         __builtins__.__dict__[name] = g
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2: help()
 
     Environment.global_opts['ncpus_detected'] = _detect_cpus()
-    Environment.global_opts['ncpus'] = Environment.global_opts['ncpus_detected']
+    Environment.global_opts['ncpus'] = 1
     Environment.global_opts['omp_opts'] = _detect_omp()
     Environment.global_opts['withgfx'] = True
 

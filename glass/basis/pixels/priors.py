@@ -3,6 +3,7 @@ if __name__ != '__main__':
     from glass.environment import env
     from glass.command import command
     from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
+    import glass.shear as shear
     from itertools import izip
     from glass.log import log as Log
     from glass.scales import convert
@@ -103,18 +104,26 @@ def lens_eq(o, leq, eq, geq):
         for j,img in enumerate(src.images):
             rows = new_row(o, 2)
             Log( 2*indent+"Source %i,Image %i: (% 8.4f, % 8.4f)" % (i,j,img.pos.real, img.pos.imag) ) #, b.cell_size
-            rows[0,0] = (img.pos.real + b.map_shift) * src.zcap
-            rows[1,0] = (img.pos.imag + b.map_shift) * src.zcap
+            rows[0,0] = img.pos.real * src.zcap
+            rows[1,0] = img.pos.imag * src.zcap
             positions = img.pos - b.ploc
             rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size)
             rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size)
 
             if o.shear:
-                rows[0,shear_start+0] = -o.shear.poten_dx(img.pos)
-                rows[0,shear_start+1] = -o.shear.poten_d2x(img.pos)
+                pos = img.pos
+                rows[0,shear_start+0] = -shear.poten_dx(0, pos)
+                rows[1,shear_start+0] = -shear.poten_dy(0, pos)
 
-                rows[1,shear_start+0] = -o.shear.poten_dy(img.pos)
-                rows[1,shear_start+1] = -o.shear.poten_d2y(img.pos)
+                rows[0,0] += shear.shift*shear.poten_dx(0, pos)
+                rows[1,0] += shear.shift*shear.poten_dy(0, pos)
+
+                rows[0,shear_start+1] = -shear.poten_dx(1, pos)
+                rows[1,shear_start+1] = -shear.poten_dy(1, pos)
+
+                rows[0,0] += shear.shift*shear.poten_dx(1, pos)
+                rows[1,0] += shear.shift*shear.poten_dy(1, pos)
+
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
 #               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
@@ -123,6 +132,9 @@ def lens_eq(o, leq, eq, geq):
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
             rows[1,srcpos:srcpos+2] =  0, -1
+
+            rows[0,0] += b.map_shift * src.zcap
+            rows[1,0] += b.map_shift * src.zcap
 
             eq(rows[0])
             eq(rows[1])
@@ -148,11 +160,11 @@ def check_lens_eq(o, sol):
             r1 -= sum(sol[pix_start:pix_end] * poten_dy(positions, b.cell_size))
 
             if o.shear:
-                r0 -= sol[shear_start] * o.shear.poten_dx(img.pos)
-                r1 -= sol[shear_start] * o.shear.poten_dy(img.pos)
-
-                r0 -= sol[shear_start+1] * o.shear.poten_d2x(img.pos)
-                r1 -= sol[shear_start+1] * o.shear.poten_d2y(img.pos)
+                pos = img.pos + complex(b.map_shift,b.map_shift)
+                r0 -= (sol[shear_start+0] - shear.shift) * shear.poten_dx(0, pos)
+                r0 -= (sol[shear_start+1] - shear.shift) * shear.poten_dx(1, pos)
+                r1 -= (sol[shear_start+0] - shear.shift) * shear.poten_dy(0, pos)
+                r1 -= (sol[shear_start+1] - shear.shift) * shear.poten_dy(1, pos)
 
             srcpos = srcpos_start + 2*i
             r0 -= sol[srcpos+0]
@@ -211,26 +223,32 @@ def time_delay(o, leq, eq, geq):
 
             # The constant term
             row[0]  = (abs(r1)**2 - abs(r0)**2) / 2
-            row[0] += dot([x1-x0, y1-y0], shft)
+            #row[0] += dot([x1-x0, y1-y0], shft)
             row[0] *= src.zcap
 
-            # The beta term
+            # The beta term - this is not scaled by src.zcap because this 
+            # source position already contains it. Later it will be factored
+            # out in basis.py.
             row[srcpos:srcpos+2]  = x0-x1, y0-y1
-            #row[srcpos:srcpos+2] *= src.zcap
+            row[0] += dot([x1-x0, y1-y0], shft) * src.zcap
 
             # The ln terms
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
 
             if o.shear:
-                row[shear_start+0] -= o.shear.poten(1, img1.pos)
-                row[shear_start+0] += o.shear.poten(1, img0.pos)
-                row[shear_start+1] -= o.shear.poten(2, img1.pos)
-                row[shear_start+1] += o.shear.poten(2, img0.pos)
+                pos1 = img1.pos
+                pos0 = img0.pos
+                f0 = shear.poten(0, pos1) - shear.poten(0, pos0)
+                f1 = shear.poten(1, pos1) - shear.poten(1, pos0)
+                row[shear_start+0] = -f0
+                row[shear_start+1] = -f1
+                row[0] += shear.shift * f0
+                row[0] += shear.shift * f1
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
-#               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
+#               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
+#               row[offs] += o.ptmass.poten(n, img0.pos, o.basis.cell_size)
 
             if len(delay) == 1:
                 d = delay[0]
@@ -311,14 +329,18 @@ def check_time_delay(o, sol):
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
 
             if o.shear:
-                row[shear_start+0] -= o.shear.poten(1, img1.pos)
-                row[shear_start+0] += o.shear.poten(1, img0.pos)
-                row[shear_start+1] -= o.shear.poten(2, img1.pos)
-                row[shear_start+1] += o.shear.poten(2, img0.pos)
+                row[shear_start+0] -= shear.poten(0, img1.pos)
+                row[shear_start+0] += shear.poten(0, img0.pos)
+                row[shear_start+1] -= shear.poten(1, img1.pos)
+                row[shear_start+1] += shear.poten(1, img0.pos)
+                row[0] += shear.shift * shear.poten(0, img1.pos)
+                row[0] -= shear.shift * shear.poten(0, img0.pos)
+                row[0] += shear.shift * shear.poten(1, img1.pos)
+                row[0] -= shear.shift * shear.poten(1, img0.pos)
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               row[offs] -= o.ptmass.poten(n+1, img1.pos, o.basis.cell_size)
-#               row[offs] += o.ptmass.poten(n+1, img0.pos, o.basis.cell_size)
+#               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
+#               row[offs] += o.ptmass.poten(n, img0.pos, o.basis.cell_size)
 
             row2 = None
 
@@ -399,10 +421,10 @@ def JPC1time_delay(o, leq, eq, geq):
             row[pix_start:pix_end] += img0poten
 
             if o.shear:
-                row[shear_start+0] -= o.shear.poten(1, img1)
-                row[shear_start+0] += o.shear.poten(1, img0)
-                row[shear_start+1] -= o.shear.poten(2, img1)
-                row[shear_start+1] += o.shear.poten(2, img0)
+                row[shear_start+0] -= shear.poten(0, img1)
+                row[shear_start+0] += shear.poten(0, img0)
+                row[shear_start+1] -= shear.poten(1, img1)
+                row[shear_start+1] += shear.poten(1, img0)
 
             # TODO: Ptmass
 
@@ -621,52 +643,41 @@ def magnification(o, leq, eq, geq):
             if parity == MINIMUM:
                 rows[0, pix_start:pix_end] = -k1*xx + yy
                 rows[1, pix_start:pix_end] = -k2*yy + xx
-                rows[2, pix_start:pix_end] =     xy + xx*eps
-                rows[3, pix_start:pix_end] =    -xy + xx*eps
-                rows[4, pix_start:pix_end] =     xy + yy*eps
-                rows[5, pix_start:pix_end] =    -xy + yy*eps
 
             if parity == SADDLE:
                 rows[0, pix_start:pix_end] = -k1*xx - yy
                 rows[1, pix_start:pix_end] =  k2*yy + xx
-                rows[2, pix_start:pix_end] =     xy + xx*eps
-                rows[3, pix_start:pix_end] =    -xy + xx*eps
-                rows[4, pix_start:pix_end] =     xy - yy*eps
-                rows[5, pix_start:pix_end] =    -xy - yy*eps
 
             if parity == MAXIMUM:
                 rows[0, pix_start:pix_end] =  k1*xx - yy
                 rows[1, pix_start:pix_end] =  k2*yy - xx
-                rows[2, pix_start:pix_end] =     xy - xx*eps
-                rows[3, pix_start:pix_end] =    -xy - xx*eps
-                rows[4, pix_start:pix_end] =     xy - yy*eps
-                rows[5, pix_start:pix_end] =    -xy - yy*eps
+
+            rows[2, pix_start:pix_end] =     xy - xx*eps
+            rows[3, pix_start:pix_end] =    -xy - xx*eps
+            rows[4, pix_start:pix_end] =     xy - yy*eps
+            rows[5, pix_start:pix_end] =    -xy - yy*eps
 
             for n,offs in enumerate(xrange(shear_start, shear_end)):
-                xy,xx,yy = o.shear.maginv(n+1, img.pos, img.angle)
+                xy,xx,yy = shear.maginv(n, img.pos, img.angle)
                 if parity == MINIMUM: 
                     rows[0, offs] = -k1*xx + yy
                     rows[1, offs] = -k2*yy + xx
-                    rows[2, offs] =     xy + xx*eps
-                    rows[3, offs] =    -xy + xx*eps
-                    rows[4, offs] =     xy + yy*eps
-                    rows[5, offs] =    -xy + yy*eps
 
                 if parity == SADDLE:  
                     rows[0, offs] = -k1*xx - yy
                     rows[1, offs] =  k2*yy + xx
-                    rows[2, offs] =     xy + xx*eps
-                    rows[3, offs] =    -xy + xx*eps
-                    rows[4, offs] =     xy - yy*eps
-                    rows[5, offs] =    -xy - yy*eps
 
                 if parity == MAXIMUM: 
                     rows[0, offs] =  k1*xx - yy
                     rows[1, offs] =  k2*yy - xx
-                    rows[2, offs] =     xy - xx*eps
-                    rows[3, offs] =    -xy - xx*eps
-                    rows[4, offs] =     xy - yy*eps
-                    rows[5, offs] =    -xy - yy*eps
+
+                rows[2, offs] =     xy - xx*eps
+                rows[3, offs] =    -xy - xx*eps
+                rows[4, offs] =     xy - yy*eps
+                rows[5, offs] =    -xy - yy*eps
+
+                for i,r in enumerate(rows):
+                    r[0] -= r[offs] * shear.shift
 
             #print pix_start, pix_end
             #print "rows[:,0]", rows[:,0]
@@ -692,7 +703,7 @@ def annular_density(o, leq, eq, geq):
             row[0] = theta * len(o.basis.rings[r])
             eq(row)
         on = True
-        
+
 @default_prior
 @object_prior
 def external_shear(o, leq, eq, geq):
@@ -703,10 +714,18 @@ def external_shear(o, leq, eq, geq):
     else:
         v = o.prior_options['shear']['strength']
 
+    #assert v < shear.shift
+
     for s in xrange(1+o.basis.shear_start, 1+o.basis.shear_end):
         row = new_row(o)
-        row[ [0,s] ] = v, -0.1
+        row[ [0,s] ] = v + shear.shift, -1
         geq(row)
+        row = new_row(o)
+        row[ [0,s] ] = v - shear.shift, 1
+        geq(row)
+        #row = new_row(o)
+        #row[ [0,s] ] = shear.shift + v, -1
+        #leq(row)
         on = [v, -1]
 
     if on is None:
@@ -902,7 +921,7 @@ def PLprofile_steepness(o, leq, eq, geq):
     Log( 2*indent + "# eqs = %i" % c )
         
 #@default_prior
-#@object_prior
+@object_prior
 def gradient(o, leq, eq, geq):
     cen_ang = o.prior_options.get('gradient', pi/4)
 
@@ -967,7 +986,7 @@ def Pgradient(o, leq, eq, geq):
     for ri,r,nbrs in o.basis.nbrs2:
         if ri == o.basis.central_pixel: continue
 
-        print sort(nbrs1)
+        #print sort(nbrs1)
 
         px = r.real
         py = r.imag
@@ -1329,6 +1348,8 @@ def PLsmoothness3(o, leq, eq, geq):
         row = new_row(o)
         #N = sum( (sum(wght(d)) for d in o.basis.nbrs3[i][2]) )
         for d in o.basis.nbrs3[i][2]:
+            #print len(o.basis.nbrs3[i][2])
+            #print i, o.basis.nbrs3[i][2]
             row[pix_start + d] = wght(d) / len(o.basis.nbrs3[i][2])
 
         row[pix_start + i] = -1 / smoothness_factor
@@ -1608,7 +1629,7 @@ def smoothness2(o, leq, eq, geq):
 
     Log( 2*indent + "# eqs = %i" % c )
 
-@default_prior
+#@default_prior
 @object_prior
 def symmetry(o, leq, eq, geq):
 
@@ -1786,6 +1807,45 @@ def extended_source_size(o, leq,eq,geq):
         row[1, [0,x1,x2]] = +d, 1, -1; geq(row[1])
         row[2, [0,y1,y2]] = -d, 1, -1; leq(row[2])
         row[3, [0,y1,y2]] = +d, 1, -1; geq(row[3])
+
+@default_prior
+@object_prior
+def source_position(o, leq,eq,geq):
+    b = o.basis
+    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+
+    print '*'*80
+    for i,src in enumerate(o.sources):
+        if src.pos is None: continue
+
+        x = srcpos_start + 2*i + 0
+        y = srcpos_start + 2*i + 1
+
+        sx = src.pos.real
+        sy = src.pos.imag
+        tol = src.pos_tol
+
+        print tol
+        if tol != 0:
+            row = new_row(o,2)
+            row[0, [0,x]] = -tol-sx, 1; leq(row[0])
+            row[1, [0,x]] =  tol-sx, 1; geq(row[1])
+
+            print -tol-sx, sx
+            print tol-sx, sx
+
+            row = new_row(o,2)
+            row[0, [0,y]] = -tol-sy, 1; leq(row[0])
+            row[1, [0,y]] =  tol-sy, 1; geq(row[1])
+
+            print -tol-sy, sy
+            print tol-sy, sy
+
+        else:
+            row = new_row(o,2)
+            row[0, [0,x]] = -sx, 1; eq(row[0])
+            row[0, [0,y]] = -sy, 1; eq(row[0])
+
 
 if __name__ == '__main__':
     import pylab as pl

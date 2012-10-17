@@ -9,7 +9,7 @@ from  glass.report import report
 
 from glass.environment import Image, Source, Environment
 from glass.command import command, Commands
-from glass.shear import Shear
+#from glass.shear import Shear
 from glass.scales import convert
 from glass.log import log as Log, setup_log
 
@@ -37,8 +37,8 @@ def globject(env, name):
     return env.new_object(name)
 
 @command
-def shear(env, phi, strength=0.1):
-    env.current_object().shear = Shear(phi)
+def shear(env, strength=0.1):
+    env.current_object().shear = True
     env.current_object().prior_options['shear']['strength'] = strength
 
 @command
@@ -69,8 +69,11 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     src = Source(env, zsrc, o.z)
 
-    if kwargs.has_key('loc'):
-        src.pos = complex(kwargs['loc'][0], kwargs['loc'][1])
+    if kwargs.has_key('position'):
+        src.pos = complex(kwargs['position'][0], kwargs['position'][1])
+        if len(kwargs['position']) == 3:
+            src.pos_tol = kwargs['position'][2]
+
 
     if img0 is not None and img0parity is not None:
         image0 = Image(img0, img0parity)
@@ -167,6 +170,11 @@ def loadstate(env, fname, setenv=True):
     environment.  
     """
     x = load(fname)['arr_0'].item()
+    for o in x.objects:
+        for i,s in enumerate(o.sources):
+            if not hasattr(s,'index'):
+                s.index = i
+
     #if setenv: set_env(x)
     return x
 
@@ -178,7 +186,14 @@ def post_process(env, f, *args, **kwargs):
 def post_filter(env, f, *args, **kwargs):
     env.current_object().post_filter_funcs.append([f, args, kwargs])
 
-def _filter(arg):
+def _filter(models):
+    for m in models: m['accepted'] = False           # Reject all
+    models = filter(_filter_one, izip(models, count(), repeat(len(models))))      # Run each filter, keeping those that survive
+    #models = filter(parallel_map(_filter, models, threads=10))                 # Run each filter, keeping those that survive
+    for m,_,_ in models: m['accepted'] = True            # Those that make it to the end are accepted
+    return models
+
+def _filter_one(arg):
     model,i,nmodels = arg
     for obj,data in model['obj,data']:
         if obj.post_filter_funcs:
@@ -189,13 +204,7 @@ def _filter(arg):
 
 @command
 def apply_filters(env):
-    models = env.models
-    for m in models: m['accepted'] = False           # Reject all
-    models = filter(_filter, izip(models, count(), repeat(len(models))))      # Run each filter, keeping those that survive
-    #models = filter(parallel_map(_filter, models, threads=10))                 # Run each filter, keeping those that survive
-    for m,_,_ in models: m['accepted'] = True            # Those that make it to the end are accepted
-
-    env.accepted_models = models
+    env.accepted_models = _filter(env.models)
 
 @command
 def model(env, nmodels=None, *args, **kwargs):
@@ -233,10 +242,9 @@ def model(env, nmodels=None, *args, **kwargs):
         Log( 'Generated %i model(s).' % len(models) )
         _post_process(models)
 
-    env.accepted_models = env.models
-
     env.models.extend(models)
     env.solutions.extend(solutions)
+    env.accepted_models = _filter(env.models)
 
 def _post_process(models):
     nmodels = len(models)
@@ -252,9 +260,6 @@ def _post_process(models):
         nProcessed += has_ppfs
     Log('Post processed %i model(s), %i had post processing functions applied.' % (nmodels, nProcessed) )
 
-# Although this is technically a command, we need it here so that it
-# can see 'init_model_generator' which will be defined by the executed
-# input file.
 @command
 def reprocess(env, state_file):
     for o in env.objects:
@@ -270,7 +275,7 @@ def reprocess(env, state_file):
     _post_process()
 
     #env.models = parallel_map(_f, regenerate_models(env.objects), threads=10)
-    env.accepted_models = env.models
+    env.accepted_models = _filter(env.models)
 
 def XXXreprocess(state_file):
     for o in env.objects:

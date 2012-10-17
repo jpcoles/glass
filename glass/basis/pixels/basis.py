@@ -35,6 +35,7 @@ from itertools import izip
 
 from glass.environment import Environment
 import glass.potential
+import glass.shear as shear
 from glass.potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
 from glass.scales import convert
 from glass.handythread import parallel_map2, parallel_map
@@ -415,7 +416,7 @@ class PixelBasis(object):
         elif name == 'nbrs3':
             Log( 'Finding neighbors 3...' )
             super(PixelBasis, self).__setattr__('nbrs3', 
-                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
+                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
 
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             return self.nbrs3
@@ -664,7 +665,7 @@ class PixelBasis(object):
         # Setup variable offsets for the constraint arrays
         #---------------------------------------------------------------------
         self.pix_start,    self.pix_end    = 0, npix
-        self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is not None)
+        self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is True)
         self.ptmass_start, self.ptmass_end = self.shear_end, self.shear_end
         self.srcpos_start, self.srcpos_end = self.ptmass_end, self.ptmass_end+2*len(obj.sources)
         self.H0 = self.srcpos_end
@@ -730,7 +731,7 @@ class PixelBasis(object):
 
         ps['kappa']  = sol[ o+self.pix_start    : o+self.pix_end      ]
 
-        ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ] \
+        ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ] - shear.shift \
                        if obj.shear else array([0,0])
         ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
         ps['src']    = [complex(sol[o+i], sol[o+i+1]) / obj.sources[j].zcap - complex(self.map_shift, self.map_shift)
@@ -780,8 +781,8 @@ class PixelBasis(object):
                 tau -= dot(data['kappa'], poten(img.pos - self.ploc, self.cell_size))
 
                 if obj.shear:
-                    tau -= data['shear'][0] * obj.shear.poten(1, r) 
-                    tau -= data['shear'][1] * obj.shear.poten(2, r)
+                    tau += data['shear'][0] * shear.poten(0, r) 
+                    tau += data['shear'][1] * shear.poten(1, r)
 
                 if j > 0:
                     d.append(time_to_physical(obj, tau-prev) * data['H0'])
@@ -915,11 +916,11 @@ class PixelBasis(object):
             subtract(l, lnr[s3], l)
             multiply(l, m, l)
             subtract(phi, l, phi) #phi -= l
-            
+
         if obj.shear:
             xy   = self.refined_xy_grid(data)
             s1,s2 = data['shear']
-            phi -= s1*obj.shear.poten(1, xy) + s2*obj.shear.poten(2, xy)
+            phi -= s1*shear.poten(0, xy) + s2*shear.poten(1, xy)
 
         #print 'potential_grid: sum', sum(phi)
 
@@ -935,11 +936,11 @@ class PixelBasis(object):
             for img in src.images:
                 p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
                 if obj.shear:
-                    p -= s1*obj.shear.poten(1, img.pos) + s2*obj.shear.poten(2, img.pos)
+                    p -= s1*shear.poten(0, img.pos) + s2*shear.poten(1, img.pos)
                 l.append(p)
             if l: lvls.append(l)
         return lvls
-        
+
     @memoize
     def arrival_grid(self, data):
         obj = self.myobject
@@ -947,7 +948,6 @@ class PixelBasis(object):
         xy  = self.refined_xy_grid(data)
         r   = data['src']
         return [ abs(xy - r[i])**2/2 * src.zcap + phi for i,src in enumerate(obj.sources)]
-        #return [ (abs(xy - r[i])**2 - abs(r)**2)/2 * src.zcap + phi for i,src in enumerate(obj.sources)]
 
     @memoize
     def arrival_contour_levels(self, data):
@@ -956,19 +956,19 @@ class PixelBasis(object):
         lvls = []
         if obj.shear: s1,s2 = data['shear']
 
-        def _tau(img,r):
+        def _tau(img,src,r):
             geom  = abs(img.pos - r)**2 / 2  *  src.zcap
 
             p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
             #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
             if obj.shear:
-                p -= s1*obj.shear.poten(1, img.pos) + s2*obj.shear.poten(2, img.pos)
+                p += s1*shear.poten(0, img.pos) + s2*shear.poten(1, img.pos)
 
             return geom + p
 
         for i,src in enumerate(obj.sources):
             r = data['src'][i]
-            l = [_tau(img,r) for img in src.images if img.parity_name == 'sad']
+            l = [_tau(img,src,r) for img in src.images if img.parity_name == 'sad']
             if l: lvls.append(l)
 
         return lvls
@@ -1003,8 +1003,8 @@ class PixelBasis(object):
         s = glass.potential.grad(kappa,theta, self.ploc, self.cell_size)
         if obj.shear:
             s1,s2 = data['shear']
-            s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
-                         s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
+            s += complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),
+                         s1*shear.poten_dy(0,theta) + s2*shear.poten_dy(1,theta))
         return s
 
     def magnification(self, r, theta, data):
@@ -1018,8 +1018,8 @@ class PixelBasis(object):
 
 #       if obj.shear:
 #           s1,s2 = data['shear']
-#           s += complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
-#                        s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
+#           s += complex(s1*obj.shear.poten_ddx(theta) + s2*obj.shear.poten_dd2x(theta),
+#                        s1*obj.shear.poten_ddy(theta) + s2*obj.shear.poten_dd2y(theta))
         return K
 
     def srcdiff(self, data, src_index):
@@ -1051,8 +1051,8 @@ class PixelBasis(object):
                     deflect[i] = glass.potential.grad(kappa,theta,ploc,cell_size)
                     if obj.shear:
                         s1,s2 = data['shear']
-                        s = complex(s1*obj.shear.poten_dx(theta) + s2*obj.shear.poten_d2x(theta),
-                                    s1*obj.shear.poten_dy(theta) + s2*obj.shear.poten_d2y(theta))
+                        s = complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),
+                                    s1*shear.poten_dy(0,theta) + s2*shear.poten_dy(1,theta))
                         deflect[i] += s
 
                 #parallel_map(pot_grad, enumerate(ploc), threads = 1, return_ = False)

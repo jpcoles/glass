@@ -4,6 +4,7 @@ import numpy as np
 from numpy import cumsum, mean, array, where, pi, dot, abs
 from glass.environment import DArray
 from glass.potential import poten, poten_dx, poten_dy
+import glass.shear as shear
 
 def estimated_Rlens(obj, ps, src_index):
 
@@ -68,7 +69,7 @@ def arrival_time(m):
             tau -= dot(ps['kappa'], poten(theta - obj.basis.ploc, obj.basis.cell_size))
             if obj.shear:
                 s1,s2 = ps['shear']
-                tau -= s1*obj.shear.poten(1,theta) + s2*obj.shear.poten(2,theta)
+                tau -= s1*shear.poten(0,theta) + s2*shear.poten(1,theta)
 
             taus.append(tau)
         at.append(taus)
@@ -96,10 +97,11 @@ def default_post_process(m):
     #ps['R']     = b.rs + b.radial_cell_size / 2
     #ps['R_kpc'] = ps['R'] * rscale
 
-    ps['R'] = {}
-    ps['R']['arcsec'] = b.rs + b.radial_cell_size / 2
-    ps['R']['kpc']    = ps['R']['arcsec'] * rscale
-
+    ps['R'] = DArray(b.rs + b.radial_cell_size / 2,
+                     r'$R$', {'arcsec': [1, r'$\mathrm{arcsec}$'],
+                              'kpc':    [rscale, r'$\mathrm{kpc}$']})
+    
+    
     #print ps['R']['arcsec']
     #print ps['R']['kpc']
     #assert 0
@@ -107,17 +109,25 @@ def default_post_process(m):
     def mean_kappa(x):
         return sum(ps['kappa'][x] * b.cell_size[x]**2) /  sum(b.cell_size[x]**2)
 
-    ps['M(<R)']     = cumsum([    sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings])
-    ps['Sigma(R)']  =  array([mean_kappa(r)*dscale2 for r in b.rings])
-    ps['kappa(R)']  =  array([mean_kappa(r)         for r in b.rings])
-    ps['kappa(<R)'] = cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2) for r in b.rings]) / cumsum([sum(b.cell_size[r]**2) for r in b.rings])
+    ps['M(<R)'] = DArray(cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings]),
+                         r'$M(<R)$', {'Msun': [1, r'$M_\odot$']})
 
-    ps['Rlens'] = {}
-    ps['Rlens']['arcsec'] = [ estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources) ]
-    ps['Rlens']['kpc']    = [ r * rscale              for r in ps['Rlens']['arcsec'] ]
+    ps['Sigma(R)'] = DArray([mean_kappa(r)*dscale2 for r in b.rings],
+                            r'$\Sigma$', {'Msun/kpc^2': [1, r'$(M_\odot/\mathrm{kpc}^2)$']})
+
+    ps['kappa(R)'] = DArray([mean_kappa(r) for r in b.rings],
+                            r'$\langle\kappa(R)\rangle$', [{'kappa': [1, None]}])
+
+    ps['kappa(<R)'] = DArray(cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2) for r in b.rings]) / cumsum([sum(b.cell_size[r]**2) for r in b.rings]),
+                             r'$\kappa(<R)$', {'kappa': [1, None]})
+
+
+    ps['Rlens'] = DArray([estimated_Rlens(obj, ps,i)[0] for i,src in enumerate(obj.sources)],
+                          r'$R_e$', {'arcsec': [1, r'$\mathrm{arcsec}$'],
+                                     'kpc':    [rscale, '$\mathrm{kpc}$']})
 
     ps['Ktot'] = sum(ps['kappa'])
-    ps['R(1/2 K)'] = {}
+    #ps['R(1/2 K)'] = {}
     #ps['R(1/2 K)']['arcsec'] = ps['R']['arcsec'][(ps['kappa(<R)'] - 0.5*ps['Ktot']) >= 0.0][0]
     #ps['R(1/2 K)']['kpc']    = ps['R(1/2 K)']['arcsec'] * rscale
 
@@ -135,17 +145,22 @@ def default_post_process(m):
 
     # convert to DArray
 
-    ps['R']['arcsec'] = DArray(ps['R']['arcsec'], ul=['arcsec', r'$R$ $(\mathrm{arcsec})$'])
-    ps['R']['kpc']    = DArray(ps['R']['kpc'],    ul=['kpc',    r'$R$ $(\mathrm{kpc})$'])
+#   ps['R']['arcsec'] = DArray(ps['R']['arcsec'], ul=['arcsec', r'$R$ $(\mathrm{arcsec})$'])
+#   ps['R']['kpc']    = DArray(ps['R']['kpc'],    ul=['kpc',    r'$R$ $(\mathrm{kpc})$'])
 
-    ps['kappa(<R)'] = DArray(ps['kappa(<R)'], ul=['kappa',      r'$\kappa(<R)$'])
-    ps['M(<R)']     = DArray(ps['M(<R)'],     ul=['Msun',       r'$M(<R)$ $(M_\odot)$'])
-    ps['Sigma(R)']  = DArray(ps['Sigma(R)'],  ul=['Msun/kpc^2', r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'])
-    ps['kappa(R)']  = DArray(ps['kappa(R)'],  ul=['kappa',      r'$\langle\kappa(R)\rangle$'])
+#   ps['kappa(<R)'] = DArray(ps['kappa(<R)'], ul=['kappa',      r'$\kappa(<R)$'])
+#   ps['M(<R)']     = DArray(ps['M(<R)'],     ul=['Msun',       r'$M(<R)$ $(M_\odot)$'])
+#   ps['Sigma(R)']  = DArray(ps['Sigma(R)'],  ul=['Msun/kpc^2', r'$\Sigma$ $(M_\odot/\mathrm{kpc}^2)$'])
+#   ps['kappa(R)']  = DArray(ps['kappa(R)'],  ul=['kappa',      r'$\langle\kappa(R)\rangle$'])
 
-    ps['Rlens']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
-    ps['Rlens']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
+#   ps['Rlens']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
+#   ps['Rlens']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
 
-    ps['R(1/2 K)']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
-    ps['R(1/2 K)']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
+#   ps['R(1/2 K)']['arcsec'] = [ DArray(v, ul=['arcsec', r'$R_e$ $(\mathrm{arcsec})$']) for v in ps['Rlens']['arcsec'] ]
+#   ps['R(1/2 K)']['kpc']    = [ DArray(v, ul=['kpc',    r'$R_e$ $(\mathrm{kpc})$'   ]) for v in ps['Rlens']['kpc']    ]
+
+
+#   ps['Rlens'] = [ DArray(v, r'$R_e$', ul=[{'arcsec': [1, r'$\mathrm{arcsec}$']}]) for v in ps['Rlens'] ]
+
+
 

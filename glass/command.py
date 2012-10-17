@@ -13,13 +13,23 @@ class Commands:
     def __str__(self):
         return '\n'.join([n for n in glass_command_list.items()])
 
-def command(f):
-    def g(*args, **kwargs):
-        #print 'calling', f.__name__, env(), args, kwargs
-        return f(Commands.get_env(), *args, **kwargs)
-    Commands.glass_command_list[f.__name__] = [f,g]
-    #print 'Creating command', f.__name__
-    #print glass_command_list
-    return g
+def command(*args):
+
+    if isinstance(args[0], basestring):
+        help_text = args[0]
+        def h(f):
+            def g(*args, **kwargs):
+                return f(Commands.get_env(), *args, **kwargs)
+            Commands.glass_command_list[f.__name__] = [f,g,help_text]
+            return g
+        return h
+    else:
+        f = args[0]
+        help_text = ''
+        def g(*args, **kwargs):
+            return f(Commands.get_env(), *args, **kwargs)
+        Commands.glass_command_list[f.__name__] = [f,g,help_text]
+        return g
+
 
 

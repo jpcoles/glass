@@ -1,67 +1,77 @@
 from __future__ import division
-from numpy import vectorize
+from numpy import array, vectorize
 from math import pi, cos, sin
 
-class Shear:
-    def __init__(self, phi):
-        self.phi = pi/90 * (phi + 67.5)
-        self.cs2 = cos(self.phi)
-        self.sn2 = sin(self.phi)
+shift = 10 # arcsec
 
-        print "Shear  ", self.cs2, self.sn2, self.phi
+def poten(n, r):
+    x,y = r.real, r.imag
+    if n==0: return (x**2 - y**2)/2
+    if n==1: return x*y
+    assert 0
 
-    def poten(self, n0, r):
-        derivs = n0
-        if not isinstance(n0, list): derivs = [n0]
-        l = []
-        for n in derivs:
-            assert (n==1 or n==2)
-            x,y = r.real, r.imag
-            if n == 1: l.append( self.cs2 * (x**2 - y**2)/2 + self.sn2*x*y)
-            else:      l.append(-self.sn2 * (x**2 - y**2)/2 + self.cs2*x*y)
+def poten_dx(n, r):
+    x,y = r.real, r.imag
+    if n == 0: return x
+    if n == 1: return y
+    assert 0
 
-        if not isinstance(n0, list): 
-            return l[0]
-        return l
+def poten_dy(n, r):
+    x,y = r.real, r.imag
+    if n == 0: return -y
+    if n == 1: return x
+    assert 0
 
-    def poten_dx(self, r):  return  self.cs2*r.real + self.sn2*r.imag
-    def poten_d2x(self, r): return -self.sn2*r.real + self.cs2*r.imag
+def poten_dxdx(n, r):
+    x,y = r.real, r.imag
+    if n == 0: return 1
+    if n == 1: return 0
+    assert 0
 
-    def poten_dy(self, r):  return -self.cs2*r.imag + self.sn2*r.real
-    def poten_d2y(self, r): return  self.sn2*r.imag + self.cs2*r.real
+def poten_dydy(n, r):
+    x,y = r.real, r.imag
+    if n == 0: return -1
+    if n == 1: return 0
+    assert 0
 
-    def poten_x(self, n, r):
-        assert (n==1 or n==2)
-        x,y = r.real, r.imag
-        if n == 1:
-            return  self.cs2*x + self.sn2*y
-        else:
-            return -self.sn2*x + self.cs2*y
+def poten_dxdy(n, r):
+    x,y = r.real, r.imag
+    if n == 0: return 0
+    if n == 1: return 1
+    assert 0
 
-    def poten_y(self, n, r):
-        assert (n==1 or n==2)
-        x,y = r.real, r.imag
-        if n == 1:
-            return -self.cs2*y + self.sn2*x
-        else:
-            return  self.sn2*y + self.cs2*x
-        
-    def maginv(self, n, r, theta):
-        assert (n==1 or n==2)
-        x,y = r.real, r.imag
-        if n == 1:
-            xx, yy, xy = self.cs2, -self.cs2, self.sn2
-        else:
-            xx, yy, xy = -self.sn2, self.sn2, self.cs2
+def maginv(n, r, theta):
+    #print 'maginv', r, theta, a
+    xx    = poten_dxdx(n,r)
+    yy    = poten_dydy(n,r)
+    delta = poten_dxdy(n,r)
 
-        kappa = (xx+yy)/2
-        gamma = (xx-yy)/2
-        delta = xy
-        theta *= pi/90
-        cs = cos(theta)
-        sn = sin(theta)
-        #print "maginv ", kappa, gamma, delta, theta, cs, sn
-        return [    0 - sn*gamma + cs*delta,
-                kappa + cs*gamma + sn*delta,
-                kappa - cs*gamma - sn*delta]
+    theta *= pi/180
+    cs = cos(2*theta)
+    sn = sin(2*theta)
+
+    kappa = (xx+yy)/2
+    gamma = (xx-yy)/2
+    return array([    0 - sn*gamma + cs*delta,
+                  kappa + cs*gamma + sn*delta,
+                  kappa - cs*gamma - sn*delta])
+
+def Xmaginv(n, r, theta):
+    assert (n==1 or n==2)
+    x,y = r.real, r.imag
+    if n == 1:
+        xx, yy, xy = self.cs, -self.cs, self.sn
+    else:
+        xx, yy, xy = -self.sn, self.sn, self.cs
+
+    kappa = (xx+yy)/2
+    gamma = (xx-yy)/2
+    delta = xy
+    theta *= pi/90
+    cs = cos(theta)
+    sn = sin(theta)
+    #print "maginv ", kappa, gamma, delta, theta, cs, sn
+    return [    0 - sn*gamma + cs*delta,
+            kappa + cs*gamma + sn*delta,
+            kappa - cs*gamma - sn*delta]
 

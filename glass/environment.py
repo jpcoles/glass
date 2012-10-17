@@ -16,7 +16,7 @@ class Object:
         self.sources = []
 
         self.S          = 0
-        self.shear      = None
+        self.shear      = False
         self.z          = None       # [redshift]
         self.symm       = False
 
@@ -33,6 +33,7 @@ class Object:
 
     def add_source(self, source):
         self._current_source = source
+        source.index = len(self.sources)
         self.sources.append(source)
 
     def init(self):
@@ -66,6 +67,9 @@ class Source:
         self.images = []
         self.time_delays = []
         self.z = zsrc
+        self.index = 0
+        self.pos = None
+        self.pos_tol = 0
 
     def add_image(self, A):
         assert A not in self.images
@@ -143,27 +147,41 @@ class Environment:
             raise AttributeError(name)
 
 class DArray(ndarray):
-    def __new__(cls, input_array, ul=None):
+    def __new__(cls, input_array, symbol, units=None):
         obj = asarray(input_array).view(cls)
-        if ul is not None: obj.units, obj.label = ul
+        obj.units = units
+        obj.symbol = symbol
         return obj
 
     def __array_finalize__(self, obj):
         if obj is None: return
-        self.units = getattr(obj, 'units', 'no units')
-        self.label = getattr(obj, 'label', 'no label')
+        self.units = getattr(obj, 'units', None)
+        self.symbol = getattr(obj, 'symbol', None)
 
     def __array_wrap__(self, out_arr, context=None):
         return ndarray.__array_wrap__(self, out_arr, context)
 
     def __reduce_ex__(self, protocol):
         p = ndarray.__reduce_ex__(self, protocol)
-        return (p[0], p[1], (p[2], self.units, self.label))
+        return (p[0], p[1], (p[2], self.units, self.symbol))
 
     def __setstate__(self, p):
         ndarray.__setstate__(self, p[0])
         self.units = p[1]
-        self.label = p[2]
+        self.symbol = p[2]
+
+    def __getitem__(self, i):
+        if isinstance(i, basestring):
+            scale_factor = self.units[i][0]
+            return self * scale_factor
+        if i is None: return self
+        return ndarray.__getitem__(self, i)
+
+    def label(self, units):
+        try:
+            return self.units[units][1]
+        except:
+            return ''
 
 #_env = Environment()
 def env():
