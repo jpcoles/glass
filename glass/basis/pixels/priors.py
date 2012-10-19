@@ -2,12 +2,13 @@ from __future__ import division
 if __name__ != '__main__':
     from glass.environment import env
     from glass.command import command
-    from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
-    import glass.shear as shear
+    from glass.shear import Shear
+    from glass.ptmass import ExternalMass
     from itertools import izip
     from glass.log import log as Log
     from glass.scales import convert
     from . basis import neighbors, irrhistogram2d
+    from . potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
 else:
     def command(x): pass
 
@@ -95,10 +96,10 @@ def lens_eq(o, leq, eq, geq):
 
     b = o.basis
 
-    pix_start, pix_end = 1+b.pix_start, 1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    pix_start, pix_end = 1+b.offs_pix
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i,src in enumerate(o.sources):
         for j,img in enumerate(src.images):
@@ -110,25 +111,6 @@ def lens_eq(o, leq, eq, geq):
             rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size)
             rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size)
 
-            if o.shear:
-                pos = img.pos
-                rows[0,shear_start+0] = -shear.poten_dx(0, pos)
-                rows[1,shear_start+0] = -shear.poten_dy(0, pos)
-
-                rows[0,0] += shear.shift*shear.poten_dx(0, pos)
-                rows[1,0] += shear.shift*shear.poten_dy(0, pos)
-
-                rows[0,shear_start+1] = -shear.poten_dx(1, pos)
-                rows[1,shear_start+1] = -shear.poten_dy(1, pos)
-
-                rows[0,0] += shear.shift*shear.poten_dx(1, pos)
-                rows[1,0] += shear.shift*shear.poten_dy(1, pos)
-
-
-#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
-#               rows[1,offs] = -o.ptmass.poten_dy(n+1, img.pos)
-
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
             rows[1,srcpos:srcpos+2] =  0, -1
@@ -136,18 +118,50 @@ def lens_eq(o, leq, eq, geq):
             rows[0,0] += b.map_shift * src.zcap
             rows[1,0] += b.map_shift * src.zcap
 
+
+            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+                start += 1
+                end += 1
+
+                coeff = e.poten_dx(img.pos)
+                rows[0,start:end] -= coeff
+                rows[0,0] += e.shift * sum(coeff)
+
+                coeff = e.poten_dy(img.pos)
+                rows[1,start:end] -= coeff
+                rows[1,0] += e.shift * sum(coeff)
+
+#           if o.shear:
+#               pos = img.pos
+#               rows[0,shear_start+0] = -shear.poten_dx(0, pos)
+#               rows[1,shear_start+0] = -shear.poten_dy(0, pos)
+
+#               rows[0,0] += shear.shift*shear.poten_dx(0, pos)
+#               rows[1,0] += shear.shift*shear.poten_dy(0, pos)
+
+#               rows[0,shear_start+1] = -shear.poten_dx(1, pos)
+#               rows[1,shear_start+1] = -shear.poten_dy(1, pos)
+
+#               rows[0,0] += shear.shift*shear.poten_dx(1, pos)
+#               rows[1,0] += shear.shift*shear.poten_dy(1, pos)
+
+
+#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
+#               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
+#               rows[1,offs] = -o.ptmass.poten_dy(n+1, img.pos)
+
             eq(rows[0])
             eq(rows[1])
 
-@object_prior_check(lens_eq)
+#@object_prior_check(lens_eq)
 def check_lens_eq(o, sol):
     b    = o.basis
     offs = 0 #b.array_offset
 
-    pix_start,    pix_end    = offs+b.pix_start,    offs+b.pix_end
-    srcpos_start, srcpos_end = offs+b.srcpos_start, offs+b.srcpos_end
-    shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
-    ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
+    pix_start,    pix_end    = offs+b.offs_pix
+    srcpos_start, srcpos_end = offs+b.offs_srcpos
+    #shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
+    #ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
 
     report = ''
     for i,src in enumerate(o.sources):
@@ -198,10 +212,10 @@ def time_delay(o, leq, eq, geq):
     b  = o.basis
     nu = 1+b.H0
 
-    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    pix_start,    pix_end    = 1+b.offs_pix
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     zLp1 = (1 + o.z) * o.dL
 
@@ -236,15 +250,25 @@ def time_delay(o, leq, eq, geq):
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
 
-            if o.shear:
-                pos1 = img1.pos
-                pos0 = img0.pos
-                f0 = shear.poten(0, pos1) - shear.poten(0, pos0)
-                f1 = shear.poten(1, pos1) - shear.poten(1, pos0)
-                row[shear_start+0] = -f0
-                row[shear_start+1] = -f1
-                row[0] += shear.shift * f0
-                row[0] += shear.shift * f1
+            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+                start += 1
+                end += 1
+
+                p0 = e.poten(img0.pos)
+                p1 = e.poten(img1.pos)
+                coeff  = p1-p0
+                row[start:end] -= coeff
+                row[0] += e.shift * sum(coeff)
+
+#           if o.shear:
+#               pos1 = img1.pos
+#               pos0 = img0.pos
+#               f0 = shear.poten(0, pos1) - shear.poten(0, pos0)
+#               f1 = shear.poten(1, pos1) - shear.poten(1, pos0)
+#               row[shear_start+0] = -f0
+#               row[shear_start+1] = -f1
+#               row[0] += shear.shift * f0
+#               row[0] += shear.shift * f1
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
 #               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
@@ -268,7 +292,7 @@ def time_delay(o, leq, eq, geq):
             #print row
             #assert 0
 
-@object_prior_check(time_delay)
+#@object_prior_check(time_delay)
 def check_time_delay(o, sol):
 
     #return
@@ -292,10 +316,10 @@ def check_time_delay(o, sol):
     b  = o.basis
     nu = 1+b.H0
 
-    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    pix_start,    pix_end    = 1+b.offs_pix
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     zLp1 = (o.z + 1) * o.dL
     shft = [b.map_shift, b.map_shift]
@@ -390,8 +414,8 @@ def JPC1time_delay(o, leq, eq, geq):
 
     pix_start, pix_end = 1+b.pix_start, 1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i, src in enumerate(o.sources):
 
@@ -476,8 +500,8 @@ def parity(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i,src in enumerate(o.sources):
         for img in src.images:
@@ -523,8 +547,8 @@ def J1parity(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
 #   print '*' * 80
 #   print 'TURNED OFF PARITY MAXIMUM CONDITION'
@@ -571,8 +595,8 @@ def L1parity(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
+    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
+    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
 #   print '*' * 80
 #   print 'TURNED OFF PARITY MAXIMUM CONDITION'
@@ -622,8 +646,10 @@ def magnification(o, leq, eq, geq):
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
-    pix_start,     pix_end = 1+o.basis.pix_start,   1+o.basis.pix_end
-    shear_start, shear_end = 1+o.basis.shear_start, 1+o.basis.shear_end
+    pix_start,     pix_end = 1+o.basis.offs_pix
+    #shear_start, shear_end = 1+o.basis.shear_start, 1+o.basis.shear_end
+
+    coeffs = zeros(6)
 
     for src in o.sources:
         for img in src.images:
@@ -657,27 +683,34 @@ def magnification(o, leq, eq, geq):
             rows[4, pix_start:pix_end] =     xy - yy*eps
             rows[5, pix_start:pix_end] =    -xy - yy*eps
 
-            for n,offs in enumerate(xrange(shear_start, shear_end)):
-                xy,xx,yy = shear.maginv(n, img.pos, img.angle)
-                if parity == MINIMUM: 
-                    rows[0, offs] = -k1*xx + yy
-                    rows[1, offs] = -k2*yy + xx
+            for e,[start,end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+                start += 1
+                end += 1
 
-                if parity == SADDLE:  
-                    rows[0, offs] = -k1*xx - yy
-                    rows[1, offs] =  k2*yy + xx
+                if not hasattr(e, 'maginv'): continue
 
-                if parity == MAXIMUM: 
-                    rows[0, offs] =  k1*xx - yy
-                    rows[1, offs] =  k2*yy - xx
+                minv = e.maginv(img.pos, img.angle)
+                for offs,[xy,xx,yy] in izip(xrange(start, end), minv):
+                    if parity == MINIMUM: 
+                        coeffs[0] = -k1*xx + yy
+                        coeffs[1] = -k2*yy + xx
 
-                rows[2, offs] =     xy - xx*eps
-                rows[3, offs] =    -xy - xx*eps
-                rows[4, offs] =     xy - yy*eps
-                rows[5, offs] =    -xy - yy*eps
+                    if parity == SADDLE:  
+                        coeffs[0] = -k1*xx - yy
+                        coeffs[1] =  k2*yy + xx
 
-                for i,r in enumerate(rows):
-                    r[0] -= r[offs] * shear.shift
+                    if parity == MAXIMUM: 
+                        coeffs[0] =  k1*xx - yy
+                        coeffs[1] =  k2*yy - xx
+
+                    coeffs[2] =     xy - xx*eps
+                    coeffs[3] =    -xy - xx*eps
+                    coeffs[4] =     xy - yy*eps
+                    coeffs[5] =    -xy - yy*eps
+
+                    for i,r in enumerate(rows):
+                        rows[i, offs] += coeffs[i]
+                        r[0] -= coeffs[i] * e.shift
 
             #print pix_start, pix_end
             #print "rows[:,0]", rows[:,0]
@@ -694,7 +727,7 @@ def annular_density(o, leq, eq, geq):
 
     Log( indent + "Annular density %s" % theta )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     if theta is not None and theta != 0:
         for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
@@ -716,17 +749,19 @@ def external_shear(o, leq, eq, geq):
 
     #assert v < shear.shift
 
-    for s in xrange(1+o.basis.shear_start, 1+o.basis.shear_end):
-        row = new_row(o)
-        row[ [0,s] ] = v + shear.shift, -1
-        geq(row)
-        row = new_row(o)
-        row[ [0,s] ] = v - shear.shift, 1
-        geq(row)
-        #row = new_row(o)
-        #row[ [0,s] ] = shear.shift + v, -1
-        #leq(row)
-        on = [v, -1]
+    for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+        if not isinstance(e, Shear): continue
+        for s in xrange(1+start, 1+end):
+            row = new_row(o)
+            row[ [0,s] ] = v + e.shift, -1
+            geq(row)
+            row = new_row(o)
+            row[ [0,s] ] = v - e.shift, 1
+            geq(row)
+            #row = new_row(o)
+            #row[ [0,s] ] = shear.shift + v, -1
+            #leq(row)
+            on = [v, -1]
 
     if on is None:
         on = '[DISABLED]'
@@ -734,6 +769,39 @@ def external_shear(o, leq, eq, geq):
         on = ''
 
     Log( "%10s External Shear" % on)
+
+@default_prior
+@object_prior
+def external_mass(o, leq, eq, geq):
+    on = None
+    v = o.prior_options.get('external mass', None)
+    if v is None:
+        return
+    else:
+        min = o.prior_options['external mass']['min']
+        max = o.prior_options['external mass']['max']
+
+    #assert v < shear.shift
+
+    for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+        if not isinstance(e, ExternalMass): continue
+        for s in xrange(1+start, 1+end):
+            if max is not None:
+                row = new_row(o)
+                row[ [0,s] ] = max, -1
+                geq(row)
+            if min is not None:
+                row = new_row(o)
+                row[ [0,s] ] = min, -1
+                leq(row)
+            on = [v, -1]
+
+    if on is None:
+        on = '[DISABLED]'
+    else:
+        on = ''
+
+    Log( "%10s External Mass" % on)
 
 ##############################################################################
 
@@ -751,7 +819,7 @@ def profile_steepness2(o, leq, eq, geq):
     minsteep, maxsteep = steep
     assert maxsteep is None or maxsteep >= minsteep
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     nrings = len(o.basis.rings)
     row = new_row(o)
@@ -813,7 +881,7 @@ def profile_steepness(o, leq, eq, geq):
 
     assert maxsteep is None or maxsteep >= minsteep
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     nrings = len(o.basis.rings)
 
@@ -868,7 +936,7 @@ def PLprofile_steepness(o, leq, eq, geq):
     minsteep, maxsteep = steep
     assert maxsteep is None or maxsteep >= minsteep
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     nrings = len(o.basis.rings)
     row = new_row(o)
@@ -926,7 +994,7 @@ def gradient(o, leq, eq, geq):
     cen_ang = o.prior_options.get('gradient', pi/4)
 
     Log( "Gradient %s" % cen_ang )
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     cs = cos(cen_ang)
     sn = sin(cen_ang)
@@ -978,7 +1046,7 @@ def Pgradient(o, leq, eq, geq):
 
     Log( "PGradient %s" % cen_ang )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     cs = cos(cen_ang)
     sn = sin(cen_ang)
@@ -1036,7 +1104,7 @@ def J2gradient(o, leq, eq, geq):
     Log( indent + "J2Gradient (theta=%.2f  size=%s)" % (theta, size) )
     #Log( indent + "J2Gradient (theta=%.2f  size=%.2f)" % (theta, size) )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     theta = radians(90-theta)
     cs = cos(theta)
@@ -1127,7 +1195,7 @@ def J3gradient(o, leq, eq, geq):
 
     Log( indent + "J3Gradient (theta=%.2f  size=%s)" % (theta, size) )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     phi = radians(90-theta)
     cs,sn = cos(phi), sin(phi)
@@ -1169,10 +1237,11 @@ def J3gradient(o, leq, eq, geq):
 #@default_prior
 @object_prior
 def central_pixel_as_maximum(o, leq, eq, geq):
-    cp = o.basis.central_pixel + 1+o.basis.pix_start
+    cp = o.basis.central_pixel + 1+o.basis.offs_pix[0]
     Log( "Central pixel as maximum %i" % cp )
 
-    for i in xrange(1+o.basis.pix_start, 1+o.basis.pix_end):
+    pix_start, pix_end = 1 + o.basis.offs_pix
+    for i in xrange(pix_start, pix_end):
         if i == cp: continue
         row = new_row(o)
         row[ [cp,i] ] = 1, -1
@@ -1181,7 +1250,7 @@ def central_pixel_as_maximum(o, leq, eq, geq):
 @object_prior
 def central_pixel_max(o, leq, eq, geq):
 
-    cp = o.basis.central_pixel + 1+o.basis.pix_start
+    cp = o.basis.central_pixel + 1+o.basis.offs_pix[0]
     Log( "Central pixel maximum %i" % cp )
 
 #   g = o.prior_options.get('central_pixel_maximum')
@@ -1228,7 +1297,7 @@ def ring_smoothness(o, leq, eq, geq):
         Log( "[DISABLED] Ring smoothness" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1269,7 +1338,7 @@ def PLsmoothness(o, leq, eq, geq):
         Log( "[DISABLED] Smoothness" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1301,7 +1370,7 @@ def PLsmoothness2(o, leq, eq, geq):
         Log( "[DISABLED] PLSmoothness2" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1333,7 +1402,7 @@ def PLsmoothness3(o, leq, eq, geq):
         Log( "[DISABLED] PLSmoothness3" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1369,7 +1438,7 @@ def pixel_smoothness(o, leq, eq, geq):
         Log( "[DISABLED] pixel_smoothness" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1401,7 +1470,7 @@ def JCsmoothness(o, leq, eq, geq):
         Log( "JCSmoothness DISABLED" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1429,7 +1498,7 @@ def smoothness(o, leq, eq, geq):
 
     Lmin = 1.5*o.basis.top_level_cell_size
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     L                     = smth.get('L', Lmin)
     include_central_pixel = smth.get('include_central_pixel', True)
@@ -1476,7 +1545,7 @@ def shared_h(objs, nvars, leq, eq, geq):
 @object_prior
 def max_kappa(o, leq, eq, geq):
     Log( "Maximum Kappa" )
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     for i in xrange(pix_start, pix_end):
         row = new_row(o)
         row[ [0,i] ] = -6, 1
@@ -1495,7 +1564,7 @@ def min_kappa(o, leq, eq, geq):
 
     v = g['kappa']
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     for i in xrange(pix_start, pix_end):
         row = new_row(o)
         row[ [0,i] ] = -v, 1
@@ -1512,7 +1581,7 @@ def min_annular_density(o, leq, eq, geq):
 
     Log( indent + "Minimum annular density %s" % theta )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     if theta is not None and theta > 0:
         for r in o.basis.rings:
@@ -1554,7 +1623,7 @@ def min_kappa_particles(o, leq, eq, geq):
         pl.show()
         assert 0
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
         row[ [0,j] ] = -h[i], 1
@@ -1576,7 +1645,7 @@ def Xmin_kappa_grid(o, leq, eq, geq):
 
     g = o.basis.grid_mass(X,Y,M, H0inv) * H0inv
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
     a = g.ravel()[o.basis.insideL].take(o.basis.pmap)
 
     nu = 1+o.basis.H0
@@ -1591,7 +1660,7 @@ def Xmin_kappa_grid(o, leq, eq, geq):
 def min_kappa_model(o, leq, eq, geq):
     Log( "Minimum Kappa Model" )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     a = o.basis.min_kappa_model
 
@@ -1609,7 +1678,7 @@ def smoothness2(o, leq, eq, geq):
         Log( "Smoothness [None]" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1630,7 +1699,7 @@ def smoothness2(o, leq, eq, geq):
     Log( 2*indent + "# eqs = %i" % c )
 
 #@default_prior
-@object_prior
+#@object_prior
 def symmetry(o, leq, eq, geq):
 
     if not o.symm:
@@ -1639,7 +1708,7 @@ def symmetry(o, leq, eq, geq):
 
     Log( indent + "Symmetry" )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     c = 0
     done = zeros(o.basis.int_ploc.size)
@@ -1670,7 +1739,7 @@ def max_kappa(o, leq, eq, geq):
 
     Log( "Maximum Kappa" )
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
@@ -1687,7 +1756,7 @@ def smooth_symmetry(o, leq, eq, geq):
         Log( "[DISABLED] Smooth Symmetry" )
         return
 
-    pix_start, pix_end    = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
@@ -1768,10 +1837,10 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     #pl.matshow(log10(pg))
     #pl.colorbar()
 
-    a = o.basis.from_grid(pg)
-    print a
-    ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
-    m  = package_solution(ps, [o])
+    a = o.basis.from_grid(grid)
+    #print a
+    #ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
+    #m  = package_solution(ps, [o])
 
 #   from funcs import default_post_process
 #   default_post_process(m['obj,data'][0])
@@ -1781,7 +1850,7 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     #pl.show()
     #assert 0
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
