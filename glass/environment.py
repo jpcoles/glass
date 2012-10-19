@@ -16,7 +16,9 @@ class Object:
         self.sources = []
 
         self.S          = 0
-        self.shear      = False
+        #self.shear      = None
+        self.external_masses = []
+        self.extra_potentials = []
         self.z          = None       # [redshift]
         self.symm       = False
 
@@ -35,6 +37,9 @@ class Object:
         self._current_source = source
         source.index = len(self.sources)
         self.sources.append(source)
+
+    def add_external_mass(self, m):
+        self.external_masses.append(m)
 
     def init(self):
         self.basis.init(self)

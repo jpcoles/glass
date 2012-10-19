@@ -6,6 +6,7 @@ exclude_all_priors()
 import os
 import pylab as pl
 from pylab import show, figure, ion, savefig, gcf
+from math import pi, cos
 
 def escape(s):
     s = s.replace('_', r'\_')
@@ -55,6 +56,7 @@ def PlotFigures():
         g.make_ensemble_average()
         g.bw_styles = True
 
+
     init_plots(4, [2,4])
     gcf().subplots_adjust(left=0.05, right=0.98)
 
@@ -64,10 +66,11 @@ def PlotFigures():
         begin_plot()
         for g in gls:
             #img_plot(g.ensemble_average,0,1)
-            img_plot(g.ensemble_average,0)
+            g.img_plot(obj_index=0)
             g.arrival_plot(g.ensemble_average, only_contours=True, clevels=550);
             #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=20, src_index=1);
-            src_plot(g.ensemble_average,0,0)
+            g.src_plot(g.ensemble_average, obj_index=0)
+            g.external_mass_plot(0)
             #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=1);
         end_plot()
 
@@ -111,15 +114,19 @@ def PlotFigures():
     if 1:
         for g in gls:
             begin_plot()
-            #g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=80, vmax=1); #Re_plot(env().ensemble_average,0)
-            g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
-            g.gradient_plot(g.ensemble_average, 0)
+            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=80, vmax=1); #Re_plot(env().ensemble_average,0)
+            #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
+            #g.gradient_plot(g.ensemble_average, 0)
             end_plot()
 
     if 1:
         for g in gls:
             begin_plot()
-            g.gradient_plot(g.ensemble_average, 0)
+            g.glhist('N1')
+            g.glhist('N2')
+            g.glhist('N3')
+            g.glhist('N4')
+            g.glhist('N5')
             end_plot()
 
     if 1:

@@ -3,6 +3,7 @@ import sys, getopt, os, traceback
 
 from glass.environment import env, Environment
 from glass.command import command, Commands
+from glass.ptmass import PointMass
 
 def _detect_cpus():
     """

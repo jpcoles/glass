@@ -39,7 +39,7 @@ if Environment.global_opts['withgfx']:
 
 def symm_fold(o, row):
 
-    pix_start, pix_end = 1+o.basis.pix_start, 1+o.basis.pix_end
+    pix_start, pix_end = 1+o.basis.offs_pix
 
     symm_row = zeros(1+o.basis.nvar_symm)
     symm_row[:pix_start] = row[:pix_start]
@@ -73,7 +73,7 @@ def symm_fold(o, row):
     return symm_row
 
 def symm_unfold(o, symm_row):
-    pix_start, pix_end = o.basis.pix_start, o.basis.pix_end
+    pix_start, pix_end = o.basis.offs_pix
 
     row = zeros(o.basis.nvar)
     row[:pix_start] = symm_row[:pix_start]

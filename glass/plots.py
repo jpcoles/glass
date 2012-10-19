@@ -7,10 +7,11 @@ from numpy import array, mat, empty_like, amin, amax, repeat, logspace, arange, 
                   mgrid, atleast_2d, linspace, meshgrid, log10, log, diff, ravel, \
                   meshgrid, vstack, argsort, logical_and, inf
 from numpy.random import random
-from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
-                  hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
-                  suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
-                  text, xlim, ylim
+#from pylab import show, imshow, contour, gca, scatter, xlabel, ylabel, plot, loglog, \
+                  #hist, hold, colorbar, legend, over, axvline, matshow, gcf, subplot, \
+                  #suptitle, figure, grid, gray, semilogx, semilogy, imread, imshow, errorbar, \
+                  #text, xlim, ylim
+import pylab as pl
 from itertools import count, izip, product
 import matplotlib
 import matplotlib.cm as cm  
@@ -80,9 +81,9 @@ def index_to_slice(i):
         return slice(i,i+1)
 
 def glscolorbar():
-    rows,cols,_ = gca().get_geometry()
-    x,y = gcf().get_size_inches()
-    pars = gcf().subplotpars
+    rows,cols,_ = pl.gca().get_geometry()
+    x,y = pl.gcf().get_size_inches()
+    pars = pl.gcf().subplotpars
     left = pars.left
     right = pars.right
     bottom = pars.bottom
@@ -95,25 +96,34 @@ def glscolorbar():
     figH = (totHeight-(hspace*(rows>1))) / rows
     figW = (totWidth-(wspace*(cols>1))) / cols
 
-    colorbar(shrink=figW/figH)
+    pl.colorbar(shrink=figW/figH)
 
 @command
 def show_plots(env):
     show()
 
 @command
-def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=None, with_guide=False, tight=False):
+def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, with_guide=False, tight=False):
+
+    obj_index = kwargs.pop('obj_index', 0)
+    src_index = kwargs.pop('src_index', None)
+    tight     = kwargs.pop('tight', False)
+    with_guide = kwargs.pop('with_guide', False)
+    color = kwargs.pop('color', None)
+    with_maximum = kwargs.pop('with_maximum', True)
+
     if src_index is not None and not isinstance(src_index, (list,tuple)):
         src_index = [src_index]
 
-    obj,_ = model['obj,data'][obj_index]
+    #obj,_ = model['obj,data'][obj_index]
+    obj = env.objects[obj_index]
 
 #   if isinstance(model, (list, tuple)):
 #       obj,_ = model
 #   else:
 #       obj = model
 
-    oxlim, oylim = xlim(), ylim()
+    oxlim, oylim = pl.xlim(), pl.ylim()
 
     rmax = 0
     si = style_iterator()
@@ -138,20 +148,62 @@ def img_plot(env, model, obj_index=0, src_index=None, with_maximum=True, color=N
                 cs.append(color)
 
         if xs and ys:
-            over(scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
+            pl.over(pl.scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
             if with_guide or tight:
-                a = gca()
+                a = pl.gca()
                 for x,y in zip(xs,ys):
                     r = sqrt(x**2 + y**2)
                     rmax = amax([r,rmax])
                     if with_guide:
                         a.add_artist(Circle((0,0),r, fill=False))
 
-    xlim(oxlim); ylim(oylim)
+    pl.xlim(oxlim); pl.ylim(oylim)
 
     if tight and rmax > 0:
-        pl.gca().set_xlim(-rmax, rmax)
-        pl.gca().set_ylim(-rmax, rmax)
+        pl.pl.gca().set_pl.xlim(-rmax, rmax)
+        pl.pl.gca().set_pl.ylim(-rmax, rmax)
+
+@command
+def external_mass_plot(env, obj_index=0, with_maximum=True, color=None, with_guide=False, tight=False):
+
+    #obj,_ = model['obj,data'][obj_index]
+    #obj,_ = model['obj,data'][obj_index]
+    si = style_iterator()
+    for i in xrange(obj_index+1):
+        lw,ls,c = si.next()
+    obj = env.objects[obj_index]
+
+    #print obj.external_masses
+
+#   if isinstance(model, (list, tuple)):
+#       obj,_ = model
+#   else:
+#       obj = model
+
+    oxlim, oylim = pl.xlim(), pl.ylim()
+
+    rmax = 0
+    xs,ys,cs = [], [], []
+    for i,m in enumerate(obj.external_masses):
+
+
+        xs.append(m.r.real)
+        ys.append(m.r.imag)
+        if not color:
+            cs.append(c)
+        else:
+            cs.append(color)
+
+        rmax = amax([abs(m.r),rmax])
+
+    if xs and ys:
+        pl.over(pl.scatter,xs, ys, s=160, c=cs, zorder=1000, alpha=1.0, marker='s')
+
+    pl.xlim(oxlim); pl.ylim(oylim)
+
+    if tight and rmax > 0:
+        pl.pl.gca().set_pl.xlim(-rmax, rmax)
+        pl.pl.gca().set_pl.ylim(-rmax, rmax)
 
 @command
 def Re_plot(env, models=None, obj_index=0, color=None):
@@ -168,21 +220,25 @@ def Re_plot(env, models=None, obj_index=0, color=None):
         print data.keys()
         if not data['Re']: continue
         Re, a,b, theta = data['Re']
-        #gca().add_artist(Circle((rl.real,rl.imag), 0.1, fill=False, lw=2, color='r'))
-        #gca().add_artist(Circle((rs.real,rs.imag), 0.1, fill=False, lw=2, color='r'))
-        #gca().add_artist(Line2D([0,A[0]], [0,A[1]], lw=2, color=color))
-        #gca().add_artist(Line2D([0,B[0]], [0,B[1]], lw=2, color=color))
-        #gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
-        #gca().add_artist(Circle((0,0), b, fill=False, lw=2, color=color))
-        gca().add_artist(Ellipse((0,0), 2*a,2*b, theta, fill=False, lw=2, color=color))
-        #gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
+        #pl.gca().add_artist(Circle((rl.real,rl.imag), 0.1, fill=False, lw=2, color='r'))
+        #pl.gca().add_artist(Circle((rs.real,rs.imag), 0.1, fill=False, lw=2, color='r'))
+        #pl.gca().add_artist(Line2D([0,A[0]], [0,A[1]], lw=2, color=color))
+        #pl.gca().add_artist(Line2D([0,B[0]], [0,B[1]], lw=2, color=color))
+        #pl.gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
+        #pl.gca().add_artist(Circle((0,0), b, fill=False, lw=2, color=color))
+        pl.gca().add_artist(Ellipse((0,0), 2*a,2*b, theta, fill=False, lw=2, color=color))
+        #pl.gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
 
 @command
-def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g'):
+def src_plot(env, models=None, **kwargs):
+
+    obj_index = kwargs.pop('obj_index', 0)
+    hilite_model = kwargs.pop('hilite_model', None)
+    hilite_color = kwargs.pop('hilite_color', 'g')
 
     if models is None: models = env.models
 
-    oxlim, oylim = xlim(), ylim()
+    oxlim, oylim = pl.xlim(), pl.ylim()
 
     def plot(model, si, hilite=False):
         obj, data = model
@@ -195,10 +251,10 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
             lw,ls,c = si.next()
             cs.append(c) #system_color(i))
         if hilite:
-            over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='x', alpha=1.0)
+            pl.over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='x', alpha=1.0, **kwargs)
         else:
-            scatter(xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
-            #over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
+            pl.scatter(xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1, **kwargs)
+            #pl.over(scatter,xs, ys, s=80, c=cs, zorder=1000, marker='d', alpha=0.5, facecolor='none', linewidths=1)
 
     if isinstance(models, dict):
         si = style_iterator()
@@ -209,7 +265,7 @@ def src_plot(env, models=None, obj_index=0, hilite_model=None, hilite_color='g')
                 si = style_iterator()
                 plot(m, si, mi==hilite_model)
 
-    xlim(oxlim); ylim(oylim)
+    pl.xlim(oxlim); pl.ylim(oylim)
 
     #if isinstance(models, (list,tuple)) and len(models)>0 and isinstance(models[0], (list,tuple)):
     #else:
@@ -226,14 +282,14 @@ def src_hist(models=None, hilite_model=None):
             r = list(abs(data['src']))
             d += r
             if mi == hilite_model: hilite += r
-    hist(d, histtype='step', log=False)
+    pl.hist(d, histtype='step', log=False)
     for i,r in enumerate(hilite):
         print r
-        axvline(r, c=system_color(i), ls='-', zorder=-2, alpha=0.5)
+        pl.axvline(r, c=system_color(i), ls='-', zorder=-2, alpha=0.5)
 
             
-    xlabel(_src_hist_xlabel)
-    ylabel(_src_hist_ylabel)
+    pl.xlabel(_src_hist_xlabel)
+    pl.ylabel(_src_hist_ylabel)
     
 
 def image_plot(im, extent):
@@ -256,22 +312,22 @@ def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels
 def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True, vmin=-1,vmax=2):
     obj, data = model['obj,data'][obj_index]
 
-#   print gca()
-#   print gca().get_frame()
-#   print gca().get_frame().get_bbox()
-#   print gca().get_geometry()
-#   print gca().get_position()
-#   print gca().get_window_extent()
-#   l= gca().get_axes_locator()
+#   print pl.gca()
+#   print pl.gca().get_frame()
+#   print pl.gca().get_frame().get_bbox()
+#   print pl.gca().get_geometry()
+#   print pl.gca().get_position()
+#   print pl.gca().get_window_extent()
+#   l= pl.gca().get_axes_locator()
 #   print l
 #   help(l)
-#   #help(gca())
+#   #help(pl.gca())
 #   assert 0
 
     R = obj.basis.mapextent
 
-    grid = obj.basis.kappa_grid(data)
-    #grid = obj.basis._to_grid(data['kappa'],1)
+    #grid = obj.basis.kappa_grid(data)
+    grid = obj.basis._to_grid(data['kappa'],1)
     grid = log10(grid.copy() + 1e-4)
 #   grid2 = grid.copy() 
 #   for i in xrange(grid.shape[0]):
@@ -284,20 +340,20 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
     kw = default_kw(R, vmin=vmin, vmax=vmax)
 
     if not only_contours:
-        #matshow(log10(grid), **kw)
-        matshow(grid, **kw)
+        #pl.matshow(log10(grid), **kw)
+        pl.matshow(grid, **kw)
         #imshow(grid, fignum=False, **kw)
-        #matshow(grid, fignum=False, **kw)
+        #pl.matshow(grid, fignum=False, **kw)
         if with_colorbar: 
             glscolorbar()
 
     if only_contours or with_contours:
         kw.pop('cmap')
-        over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
-        gca().set_aspect('equal')
+        pl.over(pl.contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
+        pl.gca().set_aspect('equal')
 
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 
 @command
 def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
@@ -315,16 +371,16 @@ def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_
         if which == 'x': grid = diff(grid, axis=1)
         if which == 'y': grid = diff(grid, axis=0)
         print '!!!!!!', grid.shape
-        matshow(grid, **kw)
+        pl.matshow(grid, **kw)
         if with_colorbar: 
-            glscolorbar()
+            glspl.colorbar()
 
     if with_contours:
         kw.pop('cmap')
-        over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
+        pl.over(contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
 
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 
 @command
 def potential_plot(env, model, obj_index, src_index, with_colorbar=True, with_contours=False):
@@ -332,33 +388,33 @@ def potential_plot(env, model, obj_index, src_index, with_colorbar=True, with_co
     R = obj.basis.mapextent
     grid = obj.basis.potential_grid(data)
     levs = obj.basis.potential_contour_levels(data)
-#   matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
-    matshow(grid, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
-    if with_colorbar: glscolorbar()
-#   contour(grid, extent=[-R,R,-R,R], origin='upper')
+#   pl.matshow(grid, fignum=False, extent=[-R,R,-R,R], interpolation='nearest')
+    pl.matshow(grid, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
+    if with_colorbar: glspl.colorbar()
+#   pl.contour(grid, extent=[-R,R,-R,R], origin='upper')
     #print levs
     if with_contours:
         for i,lev in enumerate(levs):
-            over(contour, grid, lev, colors = system_color(i), 
+            pl.over(contour, grid, lev, colors = system_color(i), 
                  extent=[-R,R,-R,R], origin='upper', extend='both')
 
 
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 #   figure();
 #   xs = linspace(-R, R, grid.shape[0])
 #   plot(xs, grid[grid.shape[1]//2, :], 'k-')
 #   plot(xs, 5*xs, 'r-')
 
-    #suptitle('Potential')
+    #pl.suptitle('Potential')
 
 @command
 def critical_curve_plot(env, model, obj_index, src_index):
     obj, data = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     g = obj.basis.maginv_grid(data)[src_index]
-    matshow(g, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
-    over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
+    pl.matshow(g, fignum=False, cmap=cm.bone, extent=[-R,R,-R,R], interpolation='nearest')
+    pl.over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
 
 @command
 def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True, clevels=None, with_colorbar=False):
@@ -379,8 +435,8 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
         #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
         if not only_contours:
             kw.update({'zorder':-100})
-            matshow(log10(g), **kw)
-            if with_colorbar: glscolorbar()
+            pl.matshow(log10(g), **kw)
+            if with_colorbar: glspl.colorbar()
         kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
         if clevels:
             loglev=clevels
@@ -388,12 +444,12 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
             #loglev = 1 / logspace(1/ log(amax(g)-amin(g)), 1, clevels, base=math.e) + amin(g)
             #loglev = 1 / logspace(1/ log10(amax(g)-amin(g)), 1, clevels) + amin(g)
             kw.update({'zorder':-1000})
-            contour(g, loglev, **kw)
+            pl.contour(g, loglev, **kw)
         if lev:
             kw.update({'zorder':1000})
             kw.update({'colors': 'k', 'linewidths':2, 'cmap':None})
             #kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
-            contour(g, lev, **kw)
+            pl.contour(g, lev, **kw)
 
     for obj,data in model['obj,data'][obj_slice]:
         lev = obj.basis.arrival_contour_levels(data)
@@ -409,12 +465,12 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
             kw = default_kw(R)
 
             plot_one(obj,data,src.index,g,levels,kw)
-            xlim(-obj.basis.mapextent, obj.basis.mapextent)
-            ylim(-obj.basis.mapextent, obj.basis.mapextent)
+            pl.xlim(-obj.basis.mapextent, obj.basis.mapextent)
+            pl.ylim(-obj.basis.mapextent, obj.basis.mapextent)
 
-    gca().set_aspect('equal')
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.gca().set_aspect('equal')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 
 @command
 def srcdiff_plot(env, model, obj_index, src_index, with_colorbar=False):
@@ -428,15 +484,15 @@ def srcdiff_plot(env, model, obj_index, src_index, with_colorbar=False):
     kw = default_kw(R, vmin=vmin, vmax=vmin+2)
 
     #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
-    matshow(log10(g), **kw)
+    pl.matshow(log10(g), **kw)
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
-    if with_colorbar: glscolorbar()
-#   over(contour, g, 50,  colors='w',               linewidths=1, 
+    if with_colorbar: glspl.colorbar()
+#   pl.over(contour, g, 50,  colors='w',               linewidths=1, 
 #        extent=[-R,R,-R,R], origin='upper', extend='both')
-    #grid()
+    #pl.grid()
 
-    xlabel('arcsec')
-    ylabel('arcsec')
+    pl.xlabel('arcsec')
+    pl.ylabel('arcsec')
 
 @command
 def deflect_plot(env, model, obj_index, which, src_index):
@@ -450,7 +506,7 @@ def deflect_plot(env, model, obj_index, which, src_index):
     g = g.copy() + 1e-10
     kw = default_kw(R, vmin=None, vmax=None)
 
-    matshow(g, **kw)
+    pl.matshow(g, **kw)
     #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
 @command
@@ -476,7 +532,7 @@ def grad_tau(env, model, obj_index, which, src_index):
     d[abs(d) < 1e-3] = 0
     d[d>0] = 1
     d[d<0] = -1
-    matshow(d, fignum=False, extent=[-R,R,-R,R], alpha=0.5)
+    pl.matshow(d, fignum=False, extent=[-R,R,-R,R], alpha=0.5)
 
 @command
 def deriv(env, model, obj_index, src_index, m, axis, R):
@@ -497,16 +553,16 @@ def deriv(env, model, obj_index, src_index, m, axis, R):
 
     R -= model[0].basis.top_level_cell_size * 2
     #R -= model[0].basis.top_level_cell_size * 2
-    matshow(d, extent=[-R,R,-R,R])
-    glscolorbar()
+    pl.matshow(d, extent=[-R,R,-R,R])
+    glspl.colorbar()
     arrival_plot(model, obj_index, src_index, only_contours=True, clevels=200)
     #img_plot(model, src_index=src_index)
-    #matshow(d)
+    #pl.matshow(d)
 
 #   d = d[1:-1,1:-1]
 #   d[d>0] = 1
 #   d[d<0] = -1
-#   matshow(d, extent=[-R,R,-R,R])
+#   pl.matshow(d, extent=[-R,R,-R,R])
 #   img_plot(model, src_index=src_index)
 
 @command
@@ -535,7 +591,7 @@ def _data_plot2(models, X,Y, **kwargs):
 
     every = kwargs.get('every', 1)
     upto = kwargs.get('upto', len(models))
-    plotf = kwargs.get('plotf', semilogy)
+    plotf = kwargs.get('plotf', pl.semilogy)
     if type(plotf) == type(""):
         plotf = globals().get(plotf, None)
 
@@ -617,18 +673,18 @@ def _data_plot2(models, X,Y, **kwargs):
 
     for k,v in imgs.iteritems():
         for img_pos in v:
-            axvline(img_pos, c=system_color(k), ls='-', zorder=-2, alpha=0.5)
+            pl.axvline(img_pos, c=system_color(k), ls='-', zorder=-2, alpha=0.5)
 
     if use[0] or use[1]:
         lines  = [s['line']  for s,u in zip(_styles, use) if u]
         labels = [s['label'] for s,u in zip(_styles, use) if u]
-        legend(lines, labels)
+        pl.legend(lines, labels)
 
     #axis('scaled')
-    if x_label: xlabel(x_label)
-    if y_label: ylabel(y_label)
-    xlim(xmin=xlim()[0] - 0.01*(xlim()[1] - xlim()[0]))
-    #ylim(0, ymax)
+    if x_label: pl.xlabel(x_label)
+    if y_label: pl.ylabel(y_label)
+    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    #pl.ylim(0, ymax)
 
 def _axis_label(data, units):
     label = '%s' % data.symbol
@@ -651,7 +707,7 @@ def _data_error_plot(models, X,Y, **kwargs):
 
     every = kwargs.pop('every', 1)
     upto = kwargs.pop('upto', len(models))
-    plotf = kwargs.pop('plotf', semilogy)
+    plotf = kwargs.pop('plotf', pl.semilogy)
     mark_images = kwargs.pop('mark_images', True)
     hilite_model = kwargs.pop('hilite_model', None)
     hilite_color = kwargs.pop('hilite_color', 'm')
@@ -727,9 +783,9 @@ def _data_error_plot(models, X,Y, **kwargs):
             #print len(avg)
             #assert 0
             if tag == 'rejected':
-                errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), c=_styles[0]['c'], zorder=_styles[0]['z'])
+                pl.errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), c=_styles[0]['c'], zorder=_styles[0]['z'])
             else:
-                errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), **kwargs)
+                pl.errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), **kwargs)
 
     pl.yscale(yscale)
     pl.xscale(xscale)
@@ -738,23 +794,23 @@ def _data_error_plot(models, X,Y, **kwargs):
     for k,v in imgs.iteritems():
         lw,ls,c = si.next()
         for img_pos in v:
-            axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
+            pl.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
 
 #   if use[0] or use[1]:
 #       lines  = [s['line']  for s,u in zip(_styles, use) if u]
 #       labels = [s['label'] for s,u in zip(_styles, use) if u]
-#       legend(lines, labels)
+#       pl.legend(lines, labels)
 
     if use[0]:
         lines  = [ _styles[0]['line'] ]
         labels = [ _styles[0]['label'] ]
-        legend(lines, labels)
+        pl.legend(lines, labels)
 
     #axis('scaled')
-    if x_label: xlabel(x_label)
-    if y_label: ylabel(y_label)
-    xlim(xmin=xlim()[0] - 0.01*(xlim()[1] - xlim()[0]))
-    #ylim(0, ymax)
+    if x_label: pl.xlabel(x_label)
+    if y_label: pl.ylabel(y_label)
+    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    #pl.ylim(0, ymax)
 
 @command
 def glplot(env, ptype, xkeys, ykeys=[], **kwargs):
@@ -792,16 +848,16 @@ def H0inv_plot(env, **kwargs):
     for d,s in zip(l, _styles):
         if d:
             #print len(d), d
-            #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
+            #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
     if not_accepted or accepted:
-        legend()
+        pl.legend()
 
-    axvline(13.7, c='k', ls=':', zorder = 2)
+    pl.axvline(13.7, c='k', ls=':', zorder = 2)
 
-    xlabel(_H0inv_xlabel)
-    ylabel(r'Count')
+    pl.xlabel(_H0inv_xlabel)
+    pl.ylabel(r'Count')
 
     if accepted or not not_accepted:
         if accepted:
@@ -816,9 +872,9 @@ def H0inv_plot(env, **kwargs):
         u = hs[l * 0.68]
         l = hs[l * 0.32]
 
-        axvline(m, c='r', ls='-', zorder = 2)
-        axvline(u, c='g', ls='-', zorder = 2)
-        axvline(l, c='g', ls='-', zorder = 2)
+        pl.axvline(m, c='r', ls='-', zorder = 2)
+        pl.axvline(u, c='g', ls='-', zorder = 2)
+        pl.axvline(l, c='g', ls='-', zorder = 2)
 
         print 'H0inv_plot: ', m, u, l
         print 'H0inv_plot: ', m, (u-m), (m-l)
@@ -850,16 +906,16 @@ def H0_plot(env, models=None, obj_index=0, key='accepted'):
     for d,s in zip(l, _styles):
         if d:
             #print len(d), d
-            #hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
+            #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
     if not_accepted or accepted:
-        legend()
+        pl.legend()
 
-    #axvline(72, c='k', ls=':', zorder = 2)
+    #pl.axvline(72, c='k', ls=':', zorder = 2)
 
-    xlabel(_H0_xlabel)
-    ylabel(r'Count')
+    pl.xlabel(_H0_xlabel)
+    pl.ylabel(r'Count')
 
     if accepted or not not_accepted:
         if accepted:
@@ -874,18 +930,18 @@ def H0_plot(env, models=None, obj_index=0, key='accepted'):
         u = hs[l * 0.84]
         l = hs[l * 0.26]
 
-        axvline(m, c='r', ls='-', zorder = 2)
-        axvline(u, c='g', ls='-', zorder = 2)
-        axvline(l, c='g', ls='-', zorder = 2)
+        pl.axvline(m, c='r', ls='-', zorder = 2)
+        pl.axvline(u, c='g', ls='-', zorder = 2)
+        pl.axvline(l, c='g', ls='-', zorder = 2)
 
         Log( 'H0_plot: %f %f %f' % (m, u, l) )
         Log( 'H0_plot: %f %f %f' % (m, (u-m), (m-l)) )
     else:
         Log( "H0_plot: No H0 values accepted" )
 
-    xlim(xmin=0)
-    xlim(xmax=xlim()[1] + 0.01*(xlim()[1] - xlim()[0]))
-    ylim(ymax=ylim()[1] + 0.01*(ylim()[1] - ylim()[0]))
+    pl.xlim(xmin=0)
+    pl.xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    pl.ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))
 
 _time_delays_xlabel = r'Time delay (days)'
 @command
@@ -909,15 +965,15 @@ def time_delays_plot(env, **kwargs):
         #print 'td plot', k, len(v)
         #print v
         lw,ls = s.next()
-        hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
+        pl.hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
 
-    #xlim(xmin=0)
-    ylim(ymin=0)
-    xlim(xmin=xlim()[0] - 0.01*(xlim()[1] - xlim()[0]))
-    legend()
+    #pl.xlim(xmin=0)
+    pl.ylim(ymin=0)
+    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    pl.legend()
 
-    xlabel(_time_delays_xlabel)
-    ylabel(r'Count')
+    pl.xlabel(_time_delays_xlabel)
+    pl.ylabel(r'Count')
 
 
 _scale_factor_xlabel = r'Scale factor'
@@ -938,13 +994,13 @@ def scale_factor_plot(env, **kwargs):
 
     for d,s in zip(l, _styles):
         if d:
-            hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
+            pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
 
     if not_accepted or accepted:
-        legend()
+        pl.legend()
 
-    xlabel(_scale_factor_xlabel)
-    ylabel(r'Count')
+    pl.xlabel(_scale_factor_xlabel)
+    pl.ylabel(r'Count')
 
 
 _chisq_xlabel = r'$\chi^2$'
@@ -965,13 +1021,13 @@ def chisq_plot(env, **kwargs):
 
     for d,s in zip(l, _styles):
         if d:
-            hist(d, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
+            pl.hist(d, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], log=False, **kwargs)
 
     if not_accepted or accepted:
-        legend()
+        pl.legend()
 
-    xlabel(_chisq_xlabel)
-    ylabel(r'Count')
+    pl.xlabel(_chisq_xlabel)
+    pl.ylabel(r'Count')
 
 @command
 def shear_plot(env, models=None, **kwargs):
@@ -989,6 +1045,7 @@ def shear_plot(env, models=None, **kwargs):
     for mi,m in enumerate(models):
         # For H0 we only have to look at one model because the others are the same
         for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
+            if not data.has_key('shear'): continue
             #s0[oi].append(90-np.degrees(np.arctan2(*data['shear'])))
             s0[oi].append(data['shear'][0])
             s1[oi].append(data['shear'][1])
@@ -996,8 +1053,8 @@ def shear_plot(env, models=None, **kwargs):
             #s0,s1 = data['shear']
             #Log( 'Model %i  Object %i  Shear %.4f %.4f' % (mi, oi, s0,s1) )
 
-    hist(s0[0], histtype='step', **kwargs)
-    hist(s1[0], histtype='step', **kwargs)
+    if s0[0]: pl.hist(s0[0], histtype='step', **kwargs)
+    if s1[0]: pl.hist(s1[0], histtype='step', **kwargs)
 
 _chi2_xlabel = r'$\ln \chi^2$'
 @command
@@ -1015,7 +1072,48 @@ def chi2_plot(env, models, model0, **kwargs):
             n_chi2 += np.sum((mass1 - mass0)**2)
             d_chi2 += np.sum(mass0**2)
         v.append(np.log(n_chi2/d_chi2))
-    hist(v, histtype='step', log=False, **kwargs)
-    xlabel(_chi2_xlabel)
-    ylabel(r'Count')
+    pl.hist(v, histtype='step', log=False, **kwargs)
+    pl.xlabel(_chi2_xlabel)
+    pl.ylabel(r'Count')
 
+@command
+def glhist(env, data_key, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', 0)
+    key = kwargs.pop('key', 'accepted')
+    ylabel = kwargs.pop('ylabel', r'Count')
+    xlabel = kwargs.pop('xlabel', data_key)
+    label  = kwargs.pop('label', None)
+
+    # select a list to append to based on the 'accepted' property.
+    l = [[], [], []]
+    for m in models:
+        obj, data = m['obj,data'][obj_index] # For H0 we only have to look at one model because the others are the same
+        l[m.get(key,2)].append(data[data_key])
+        #print 'nu', data['nu']
+        #l[2].append(data['kappa'][1])
+
+    #print amin(l[2]), amax(l[2])
+
+    not_accepted, accepted, notag = l
+
+    #print 'H0_plot',H0s
+
+    for d,s in zip(l, _styles):
+        if d:
+            #print len(d), d
+            #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
+            pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'] if label is None else label, **kwargs)
+
+    if not_accepted:
+        pl.legend()
+
+    #pl.axvline(72, c='k', ls=':', zorder = 2)
+
+    pl.xlabel(xlabel)
+    pl.ylabel(ylabel)
+
+    pl.xlim(xmin=0)
+    pl.xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    pl.ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))

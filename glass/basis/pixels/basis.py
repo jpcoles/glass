@@ -44,6 +44,8 @@ from glass.potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
 
 from glass.log import log as Log
 
+np.set_printoptions(threshold=1000000)
+
 def neighbors(r,s, Rs):
     rs = abs(Rs-r)
     return argwhere((0 < rs) * (rs <= s)).ravel()
@@ -377,11 +379,11 @@ class PixelBasis(object):
         self.samplex_row_offset = None
 
         self.nvar = 0
-        self.pix_start,    self.pix_end    = None,None
-        self.shear_start,  self.shear_end  = None,None
-        self.ptmass_start, self.ptmass_end = None,None
-        self.srcpos_start, self.srcpos_end = None,None
-        self.H0                            = None
+        #self.pix_start,    self.pix_end    = None,None
+        #self.shear_start,  self.shear_end  = None,None
+        #self.ptmass_start, self.ptmass_end = None,None
+        #self.srcpos_start, self.srcpos_end = None,None
+        #self.H0                            = None
 
         self.inner_image_ring, self.outer_image_ring = None,None
 
@@ -664,13 +666,23 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
         # Setup variable offsets for the constraint arrays
         #---------------------------------------------------------------------
-        self.pix_start,    self.pix_end    = 0, npix
-        self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is True)
-        self.ptmass_start, self.ptmass_end = self.shear_end, self.shear_end
-        self.srcpos_start, self.srcpos_end = self.ptmass_end, self.ptmass_end+2*len(obj.sources)
-        self.H0 = self.srcpos_end
+        self.offs_pix    = array([0, npix], dtype='int32')
+        self.offs_srcpos = array([0, 2*len(obj.sources)], dtype='int32') + self.offs_pix[1]
+        self.H0          = 0 + self.offs_srcpos[1]
 
-        self.nvar = self.H0+1
+        #self.pix_start,    self.pix_end    = 0, npix
+        #self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is True)
+        #self.ptmass_start, self.ptmass_end = self.shear_end, self.shear_end
+        #self.srcpos_start, self.srcpos_end = self.pix_end, self.pix_end+2*len(obj.sources)
+        #self.H0 = self.srcpos_end
+
+        last = self.H0 + 1
+        self.extra_potentials_array_offsets = []
+        for e in obj.extra_potentials:
+            self.extra_potentials_array_offsets.append(array([last, last + e.nParams], dtype='int32'))
+            last += e.nParams
+
+        self.nvar = int(last)
 
         self.nvar_symm = self.nvar
         if obj.symm:
@@ -691,23 +703,25 @@ class PixelBasis(object):
         Log( '    Number of variables  = %i'    % self.nvar )
         Log( '    Central pixel offset = %i'    % self.central_pixel )
         Log( 'Offsets        % 5s  % 5s' % ('Start', 'End') )
-        Log( '    pix        % 5i  % 5i' % (self.pix_start, self.pix_end) )
-        if self.shear_start == self.shear_end:
-            Log( '    shear           %s' % 'None')
-        else:
-            Log( '    shear      % 5i  % 5i' % (self.shear_start,  self.shear_end) )
+        Log( '    pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
+#       if self.shear_start == self.shear_end:
+#           Log( '    shear           %s' % 'None')
+#       else:
+#           Log( '    shear      % 5i  % 5i' % (self.shear_start,  self.shear_end) )
 
-        if self.ptmass_start == self.ptmass_end:
-            Log( '    ptmass          %s' % 'None')
-        else:
-            Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
+#       if self.ptmass_start == self.ptmass_end:
+#           Log( '    ptmass          %s' % 'None')
+#       else:
+#           Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
 
-        if self.srcpos_start == self.srcpos_end:
+        if self.offs_srcpos[0] == self.offs_srcpos[1]:
             Log( '    srcpos          %s' % 'None')
         else:
-            Log( '    srcpos     % 5i  % 5i' % (self.srcpos_start, self.srcpos_end) )
+            Log( '    srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
 
         Log( '    H0         % 5i'       % (self.H0) )
+        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+            Log( '    %-10s % 5i  % 5i' % (e.name, start, end) )
 
 #       xy    = self.refined_xy_grid({})
 
@@ -729,16 +743,15 @@ class PixelBasis(object):
         # These come directly from the solution
         #---------------------------------------------------------------------
 
-        ps['kappa']  = sol[ o+self.pix_start    : o+self.pix_end      ]
-
-        ps['shear']  = sol[ o+self.shear_start  : o+self.shear_end    ] - shear.shift \
-                       if obj.shear else array([0,0])
-        ps['ptmass'] = sol[ o+self.ptmass_start : o+self.ptmass_start ]
-        ps['src']    = [complex(sol[o+i], sol[o+i+1]) / obj.sources[j].zcap - complex(self.map_shift, self.map_shift)
-                        for j,i in enumerate(xrange(self.srcpos_start, self.srcpos_end,2))]
+        ps['kappa']  = sol[ slice(*self.offs_pix) ]
+        ps['src']    = [complex(*(sol[i:i+2] / obj.sources[j].zcap - self.map_shift))
+                        for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
+
+        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+            ps[e.name] = sol[ start : end ] - e.shift
  
-        ps['nu']     = sol[o+self.H0]
+        ps['nu']     = sol[self.H0]
         ps['H0']     = convert('nu to H0 in km/s/Mpc', ps['nu'])
         ps['1/H0']   = convert('nu to H0^-1 in Gyr',   ps['nu'])
 
@@ -764,8 +777,8 @@ class PixelBasis(object):
         obj  = self.myobject
 
         pix_start,    pix_end    = self.pix_start,    self.pix_end
-        shear_start,  shear_end  = self.shear_start,  self.shear_end
-        ptmass_start, ptmass_end = self.ptmass_start, self.ptmass_end
+        #shear_start,  shear_end  = self.shear_start,  self.shear_end
+        #ptmass_start, ptmass_end = self.ptmass_start, self.ptmass_end
 
         delays = []
         for i, src in enumerate(obj.sources):
@@ -917,10 +930,13 @@ class PixelBasis(object):
             multiply(l, m, l)
             subtract(phi, l, phi) #phi -= l
 
-        if obj.shear:
-            xy   = self.refined_xy_grid(data)
-            s1,s2 = data['shear']
-            phi -= s1*shear.poten(0, xy) + s2*shear.poten(1, xy)
+        xy = self.refined_xy_grid(data)
+        for e in obj.extra_potentials:
+            p = data[e.name] * e.poten(xy.flatten()).T
+            while len(p.shape) > 1:
+                p = sum(p,axis=-1)
+            p = np.reshape(p, xy.shape)
+            phi += p
 
         #print 'potential_grid: sum', sum(phi)
 
@@ -929,14 +945,13 @@ class PixelBasis(object):
     @memoize
     def potential_contour_levels(self, data):
         obj = self.myobject
-        if obj.shear: s1,s2 = data['shear']
         lvls = []
         for i,src in enumerate(obj.sources):
             l = []
             for img in src.images:
                 p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
-                if obj.shear:
-                    p -= s1*shear.poten(0, img.pos) + s2*shear.poten(1, img.pos)
+                for e in obj.extra_potentials:
+                    p += sum(data[e.name] * e.poten(img.pos).T)
                 l.append(p)
             if l: lvls.append(l)
         return lvls
@@ -954,15 +969,14 @@ class PixelBasis(object):
 
         obj = self.myobject
         lvls = []
-        if obj.shear: s1,s2 = data['shear']
 
         def _tau(img,src,r):
             geom  = abs(img.pos - r)**2 / 2  *  src.zcap
 
             p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
             #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
-            if obj.shear:
-                p += s1*shear.poten(0, img.pos) + s2*shear.poten(1, img.pos)
+            for e in obj.extra_potentials:
+                p += sum(data[e.name] * e.poten(img.pos).T)
 
             return geom + p
 

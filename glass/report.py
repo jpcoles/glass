@@ -50,12 +50,12 @@ def report(env):
         #Log( pp('    Critical density      = %.4e' % convert('kappa to Msun/arcsec^2', 1, o.dL, '[Msun/arcsec^2]') )
         Log( pp('    Critical density = %.4e (H0inv=%.1f)' \
             % (convert('kappa to Msun/kpc^2', 1, o.dL, H0inv_ref_as_nu), env.H0inv_ref), '[Msun/kpc^2]') )
-        if o.shear:
-            pass
-            #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )
-        else:
-            Log( pp('    NO SHEAR', '') )
-            #Log( pp('    Shear                 = Not specified', '') )
+#       if o.shear:
+#           pass
+#           #Log( pp('    Shear                 = %.4g' % o.shear.phi, '') )
+#       else:
+#           Log( pp('    NO SHEAR', '') )
+#           #Log( pp('    Shear                 = Not specified', '') )
 #       Log( pp('    Steepness             = %s' % str_range(o.steep, '%.4g'), '') )
         Log( )
         for src in o.sources:

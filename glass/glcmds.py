@@ -9,12 +9,12 @@ from  glass.report import report
 
 from glass.environment import Image, Source, Environment
 from glass.command import command, Commands
-#from glass.shear import Shear
+from glass.shear import Shear
 from glass.scales import convert
 from glass.log import log as Log, setup_log
 
 @command
-def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not implemented"
+def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not supported. Use external_mass()."
 @command
 def redshifts(*args):           assert False, "redshifts not implemented"
 @command
@@ -38,8 +38,17 @@ def globject(env, name):
 
 @command
 def shear(env, strength=0.1):
-    env.current_object().shear = True
+    env.current_object().extra_potentials.append(Shear())
     env.current_object().prior_options['shear']['strength'] = strength
+
+@command
+def external_mass(env, mass_obj, min=None, max=None):
+    env.current_object().extra_potentials.append(mass_obj)
+    if min is not None: assert min >= 0
+    if max is not None: assert max >= 0
+    env.current_object().prior_options['external mass']['min'] = min
+    env.current_object().prior_options['external mass']['max'] = max
+    env.current_object().add_external_mass(mass_obj)
 
 @command
 def zlens(env, z):
