@@ -5,7 +5,7 @@ exclude_all_priors()
 
 import os
 import pylab as pl
-from pylab import show, figure, ion, savefig, gcf
+from pylab import show, figure, ion, ioff, savefig, gcf
 from math import pi, cos
 
 def escape(s):
@@ -154,5 +154,6 @@ else:
     colors = 'rgbcm'
 
 PlotFigures()
+ioff()
 show()
 
