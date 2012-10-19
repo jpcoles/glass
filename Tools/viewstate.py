@@ -119,7 +119,7 @@ def PlotFigures():
             #g.gradient_plot(g.ensemble_average, 0)
             end_plot()
 
-    if 1:
+    if 0:
         for g in gls:
             begin_plot()
             g.glhist('N1')
