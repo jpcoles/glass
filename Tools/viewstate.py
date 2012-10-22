@@ -76,7 +76,7 @@ def PlotFigures():
 
     if 0: 
         begin_plot()
-        H0_plot         (env().models)
+        g.H0inv_plot()
         end_plot()
 
     if 1: 
@@ -122,11 +122,11 @@ def PlotFigures():
     if 0:
         for g in gls:
             begin_plot()
-            g.glhist('N1')
-            g.glhist('N2')
-            g.glhist('N3')
-            g.glhist('N4')
-            g.glhist('N5')
+            g.glhist('N1', label='N1', color='r', xlabel=r'$\theta_E$')
+            g.glhist('N3', label='N3', color='b', xlabel=r'$\theta_E$')
+            g.glhist('N4', label='N4', color='m', xlabel=r'$\theta_E$')
+            g.glhist('N2', label='N2', color='g', xlabel=r'$\theta_E$')
+            #g.glhist('N5', label='N5', color='c', xlabel=r'$\theta_E$')
             end_plot()
 
     if 1:
