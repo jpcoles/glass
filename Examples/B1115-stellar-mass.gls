@@ -152,7 +152,8 @@ source(1.722, A,'min',
 # where each pixel is 0.18 arcseconds on a side. Here, we need to specify 
 # the radius.
 
-leier_grid('StellarMass/1115.dat1', .18*31 / 2)
+leier_grid('StellarMass/1115.dat1', 6.188, units='kpc')
+#leier_grid('StellarMass/1115.dat1', .18*31 / 2)
 
 # To actually create the models we call the model function with the number
 # of models we wish to generate.
