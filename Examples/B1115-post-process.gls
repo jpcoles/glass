@@ -10,6 +10,12 @@
 
 glass_basis('glass.basis.pixels', solver='rwalk')
 
+def print_model(m):
+    print m
+
+def reject_all(m):
+    return False
+
 # The glass_basis function instructs GLASS to use a pixelated mass map as the
 # basis of the lens reconstruction. At the moment the only available option
 # is 'glass.basis.pixels' but in the future there will be support for other
@@ -86,7 +92,7 @@ zlens(0.31)
 # may depend of the complexity of the problem and how well the mass needs to be
 # resolved. We will choose a value of 10.
 
-pixrad(3)
+pixrad(5)
 
 # All of the priors have default values if they take parameters but for this
 # example we will explicitly set the default values.
@@ -146,12 +152,16 @@ source(1.722, A,'min',
               C,'sad', None,
               D,'sad', 11.7)
 
+post_process(print_model)
+post_filter(reject_all)
+
 # To actually create the models we call the model function with the number
 # of models we wish to generate.
 
 model(1000)
+apply_filters()
 
 # We can save all the results in one file that we can load later to analyse.
 
-savestate('B1115.state')
+savestate('B1115-post-process.state')
     

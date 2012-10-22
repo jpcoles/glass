@@ -22,7 +22,8 @@ glass_basis('glass.basis.pixels', solver='rwalk')
 # In the output (or state) file we can store notes to ourselves or other
 # information about run using the meta function.
 
-meta(author='Jonathan Coles', notes='Just testing')
+meta(author='Jonathan Coles', notes='Just testing',
+     stellar_mass='StellarMass/1115.dat1')
 
 # The arguments to the function are in the form of key=value pairs, where
 # the key can be any name you like.
@@ -60,7 +61,8 @@ include_prior(
     'hubble_constant',
     'PLsmoothness3',
     'shared_h',
-    'external_shear'
+    'external_shear',
+    'min_kappa_leier_grid'
 )
 
 # If we want to set the hubble time to a fixed value and not allow the modeler
@@ -86,7 +88,7 @@ zlens(0.31)
 # may depend of the complexity of the problem and how well the mass needs to be
 # resolved. We will choose a value of 10.
 
-pixrad(3)
+pixrad(5)
 
 # All of the priors have default values if they take parameters but for this
 # example we will explicitly set the default values.
@@ -146,6 +148,12 @@ source(1.722, A,'min',
               C,'sad', None,
               D,'sad', 11.7)
 
+# Load the stellar mass distribution. This file has a mass map of 31x31 pixels
+# where each pixel is 0.18 arcseconds on a side. Here, we need to specify 
+# the radius.
+
+leier_grid('StellarMass/1115.dat1', .18*31 / 2)
+
 # To actually create the models we call the model function with the number
 # of models we wish to generate.
 
@@ -153,5 +161,5 @@ model(1000)
 
 # We can save all the results in one file that we can load later to analyse.
 
-savestate('B1115.state')
+savestate('B1115-stellar-mass.state')
     
