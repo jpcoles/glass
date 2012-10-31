@@ -34,7 +34,7 @@ from math import atan2, pi
 from itertools import izip
 
 from glass.environment import Environment
-import . potential
+#glassimport . potential
 import glass.shear as shear
 from . potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
 from glass.scales import convert
