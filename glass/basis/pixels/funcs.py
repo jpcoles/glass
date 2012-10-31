@@ -29,7 +29,10 @@ def estimated_Rlens(obj, ps, src_index):
     #print '^' * 10
     w = ps['kappa(<R)'] >= 1
 
+    #print ps['kappa(<R)']
+    #print ps['R']['kpc']
     #print w
+    #assert 0
 
     if not w.any(): return 0,0,0,0
 
@@ -86,6 +89,9 @@ def default_post_process(m):
     obj,ps = m
     b = obj.basis
 
+    ps['H0']     = convert('nu to H0 in km/s/Mpc', ps['nu'])
+    ps['1/H0']   = convert('nu to H0^-1 in Gyr',   ps['nu'])
+
     rscale = convert('arcsec to kpc', 1, obj.dL, ps['nu'])
 
     #print ps['nu'], convert('nu to H0^-1 in Gyr', ps['nu'])
@@ -115,7 +121,7 @@ def default_post_process(m):
                             r'$\Sigma$', {'Msun/kpc^2': [1, r'$(M_\odot/\mathrm{kpc}^2)$']})
 
     ps['kappa(R)'] = DArray([mean_kappa(r) for r in b.rings],
-                            r'$\langle\kappa(R)\rangle$', [{'kappa': [1, None]}])
+                            r'$\langle\kappa(R)\rangle$', {'$\kappa$': [1, None]})
 
     ps['kappa(<R)'] = DArray(cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2) for r in b.rings]) / cumsum([sum(b.cell_size[r]**2) for r in b.rings]),
                              r'$\kappa(<R)$', {'kappa': [1, None]})

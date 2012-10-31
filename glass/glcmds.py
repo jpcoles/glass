@@ -7,26 +7,27 @@ from itertools import izip, count, repeat
 import glass.cosmo
 from  glass.report import report
 
-from glass.environment import Image, Source, Environment
+from glass.environment import Image, Arc, Source, Environment
 from glass.command import command, Commands
 from glass.shear import Shear
 from glass.scales import convert
 from glass.log import log as Log, setup_log
+from glass.exceptions import GLInputError
 
 @command
-def ptmass(xc, yc, mmin, mmax): assert False, "ptmass not supported. Use external_mass()."
+def ptmass(xc, yc, mmin, mmax): raise GLInputError("ptmass not supported. Use external_mass().")
 @command
-def redshifts(*args):           assert False, "redshifts not implemented"
+def redshifts(*args):           raise GLInputError("redshifts not implemented.")
 @command
-def double(*args):              assert False, "double() not supported. Use source()."
+def double(*args):              raise GLInputError("double() not supported. Use source().")
 @command
-def quad(*args):                assert False, "quad() not supported. Use source()."
+def quad(*args):                raise GLInputError("quad() not supported. Use source().")
 @command
-def multi(*args):               assert False, "multi() not supported. Use source()."
+def multi(*args):               raise GLInputError("multi() not supported. Use source().")
 @command
-def g(*args):                   assert False, 'g() no longer supported, use hubble_time'
+def g(*args):                   raise GLInputError('g() no longer supported, use hubble_time().')
 @command
-def t0(*args):                  assert False, 't0() no longer supported, use hubble_time'
+def t0(*args):                  raise GLInputError('t0() no longer supported, use hubble_time().')
 
 @command
 def new_env(env):
@@ -38,29 +39,38 @@ def globject(env, name):
 
 @command
 def shear(env, strength=0.1):
-    env.current_object().extra_potentials.append(Shear())
+    if not prior_included('external_shear'): raise GLInputError("The 'external_shear' prior must be included to enable the shear() command.")
+    env.current_object().extra_potentials.append(Shear(shift=strength))
     env.current_object().prior_options['shear']['strength'] = strength
 
 @command
-def external_mass(env, mass_obj, min=None, max=None):
+def external_mass(env, mass_obj, mass_range=None):
     env.current_object().extra_potentials.append(mass_obj)
-    if min is not None: assert min >= 0
-    if max is not None: assert max >= 0
-    env.current_object().prior_options['external mass']['min'] = min
-    env.current_object().prior_options['external mass']['max'] = max
+    if mass_range is None:
+        min, max = None, None
+    else:
+        if isinstance(mass_range, (int, long, float)):
+            min = max = mass_range
+        else:
+            min, max = mass_range
+            if min is not None and min < 0: raise GLInputError("external_mass: Lower bound 'min' must be at least zero.")
+            if max is not None and max < 0: raise GLInputError("external_mass: Upper bound 'max' must be at least zero.")
+            if min > max: raise GLInputError("external_mass: Lower bound 'min' must be less than upper bound 'max'.")
+    env.current_object().prior_options['external mass'][mass_obj] = min, max
+    #env.current_object().prior_options['external mass']['max'] = max
     env.current_object().add_external_mass(mass_obj)
 
 @command
 def zlens(env, z):
     assert z is not None
     o = env.current_object()
-    assert o.z is None, 'zlens() can only be called once per object.'
+    if o.z is not None: raise GLInputError('zlens() can only be called once per object.')
     o.z = z
     o.dL = glass.cosmo.angdist(env,0,o.z)
 
 @command
 def omega(env, om, ol):
-    assert len(env.objects) == 0, 'omega() must be used before any objects are created.'
+    if len(env.objects) != 0: raise GLInputError('omega() must be used before any objects are created.')
     env.omega_matter = om
     env.omega_lambda = ol
 
@@ -73,28 +83,39 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     o = env.current_object()
 
-    assert o.z is not None, "zlens() must first be specified."
-    assert zsrc >= o.z, "Source is not behind lens."
+    if o.z is None: raise GLInputError("zlens() must first be specified.")
+    if zsrc < o.z: raise GLInputError("Source is not behind lens.")
 
-    src = Source(env, zsrc, o.z)
+    src = Source(env, zsrc, o.z, kwargs.get('zcap', None))
 
-    if kwargs.has_key('position'):
+    if kwargs.has_key('position') and kwargs['position'] is not None:
+        if not prior_included('source_position'): raise GLInputError("The 'source_position' prior must be included when using the position keyword.")
         src.pos = complex(kwargs['position'][0], kwargs['position'][1])
         if len(kwargs['position']) == 3:
             src.pos_tol = kwargs['position'][2]
 
 
     if img0 is not None and img0parity is not None:
+#       if isinstance(img0[0], (list,tuple)):
+#           image0 = Arc(img0, img0parity)
+#           src.add_arc(image0)
+#       else:
         image0 = Image(img0, img0parity)
         src.add_image(image0)
 
         prev = image0
         for i in xrange(0, len(imgs), 3):
             img,parity,time_delay = imgs[i:i+3]
-            assert time_delay != 0, 'Cannot set a time delay of 0. Use (None,None) instead.'
+            if time_delay == 0: raise GLInputError('Cannot set a time delay of 0. Use None instead.')
             if prev.parity_name == 'sad' and parity == 'max':
                 prev.angle = arctan2(prev.pos.imag-img[1], 
                                      prev.pos.real-img[0]) * 180/pi
+            image = Image(img, parity)
+#           if isinstance(img[0], (list,tuple)):
+#               image = Arc(img, parity)
+#               assert len(src.arcs) == len(img)
+#               src.add_arc(image)
+#           else:
             image = Image(img, parity)
             src.add_image(image)
             src.add_time_delay(prev,image, time_delay)
@@ -102,6 +123,15 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     o.add_source(src)
     return src
+
+@command
+def link_sources(env, *srcs, **kwargs):
+    pos = kwargs.pop('position', srcs[0].pos)
+    tol = kwargs.pop('tol', None)
+    #assert tol is not None and tol > 0
+    w = env.current_object().prior_options['link sources']
+    w[len(w)] = [srcs,tol]
+    #w['position'] = pos
 
 @command
 def delay(env, A,B, delay):
@@ -120,22 +150,22 @@ def symm(env, v=True):
 @command
 def universe_age(env, *args):
     """Set age of the Universe in Gyr"""
-    assert len(env.objects) == 0, 'universe_age() must be used before any objects are created.'
+    if len(env.objects) != 0: raise GLInputError('universe_age() must be used before any objects are created.')
     nu       = convert('age in Gyr to nu', array(args), glass.cosmo.age_factor(env))
     env.nu = array([nu[-1], nu[0]])
 
 @command
 def hubble_time(env, *args):
     """Set H0^-1 (or a range) in Gyr"""
-    print env, args
-    assert len(env.objects) == 0, 'hubble_time() must be used before any objects are created.'
+    #print env, args
+    if len(env.objects) != 0: raise GLInputError('hubble_time() must be used before any objects are created.')
     nu       = convert('H0^-1 in Gyr to nu', array(args))
     env.nu = array([nu[-1], nu[0]])
 
 @command
 def hubble_constant(env, *args):
     """Set H0 (or a range) in km/s/Mpc"""
-    assert len(env.objects) == 0, 'hubble_constant() must be used before any objects are created.'
+    if len(env.objects) != 0: raise GLInputError('hubble_constant() must be used before any objects are created.')
     env.nu      = convert('H0 in km/s/Mpc to nu', array(args))
 
 @command
@@ -384,6 +414,8 @@ def time_delay_chi2(env, models, model0):
 
 @command
 def meta(env, *args, **kwargs):
-    assert len(args) == 0, 'meta() only takes named arguments'
+    if len(args) != 0: raise GLInputError('meta() only takes named arguments')
     env.meta_info = kwargs
 
+#@command
+#def load_leier_grid(env, fname, grid_size, units='arcsec'):

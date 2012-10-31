@@ -64,12 +64,20 @@ class Image:
 
     def __eq__(self, a):
         return a is self or a is self._pos 
-        
+
+class Arc(Image):
+    def __init__(self, rs, parity):
+        Image.__init__(self, rs[0], parity)
+        self.rs = rs
 
 class Source:
-    def __init__(self, env, zsrc, zlens):
-        self.zcap = glass.cosmo.angdist(env, 0,zsrc) / glass.cosmo.angdist(env, zlens,zsrc)
+    def __init__(self, env, zsrc, zlens, zcap=None):
+        if zcap is not None:
+            self.zcap = zcap
+        else:
+            self.zcap = glass.cosmo.angdist(env, 0,zsrc) / glass.cosmo.angdist(env, zlens,zsrc)
         self.images = []
+        self.arcs = []
         self.time_delays = []
         self.z = zsrc
         self.index = 0
@@ -79,6 +87,10 @@ class Source:
     def add_image(self, A):
         assert A not in self.images
         self.images.append(A)
+
+    def add_arc(self, A):
+        assert A not in self.arc
+        self.arcs.append(A)
 
     def add_time_delay(self, A,B, delay):
         assert A in self.images

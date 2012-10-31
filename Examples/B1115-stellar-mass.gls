@@ -62,7 +62,7 @@ include_prior(
     'PLsmoothness3',
     'shared_h',
     'external_shear',
-    'min_kappa_leier_grid'
+    #'min_kappa_leier_grid'
 )
 
 # If we want to set the hubble time to a fixed value and not allow the modeler
@@ -88,7 +88,7 @@ zlens(0.31)
 # may depend of the complexity of the problem and how well the mass needs to be
 # resolved. We will choose a value of 10.
 
-pixrad(5)
+pixrad(8)
 
 # All of the priors have default values if they take parameters but for this
 # example we will explicitly set the default values.
@@ -120,7 +120,7 @@ local_gradient(45)
 # radially symmetric we can turn this on. Here we will leave symmetry off
 # because B1115 is a quad.
 
-#symm()
+symm()
 
 #maprad(1.9637)
 
@@ -128,7 +128,7 @@ local_gradient(45)
 # by the presence of another neighboring galaxy. We can enable a shear
 # term in the direction of -45 degrees with the shear function.
 
-shear(0.01)
+shear(0.2)
 
 # Now we can describe the location and time delays (if measured) of the lens.
 # First, we give the positions of the images. The coordinates should be relative
@@ -152,8 +152,8 @@ source(1.722, A,'min',
 # where each pixel is 0.18 arcseconds on a side. Here, we need to specify 
 # the radius.
 
-leier_grid('StellarMass/1115.dat1', 6.188, units='kpc')
-#leier_grid('StellarMass/1115.dat1', .18*31 / 2)
+#leier_grid('StellarMass/1115.dat1', 6.188, units='kpc')
+leier_grid('StellarMass/1115.dat1', .18*31)
 
 # To actually create the models we call the model function with the number
 # of models we wish to generate.

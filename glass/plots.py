@@ -62,16 +62,15 @@ def style_iterator():
     else:
         return _style_iterator()
 
-def default_kw(R, vmin=-2, vmax=0, cmap=cm.gist_stern):
-    kw = {}
-    kw['extent'] = [-R,R,-R,R]
-    kw['interpolation'] = 'nearest'
-    kw['aspect'] = 'equal'
-    kw['origin'] = 'upper'
-    kw['fignum'] = False
-    kw['cmap'] = cmap
-    if vmin is not None: kw['vmin'] = vmin
-    if vmax is not None: kw['vmax'] = vmax
+def default_kw(R, kw={}):
+    kw.setdefault('extent', [-R,R,-R,R])
+    kw.setdefault('interpolation', 'nearest')
+    kw.setdefault('aspect', 'equal')
+    kw.setdefault('origin', 'upper')
+    kw.setdefault('fignum', False)
+    kw.setdefault('cmap', cm.bone)
+    #if vmin is not None: kw['vmin'] = vmin
+    #if vmax is not None: kw['vmax'] = vmax
     return kw
 
 def index_to_slice(i):
@@ -233,6 +232,7 @@ def Re_plot(env, models=None, obj_index=0, color=None):
 def src_plot(env, models=None, **kwargs):
 
     obj_index = kwargs.pop('obj_index', 0)
+    src_index = kwargs.pop('src_index', None)
     hilite_model = kwargs.pop('hilite_model', None)
     hilite_color = kwargs.pop('hilite_color', 'g')
 
@@ -246,6 +246,7 @@ def src_plot(env, models=None, **kwargs):
         ys = []
         cs = []
         for i,sys in enumerate(obj.sources):
+            if src_index is not None and i != src_index: continue
             xs.append(data['src'][i].real)
             ys.append(data['src'][i].imag)
             lw,ls,c = si.next()
@@ -292,9 +293,15 @@ def src_hist(models=None, hilite_model=None):
     pl.ylabel(_src_hist_ylabel)
     
 
-def image_plot(im, extent):
-    R = extent
-    imshow(imread(im), extent=[-R,R,-R,R])
+@command
+def image_plot(env, im, radius, center, format=None):
+    dx, dy = center
+    R = radius
+    kw = {}
+    kw['extent'] = [-R-dx,R-dx,-R-dy,R-dy]
+    if format:
+        kw['format'] = format
+    pl.imshow(pl.imread(im), **kw)
 
 #def kappa_avg_plot(models):
 #    objs = {} 
@@ -309,8 +316,16 @@ def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels
     return kappa_plot(model, obj_index, with_contours, only_contours, clevels)
 
 @command
-def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, clevels=30, with_colorbar=True, vmin=-1,vmax=2):
+def kappa_plot(env, model, obj_index, **kwargs):
     obj, data = model['obj,data'][obj_index]
+
+    with_contours = kwargs.pop('with_contours', False)
+    only_contours = kwargs.pop('only_contours', False)
+    clevels       = kwargs.pop('clevels', 30)
+    with_colorbar = kwargs.pop('with_colorbar', True)
+    vmin          = kwargs.pop('vmin', None)
+    vmax          = kwargs.pop('vmax', None)
+    subtract      = kwargs.pop('subtract', 0)
 
 #   print pl.gca()
 #   print pl.gca().get_frame()
@@ -325,10 +340,16 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
 #   assert 0
 
     R = obj.basis.mapextent
+    kw = default_kw(R, kwargs)
 
     #grid = obj.basis.kappa_grid(data)
-    grid = obj.basis._to_grid(data['kappa'],1)
-    grid = log10(grid.copy() + 1e-4)
+    print data['kappa'].shape
+    print subtract
+    grid = obj.basis._to_grid(data['kappa']-subtract,1)
+    if vmin is None:
+        vmin = log10(np.amin(data['kappa']))
+        kw.setdefault('vmin', vmin)
+    grid = log10(grid.copy()) # + 1e-15)
 #   grid2 = grid.copy() 
 #   for i in xrange(grid.shape[0]):
 #       for j in xrange(grid.shape[1]):
@@ -337,7 +358,6 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
 
     #grid[grid >= 1] = 0
 
-    kw = default_kw(R, vmin=vmin, vmax=vmax)
 
     if not only_contours:
         #pl.matshow(log10(grid), **kw)
@@ -348,8 +368,15 @@ def kappa_plot(env, model, obj_index, with_contours=False, only_contours=False, 
             glscolorbar()
 
     if only_contours or with_contours:
+        #if 'colors' in kw and 'cmap' in kw:
+            #kw.pop('cmap')
+
+        kw.setdefault('colors', 'w')
+        kw.setdefault('extend', 'both')
+        kw.setdefault('alpha', 0.7)
         kw.pop('cmap')
-        pl.over(pl.contour, grid, clevels, extend='both', colors='k', alpha=0.7, **kw)
+        #kw.pop('colors')
+        pl.over(pl.contour, grid, clevels, **kw)
         pl.gca().set_aspect('equal')
 
     pl.xlabel('arcsec')
@@ -364,7 +391,9 @@ def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_
     grid = obj.basis.kappa_grid(data)
     grid = grid.copy()
 
-    kw = default_kw(R, vmin=-1, vmax=2)
+    kw = default_kw(R)
+    kw['vmin'] = -1
+    kw['vmax'] =  2
 
     if not only_contours:
         print '!!!!!!', grid.shape
@@ -417,7 +446,13 @@ def critical_curve_plot(env, model, obj_index, src_index):
     pl.over(contour, g, [0], colors='g', linewidths=1, extent=[-R,R,-R,R], origin='upper')
 
 @command
-def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True, clevels=None, with_colorbar=False):
+def arrival_plot(env, model, **kwargs):
+
+    obj_index = kwargs.pop('obj_index', None)
+    src_index = kwargs.pop('src_index', None)
+    only_contours = kwargs.pop('only_contours', None)
+    clevels = kwargs.pop('clevels', None)
+    with_colorbar = kwargs.pop('with_colorbar', False)
 
     if obj_index is None:
         obj_slice = slice(None)
@@ -437,7 +472,8 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
             kw.update({'zorder':-100})
             pl.matshow(log10(g), **kw)
             if with_colorbar: glspl.colorbar()
-        kw.update({'colors':'grey', 'linewidths':1, 'cmap':None})
+
+        if 'cmap' in kw: kw.pop('cmap')
         if clevels:
             loglev=clevels
             #loglev = logspace(1, log(g.ptp()), clevels, base=math.e) + amin(g)
@@ -452,17 +488,23 @@ def arrival_plot(env, model, obj_index=None, src_index=None, only_contours=True,
             pl.contour(g, lev, **kw)
 
     for obj,data in model['obj,data'][obj_slice]:
+        print len(obj.sources[src_slice])
         lev = obj.basis.arrival_contour_levels(data)
-        levels=None
+        print len(lev)
         arrival_grid = obj.basis.arrival_grid(data)
         for i,src in enumerate(obj.sources[src_slice]):
 
+            #print src.index, len(lev)
             if lev: levels = lev[src.index]
             g = arrival_grid[src.index]
 
             S = obj.basis.subdivision
             R = obj.basis.mapextent
-            kw = default_kw(R)
+            kw = default_kw(R, kwargs)
+            kw.update(kwargs)
+            kw.setdefault('colors', 'grey')
+            kw.setdefault('linewidths', 1)
+            kw.setdefault('cmap', None)
 
             plot_one(obj,data,src.index,g,levels,kw)
             pl.xlim(-obj.basis.mapextent, obj.basis.mapextent)
@@ -704,6 +746,8 @@ def _data_error_plot(models, X,Y, **kwargs):
     x_label = None
     y_label = None
 
+    ret_list = []
+
 
     every = kwargs.pop('every', 1)
     upto = kwargs.pop('upto', len(models))
@@ -748,16 +792,20 @@ def _data_error_plot(models, X,Y, **kwargs):
                 x_label = _axis_label(xs, x_units)
                 y_label = _axis_label(ys, y_units)
 
-                objplot[obj].setdefault('%s:xs'%tag, xs)
-                objplot[obj].setdefault('%s:ymax'%tag, ys)
-                objplot[obj].setdefault('%s:ymin'%tag, ys)
-                objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
-                objplot[obj].setdefault('%s:count'%tag, 0)
+                objplot[obj].setdefault(tag, {'ys':[], 'xs':None})
+                objplot[obj][tag]['ys'].append(ys)
+                objplot[obj][tag]['xs'] = xs
 
-                objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
-                objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
-                objplot[obj]['%s:ysum'%tag] += ys
-                objplot[obj]['%s:count'%tag] += 1
+                #objplot[obj].setdefault('%s:xs'%tag, xs)
+                #objplot[obj].setdefault('%s:ymax'%tag, ys)
+                #objplot[obj].setdefault('%s:ymin'%tag, ys)
+                #objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
+                #objplot[obj].setdefault('%s:count'%tag, 0)
+
+                #objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
+                #objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
+                #objplot[obj]['%s:ysum'%tag] += ys
+                #objplot[obj]['%s:count'%tag] += 1
 
                 if mark_images:
                     for i,src in enumerate(obj.sources):
@@ -777,15 +825,34 @@ def _data_error_plot(models, X,Y, **kwargs):
 
     for i,tag in enumerate(['rejected', 'accepted', '']):
         for k,v in objplot.iteritems():
-            if not v.has_key('%s:count'%tag): break
-            avg = v['%s:ysum'%tag] / v['%s:count'%tag]
+            if tag not in v: break
+            #if not v.has_key('%s:count'%tag): break
+
+            avg = np.mean(v[tag]['ys'], axis=0)
+            errp = np.amax(v[tag]['ys'], axis=0) - avg
+            errm = avg - np.amin(v[tag]['ys'], axis=0)
+            #errp = errm = np.std(v[tag]['ys'], axis=0, dtype=np.float64)
+            xs = v[tag]['xs']
+
+#           print [x[1] for x in v[tag]['ys']]
+#           pl.hist([x[1] for x in v[tag]['ys']])
+#           break
+
+            #avg = v['%s:ysum'%tag] / v['%s:count'%tag]
+            #errp = v['%s:ymax'%tag]-avg
+            #errm = avg-v['%s:ymin'%tag]
+            #errm = errp = np.std(
+
             #print len(v['xs'])
             #print len(avg)
             #assert 0
+            ret_list.append([xs,avg,errm,errp])
             if tag == 'rejected':
-                pl.errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), c=_styles[0]['c'], zorder=_styles[0]['z'])
+                pl.errorbar(xs, avg, yerr=(errm,errp), c=_styles[0]['c'], zorder=_styles[0]['z'])
             else:
-                pl.errorbar(v['%s:xs'%tag], avg, yerr=(avg-v['%s:ymin'%tag], v['%s:ymax'%tag]-avg), **kwargs)
+                pl.errorbar(xs, avg, yerr=(errm,errp), **kwargs)
+
+#   return
 
     pl.yscale(yscale)
     pl.xscale(xscale)
@@ -812,6 +879,8 @@ def _data_error_plot(models, X,Y, **kwargs):
     pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     #pl.ylim(0, ymax)
 
+    return ret_list
+
 @command
 def glplot(env, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
@@ -822,14 +891,14 @@ def glplot(env, ptype, xkeys, ykeys=[], **kwargs):
 def glerrorplot(env, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
     models = kwargs.pop('models', env.models)
-    _data_error_plot(models, xkeys, ykeys, **kwargs)
+    return _data_error_plot(models, xkeys, ykeys, **kwargs)
 
 _H0inv_xlabel = r'$H_0^{-1}$ (Gyr)'
 @command
 def H0inv_plot(env, **kwargs):
 
     models = kwargs.pop('models', env.models)
-    objects = kwargs.pop('objects', None)
+    obj_index = kwargs.pop('obj_index', 0)
     key = kwargs.pop('key', 'accepted')
 
     # select a list to append to based on the 'accepted' property.
@@ -883,7 +952,7 @@ def H0inv_plot(env, **kwargs):
 
 _H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command
-def H0_plot(env, models=None, obj_index=0, key='accepted'):
+def H0_plot(env, **kwargs):
 
     models = kwargs.pop('models', env.models)
     obj_index = kwargs.pop('obj_index', 0)
@@ -1085,6 +1154,7 @@ def glhist(env, data_key, **kwargs):
     ylabel = kwargs.pop('ylabel', r'Count')
     xlabel = kwargs.pop('xlabel', data_key)
     label  = kwargs.pop('label', None)
+    color  = kwargs.pop('color', None)
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1104,9 +1174,14 @@ def glhist(env, data_key, **kwargs):
         if d:
             #print len(d), d
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'] if label is None else label, **kwargs)
+            pl.hist(d, bins=ptp(d)//1+1, 
+                    histtype='step', 
+                    edgecolor=s['c'] if color is None else color, 
+                    zorder=s['z'], 
+                    label=s['label'] if label is None else label, 
+                    **kwargs)
 
-    if not_accepted:
+    if not_accepted or label:
         pl.legend()
 
     #pl.axvline(72, c='k', ls=':', zorder = 2)

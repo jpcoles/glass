@@ -6,8 +6,9 @@ class ExternalMass:
 
 class PointMass(ExternalMass):
 
-    def __init__(self, rx, ry, name='ptmass'):
+    def __init__(self, rx, ry, rc=0, name='ptmass'):
         self.r = complex(rx, ry)
+        self.rcore = rc
         self.nParams = 1
         self.shift = 0
         self.name = name

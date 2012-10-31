@@ -3,7 +3,7 @@ if __name__ != '__main__':
     from glass.environment import env
     from glass.command import command
     from glass.shear import Shear
-    from glass.ptmass import ExternalMass
+    from glass.exmass import ExternalMass
     from itertools import izip
     from glass.log import log as Log
     from glass.scales import convert
@@ -77,6 +77,13 @@ def exclude_all_priors(env):
     for p in all_priors:
         exc_priors.append(p)
 
+@command
+def prior_included(env, f):
+    try:
+        i = inc_priors.index(f)
+        return True
+    except ValueError:
+        return False
 
 ##############################################################################
 
@@ -101,6 +108,19 @@ def lens_eq(o, leq, eq, geq):
     #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
+    stellar_mass = 0
+
+    g = o.prior_options.get('minkappa Leier grid')
+
+    if g: 
+        fname = g['filename']
+        grid_size = g['grid size']
+        units = g['grid size units']
+        scale = g['scale']
+        H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
+        load_leier_grid(o, fname, grid_size, 'arcsec', H0inv, scale)
+        stellar_mass = o.stellar_mass
+
     for i,src in enumerate(o.sources):
         for j,img in enumerate(src.images):
             rows = new_row(o, 2)
@@ -111,13 +131,15 @@ def lens_eq(o, leq, eq, geq):
             rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size)
             rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size)
 
+            rows[0,0] -= np.sum(poten_dx(positions, b.cell_size) * stellar_mass)
+            rows[1,0] -= np.sum(poten_dy(positions, b.cell_size) * stellar_mass)
+
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
             rows[1,srcpos:srcpos+2] =  0, -1
 
             rows[0,0] += b.map_shift * src.zcap
             rows[1,0] += b.map_shift * src.zcap
-
 
             for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
@@ -130,25 +152,6 @@ def lens_eq(o, leq, eq, geq):
                 coeff = e.poten_dy(img.pos)
                 rows[1,start:end] -= coeff
                 rows[1,0] += e.shift * sum(coeff)
-
-#           if o.shear:
-#               pos = img.pos
-#               rows[0,shear_start+0] = -shear.poten_dx(0, pos)
-#               rows[1,shear_start+0] = -shear.poten_dy(0, pos)
-
-#               rows[0,0] += shear.shift*shear.poten_dx(0, pos)
-#               rows[1,0] += shear.shift*shear.poten_dy(0, pos)
-
-#               rows[0,shear_start+1] = -shear.poten_dx(1, pos)
-#               rows[1,shear_start+1] = -shear.poten_dy(1, pos)
-
-#               rows[0,0] += shear.shift*shear.poten_dx(1, pos)
-#               rows[1,0] += shear.shift*shear.poten_dy(1, pos)
-
-
-#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               rows[0,offs] = -o.ptmass.poten_dx(n+1, img.pos)
-#               rows[1,offs] = -o.ptmass.poten_dy(n+1, img.pos)
 
             eq(rows[0])
             eq(rows[1])
@@ -214,8 +217,6 @@ def time_delay(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.offs_pix
     srcpos_start, srcpos_end = 1+b.offs_srcpos
-    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     zLp1 = (1 + o.z) * o.dL
 
@@ -259,20 +260,6 @@ def time_delay(o, leq, eq, geq):
                 coeff  = p1-p0
                 row[start:end] -= coeff
                 row[0] += e.shift * sum(coeff)
-
-#           if o.shear:
-#               pos1 = img1.pos
-#               pos0 = img0.pos
-#               f0 = shear.poten(0, pos1) - shear.poten(0, pos0)
-#               f1 = shear.poten(1, pos1) - shear.poten(1, pos0)
-#               row[shear_start+0] = -f0
-#               row[shear_start+1] = -f1
-#               row[0] += shear.shift * f0
-#               row[0] += shear.shift * f1
-
-#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
-#               row[offs] += o.ptmass.poten(n, img0.pos, o.basis.cell_size)
 
             if len(delay) == 1:
                 d = delay[0]
@@ -318,8 +305,6 @@ def check_time_delay(o, sol):
 
     pix_start,    pix_end    = 1+b.offs_pix
     srcpos_start, srcpos_end = 1+b.offs_srcpos
-    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     zLp1 = (o.z + 1) * o.dL
     shft = [b.map_shift, b.map_shift]
@@ -414,8 +399,6 @@ def JPC1time_delay(o, leq, eq, geq):
 
     pix_start, pix_end = 1+b.pix_start, 1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i, src in enumerate(o.sources):
 
@@ -500,8 +483,6 @@ def parity(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
     for i,src in enumerate(o.sources):
         for img in src.images:
@@ -595,8 +576,6 @@ def L1parity(o, leq, eq, geq):
 
     pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
-    #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
-    #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
 #   print '*' * 80
 #   print 'TURNED OFF PARITY MAXIMUM CONDITION'
@@ -647,7 +626,6 @@ def magnification(o, leq, eq, geq):
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
     pix_start,     pix_end = 1+o.basis.offs_pix
-    #shear_start, shear_end = 1+o.basis.shear_start, 1+o.basis.shear_end
 
     coeffs = zeros(6)
 
@@ -742,26 +720,22 @@ def annular_density(o, leq, eq, geq):
 def external_shear(o, leq, eq, geq):
     on = None
     v = o.prior_options.get('shear', None)
-    if v is None:
-        v = 0.1
-    else:
+    if v is not None:
         v = o.prior_options['shear']['strength']
 
-    #assert v < shear.shift
-
-    for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
-        if not isinstance(e, Shear): continue
-        for s in xrange(1+start, 1+end):
-            row = new_row(o)
-            row[ [0,s] ] = v + e.shift, -1
-            geq(row)
-            row = new_row(o)
-            row[ [0,s] ] = v - e.shift, 1
-            geq(row)
-            #row = new_row(o)
-            #row[ [0,s] ] = shear.shift + v, -1
-            #leq(row)
-            on = [v, -1]
+        for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+            if not isinstance(e, Shear): continue
+            for s in xrange(1+start, 1+end):
+                row = new_row(o)
+                row[ [0,s] ] = v - e.shift, 1
+                geq(row)
+                row = new_row(o)
+                row[ [0,s] ] = -v - e.shift, 1
+                leq(row)
+                #row = new_row(o)
+                #row[ [0,s] ] = shear.shift + v, -1
+                #leq(row)
+                on = [v, -1]
 
     if on is None:
         on = '[DISABLED]'
@@ -777,23 +751,27 @@ def external_mass(o, leq, eq, geq):
     v = o.prior_options.get('external mass', None)
     if v is None:
         return
-    else:
-        min = o.prior_options['external mass']['min']
-        max = o.prior_options['external mass']['max']
 
     #assert v < shear.shift
 
     for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
-        if not isinstance(e, ExternalMass): continue
+        if not (hasattr(e.__class__, '__bases__') and ExternalMass in e.__class__.__bases__): continue
+        min,max = o.prior_options['external mass'][e]
+        print indent + 'External mass %s  %g-%g' % (e.name, min, max)
         for s in xrange(1+start, 1+end):
-            if max is not None:
-                row = new_row(o)
-                row[ [0,s] ] = max, -1
-                geq(row)
-            if min is not None:
+            if min == max and min is not None:
                 row = new_row(o)
                 row[ [0,s] ] = min, -1
-                leq(row)
+                eq(row)
+            else:
+                if max is not None:
+                    row = new_row(o)
+                    row[ [0,s] ] = max, -1
+                    geq(row)
+                if min is not None:
+                    row = new_row(o)
+                    row[ [0,s] ] = min, -1
+                    leq(row)
             on = [v, -1]
 
     if on is None:
@@ -1178,7 +1156,7 @@ def J2gradient(o, leq, eq, geq):
 @object_prior
 def J3gradient(o, leq, eq, geq):
 
-    opts = o.prior_options.get('J3Gradient', None)
+    opts = o.prior_options.get('J3gradient', None)
 
     if not opts:
         opts = {}
@@ -1791,6 +1769,67 @@ def intersect(A,B):
     #print r-l, t-b
     return [t,b,l,r]
 
+def load_leier_grid(o, fname, grid_size, units, H0inv, scale=1.0):
+
+    if units != 'arcsec':
+        grid_size = convert('%s to arcsec' % units, grid_size, o.dL, max_nu)
+
+    data = loadtxt(fname, unpack=True)
+    r,c = amax(data[0])+1, amax(data[1])+1
+    assert r==c
+    grid = data[5] * 1e10 * scale
+    grid = grid.reshape((r,c)).T        # Data is stored in column-major order!
+    grid = flipud(grid)
+
+#   print data[11] / data[12]
+#   from np import cos,sin,arctan2, arctan, angle
+#   xs = cos(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
+#   ys = sin(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
+
+    if 0:
+        import pylab as pl
+
+        G = grid.copy()
+        G *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
+        R = grid_size / 2
+        pl.matshow(pl.log10(G), extent=[-R,R,-R,R], origin='upper')
+        pl.colorbar()
+
+
+    grid *= (grid_size / grid.shape[0])**2
+    a = o.basis.project_grid(grid, grid_size, H0inv)
+    a /= o.basis.cell_size**2
+    a *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
+
+    #print 'stellar', a
+
+    #a = o.basis._to_grid(a)
+
+    if 0:
+        G = o.basis._to_grid(a)
+        R = o.basis.maprad
+        pl.matshow(pl.log10(G), extent=[-R,R,-R,R], origin='upper')
+        pl.contour(pl.log10(G), extent=[-R,R,-R,R], origin='upper')
+        pl.colorbar()
+        pl.show()
+
+    #a = o.basis.from_grid(a)
+    o.stellar_mass = a
+
+
+    #a[0] = 0
+    #ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
+    #m  = package_solution(ps, [o])
+
+#   from funcs import default_post_process
+#   default_post_process(m['obj,data'][0])
+#   kappa_plot(m,0) #{'obj,data': [[o,m]]},0)
+#   pl.figure(); glplot([m], 'kappa(R)', ['R', 'arcsec'], mark_images=True)
+#   pl.show()
+    #pl.show()
+    #assert 0
+
+
 @object_prior
 def min_kappa_leier_grid(o, leq, eq, geq):
 
@@ -1804,57 +1843,19 @@ def min_kappa_leier_grid(o, leq, eq, geq):
 
     Log( indent + "Minimum Kappa Leier Grid" )
 
-
     fname = g['filename']
-    grid_size = 2 * g['grid radius']
-    units = g['grid radius units']
+    grid_size = g['grid size']
+    units = g['grid size units']
+    scale = g['scale']
     max_nu = env().nu[-1]
+    H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
 
-    if units != 'arcsec':
-        grid_size = convert('%s to arcsec' % units, grid_size, o.dL, max_nu)
-
-    data = loadtxt(fname, unpack=True)
-    r,c = amax(data[0])+1, amax(data[1])+1
-    assert r==c
-    grid = empty(r*c)
-    grid[:] = data[5] * 1e10
-    grid = grid.reshape((r,c)).T        # Data is stored in column-major order!
-    grid = flipud(grid)
-
-    
-
-#   print data[11] / data[12]
-#   from np import cos,sin,arctan2, arctan, angle
-#   xs = cos(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
-#   ys = sin(angle(data[1] + 1j*data[0] - 15-15j)) * data[12]
-
-    import pylab as pl
-#   pl.scatter(xs,ys)
-#   #pl.show()
-#   #assert 0
-#   
-
-    #pl.matshow(log10(pg))
-    #pl.colorbar()
-
-    a = o.basis.from_grid(grid)
-    #print a
-    #ps = o.basis.solution_from_array(a, [[0,0]], H0inv=13.7)
-    #m  = package_solution(ps, [o])
-
-#   from funcs import default_post_process
-#   default_post_process(m['obj,data'][0])
-#   kappa_plot(m,0) #{'obj,data': [[o,m]]},0)
-#   pl.figure(); glplot([m], 'kappa(R)', ['R', 'arcsec'], mark_images=True)
-#   pl.show()
-    #pl.show()
-    #assert 0
+    load_leier_grid(o, fname, grid_size, 'arcsec', H0inv, scale)
 
     pix_start, pix_end = 1+o.basis.offs_pix
-
     for i,j in enumerate(xrange(pix_start, pix_end)):
         row = new_row(o)
-        row[ [0,j] ] = -a[i], 1
+        row[ [0,j] ] = -o.stellar_mass[i], 1
         geq(row)
 
 #@default_prior
@@ -1881,9 +1882,8 @@ def extended_source_size(o, leq,eq,geq):
 @object_prior
 def source_position(o, leq,eq,geq):
     b = o.basis
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
 
-    print '*'*80
     for i,src in enumerate(o.sources):
         if src.pos is None: continue
 
@@ -1894,27 +1894,95 @@ def source_position(o, leq,eq,geq):
         sy = src.pos.imag
         tol = src.pos_tol
 
+        print x,y
+
         print tol
         if tol != 0:
+            lb = src.zcap * (b.map_shift + sx - tol)
+            ub = src.zcap * (b.map_shift + sx + tol)
             row = new_row(o,2)
-            row[0, [0,x]] = -tol-sx, 1; leq(row[0])
-            row[1, [0,x]] =  tol-sx, 1; geq(row[1])
+            row[0, [0,x]] = lb, -1; leq(row[0])
+            row[1, [0,x]] = ub, -1; geq(row[1])
 
-            print -tol-sx, sx
-            print tol-sx, sx
+            print lb, ub
 
+            lb = src.zcap * (b.map_shift + sy - tol)
+            ub = src.zcap * (b.map_shift + sy + tol)
             row = new_row(o,2)
-            row[0, [0,y]] = -tol-sy, 1; leq(row[0])
-            row[1, [0,y]] =  tol-sy, 1; geq(row[1])
+            row[0, [0,y]] = lb, -1; leq(row[0])
+            row[1, [0,y]] = ub, -1; geq(row[1])
 
-            print -tol-sy, sy
-            print tol-sy, sy
-
+            print lb, ub
         else:
             row = new_row(o,2)
-            row[0, [0,x]] = -sx, 1; eq(row[0])
-            row[0, [0,y]] = -sy, 1; eq(row[0])
+            row[0, [0,x]] = sx, -1; eq(row[0])
+            row[1, [0,y]] = sy, -1; eq(row[1])
 
+@default_prior
+@object_prior
+def link_sources(o, leq,eq,geq):
+    b = o.basis
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
+
+    w = o.prior_options['link sources']
+
+    for sources, tol in w.values():
+        xs, ys = [], []
+        for src in sources:
+            xs.append(srcpos_start + 2*src.index + 0)
+            ys.append(srcpos_start + 2*src.index + 1)
+
+        for src in sources:
+
+            i = src.index
+            x = srcpos_start + 2*i + 0
+            y = srcpos_start + 2*i + 1
+
+            for X, Xs in [[x,xs], [y,ys]]:
+                row = new_row(o)
+
+                row[0]   = -tol * src.zcap
+                row[X]  -= 1
+                row[Xs] += 1 / len(sources)
+                leq(row)
+
+                row = new_row(o)
+                row[0]   = tol * src.zcap
+                row[X]  -= 1
+                row[Xs] += 1 / len(sources)
+                geq(row)
+
+@object_prior_check(link_sources)
+def check_link_sources(o, sol):
+    b = o.basis
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
+
+    w = o.prior_options['link sources']
+
+    for sources, tol in w.values():
+        xs, ys = [], []
+        for src in sources:
+            xs.append(srcpos_start + 2*src.index + 0)
+            ys.append(srcpos_start + 2*src.index + 1)
+
+        for src in sources:
+
+            i = src.index
+            x = srcpos_start + 2*i + 0
+            y = srcpos_start + 2*i + 1
+
+            for X, Xs in [[x,xs], [y,ys]]:
+
+                r0  = -tol * src.zcap
+                r0 -= sol[X]
+                r0 += np.sum(sol[Xs]) / len(sources)
+                #assert r0 <= 0, r0
+
+                r1  = tol * src.zcap
+                r1 -= sol[X]
+                r1 += np.sum(sol[Xs]) / len(sources)
+                #assert r1 >= 0, r1
+                print r0, r1
 
 if __name__ == '__main__':
     import pylab as pl

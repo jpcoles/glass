@@ -3,7 +3,8 @@ import sys, getopt, os, traceback
 
 from glass.environment import env, Environment
 from glass.command import command, Commands
-from glass.ptmass import PointMass
+from glass.exmass import PointMass
+from glass.exceptions import GLInputError
 
 def _detect_cpus():
     """
@@ -108,7 +109,18 @@ if __name__ == "__main__":
     #Commands.get_env().argv = arglist
 
 
-    execfile(arglist[0]) #, globals(), globals())
+    try:
+        execfile(arglist[0]) #, globals(), globals())
+    except GLInputError as e:
+        tb = traceback.extract_tb(sys.exc_traceback, 2)[1]
+        #traceback.print_tb(sys.exc_traceback, 2)
+        print >>sys.stderr, "Input error on line %i of file '%s':" % (tb[1], tb[0])
+        print >>sys.stderr, "> %s" % tb[3]
+        print >>sys.stderr
+        print >>sys.stderr, e
+        print >>sys.stderr
+
+
     try:
 #    if 1:
         #-----------------------------------------------------------------------

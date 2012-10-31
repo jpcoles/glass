@@ -6,6 +6,7 @@ from priors import include_prior, exclude_prior, \
 from glass.log import log as Log
 from glass.environment import env, Environment
 from glass.command import command
+from glass.scales import convert
 
 from . import glcmds
 from . import funcs
@@ -238,13 +239,13 @@ def _model_dict(objs, sol):
             'tagged':   False}
 
 @command
-def package_solution(env, sol, objs, fn_package_sol = None):
-    if fn_package_sol is None:
-        fn_package_sol = lambda x: solution_to_dict(x, sol)
+def package_solution(env, sol, objs, **kwargs):
+    fn_package_sol = kwargs.get('fn_package_sol', lambda x: solution_to_dict(x, sol))
+    fn_object_sol  = kwargs.get('fn_object_sol',  lambda x: obj_solution(x, sol))
     
     return {'sol':  sol,
             'obj,data': zip(objs, map(fn_package_sol, objs)),
-            'obj,sol':  zip(objs, map(lambda x: obj_solution(x, sol), objs)),
+            'obj,sol':  zip(objs, map(fn_object_sol,  objs)),
             'tagged':  False}
 
 @command
@@ -354,6 +355,30 @@ def make_ensemble_average(env):
     env.ensemble_average = package_solution(sol, objs)
     for od in env.ensemble_average['obj,data']:
         default_post_process(od)
+
+#   env.ensemble = [ package_solution(m['sol'], objs) for m in env.models ]
+#   for m in env.ensemble:
+#       for od in m['obj,data']:
+#           default_post_process(od)
+
+@command
+def make_stellar_model(env):
+    sm = []
+    for o in env.objects:
+        if not hasattr(o, 'stellar_mass'): 
+            l = o.basis.offs_pix[1] - o.basis.offs_pix[0]
+            s = o.basis.packaged_solution_from_array(zeros(l), [0,0], 1)
+        else:
+            s = o.basis.packaged_solution_from_array(o.stellar_mass, [0,0], convert('nu to H0^-1 in Gyr', env.nu[-1]))
+        sm.append((o,s))
+
+    m = {'sol':      None,
+         'obj,data': sm,
+         'obj,sol':  None,
+         'tagged':   False}
+    for od in m['obj,data']:
+        default_post_process(od)
+    env.stellar_models = m
 
 def _grid_model(obj, grid, grid_size, src, H0inv):
     grid_mass = obj.basis.grid_to_grid(grid, grid_size, H0inv)

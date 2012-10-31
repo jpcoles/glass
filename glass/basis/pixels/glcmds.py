@@ -7,11 +7,15 @@ import numpy as np
 from itertools import izip
 from basis import PixelBasis as basis_class
 from glass.scales import convert
+from glass.exceptions import GLInputError
+from . funcs import default_post_process
 
 @command
-def minsteep(*args, **kwargs): assert False, "minsteep not supported. Use steepness()."
+def minsteep(*args, **kwargs): raise GLInputError("minsteep not supported. Use steepness().")
 @command
-def maxsteep(*args, **kwargs): assert False, "maxsteep not supported. Use steepness()."
+def maxsteep(*args, **kwargs): raise GLInputError("maxsteep not supported. Use steepness().")
+@command
+def dgcone(*args, **kwargs): raise GLInputError("dgcone not supported. Use global_gradient().")
 
 #def _foo(options):
    #return Samplex(**options)
@@ -36,17 +40,18 @@ def priors(env, *ps):
 @command
 def subdiv(env, n):
     n = int(n)
-    assert (n%2==1), "subdiv: n must be odd"
+    if (n%2!=1): raise GLInputError("subdiv: n must be odd")
     env.current_object().basis.subdivision = n
 
 @command
 def hires(env, r, refine=1):
-    assert r > 0 and refine>=3 and refine%2==1, 'hires: Minimum refinement value is 3. Must be odd too.'
+    if not (r > 0 and refine>=3 and refine%2==1): raise GLInputError('hires: Minimum refinement value is 3. Must be odd too.')
     env.current_object().basis.hiresR       = r
     env.current_object().basis.hires_levels = refine
     
 @command
 def smooth(env, factor=2, L=None, include_central_pixel=None):
+    if not prior_included('PLsmoothness3'): raise GLInputError("The 'PLsmoothness3' prior must be included to enable the 'smooth()' command.")
     o = env.current_object()
     #o.prior_options['smoothness'] = {}
     o.prior_options['smoothness']['factor'] = factor
@@ -57,29 +62,32 @@ def smooth(env, factor=2, L=None, include_central_pixel=None):
 
 @command
 def steepness(env, lb, ub):
+    if not prior_included('profile_steepness'): raise GLInputError("The 'profile_steepness' prior must be included to enable the 'steepness()' command.")
     o = env.current_object()
     o.prior_options['steepness'] = [lb, ub]
 
 @command
 def kann(env, theta):
+    if not prior_included('annular_density'): raise GLInputError("The 'annular_density' prior must be included to enable the 'kann()' command.")
     o = env.current_object()
     o.prior_options['annular_density'] = theta
 
 @command
-def dgcone(env, theta):
-    assert (0 < theta <= 90), "dgcone: need 0 < theta <= 90"
+def global_gradient(env, theta):
+    if not (0 < theta <= 90): raise GLInputError("dgcone: need 0 < theta <= 90")
     o = env.current_object()
     o.prior_options['gradient'] = np.radians(90-theta)
 
 @command
 def local_gradient(env, theta=None, L=None):
     o = env.current_object()
+    if not prior_included('J3gradient'): raise GLInputError("The 'J3gradient' prior must be included to enable the 'local_gradient()' command.")
 
     if theta is not None: 
-        assert (0 < theta <= 90), "local_gradient: need 0 < theta <= 90"
-        o.prior_options['J3Gradient']['theta'] = theta
+        if not (0 < theta <= 90): raise GLInputError("local_gradient: need 0 < theta <= 90")
+        o.prior_options['J3gradient']['theta'] = theta
 
-    if L is not None: o.prior_options['J3Gradient']['size']  = L
+    if L is not None: o.prior_options['J3gradient']['size']  = L
 
 @command
 def min_kappa(env, v):
@@ -177,15 +185,30 @@ def savestate_misc(env, fname):
             print >>f
 
 @command
-def leier_grid(env, fname, size, units='arcsec'):
+def leier_grid(env, fname, size, **kwargs):
+    units=kwargs.get('units', 'arcsec')
+    scale=kwargs.get('scale', 1.0)
     o = env.current_object()
     o.prior_options['minkappa Leier grid']['filename'] = fname
-    o.prior_options['minkappa Leier grid']['grid radius'] = size
-    o.prior_options['minkappa Leier grid']['grid radius units'] = units
+    o.prior_options['minkappa Leier grid']['grid size'] = size
+    o.prior_options['minkappa Leier grid']['grid size units'] = units
+    o.prior_options['minkappa Leier grid']['scale'] = scale
 
 
 @command
 def extended_source_size(env, size):
     o = env.current_object()
     o.prior_options['extended source size'] = size
+
+
+@command
+def subtract_kappa_from_models(env, a, obj_index=0, include_ensemble_average=True):
+    for m in env.models:
+        m['obj,data'][obj_index][1]['kappa'] -= a
+        default_post_process(m['obj,data'][obj_index])
+
+    if include_ensemble_average and hasattr(env, 'ensemble_average'):
+        env.ensemble_average['obj,data'][obj_index][1]['kappa'] -= a
+        default_post_process(env.ensemble_average['obj,data'][obj_index])
+
 

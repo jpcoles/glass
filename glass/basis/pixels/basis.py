@@ -67,7 +67,7 @@ def pixel_containing(r, R, sizes):
 def ctrunc(c):
     return complex(trunc(c.real), trunc(c.imag))
 
-def _pixel_neighbors(r0, loc, R, size, sizes, try_hard):
+def _pixel_neighbors(i, r0, loc, R, size, sizes, try_hard):
     n = []
     dr = R-r0
     for dx,dy in loc:
@@ -87,15 +87,16 @@ def _pixel_neighbors(r0, loc, R, size, sizes, try_hard):
         if [dx,dy] in [[-1,0],[1,0]]: w = w[ where(dr[w].real == mr.real) ]
         if [dx,dy] in [[0,-1],[0,1]]: w = w[ where(dr[w].imag == mr.imag) ]
         if [dx,dy] in [[-1,-1],[1,1],[1,-1],[-1,1]]: w = [m]
+        w = w[w != i]
         n.extend( w )
 
     n = np.unique(n)
     return np.array(n)
 
 def pixel_neighbors(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors(r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+    return [ [i, r, _pixel_neighbors(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
 
-def _pixel_neighbors3(r0, loc, R, size, sizes, try_hard):
+def _pixel_neighbors3(i, r0, loc, R, size, sizes, try_hard):
     n = []
     dr = R-r0
     for dx,dy in loc:
@@ -106,12 +107,13 @@ def _pixel_neighbors3(r0, loc, R, size, sizes, try_hard):
         if len(w) == 0:
             if try_hard: 
                 w = array([pixel_containing(r0+l*size, R, sizes)])
+        w = w[w != i]
         n.append( np.array(np.unique(w)) )
 
     return n
 
 def pixel_neighbors3(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors3(r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+    return [ [i, r, _pixel_neighbors3(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
      
 
 def xy_grid(L, S=1, scale=1):
@@ -163,7 +165,7 @@ def xy_list(L, R=0, refine=1):
                     for x in linspace(-(refine//2), refine//2, refine): # because of integer rounding
                         t = xy[i] + f * complex(x,y)
                         if 1: #abs(t) < .8*R: #-0.5:
-                            print '!',t
+                            #print '!',t
 
                             size.append(f)
                             ploc.append(t)
@@ -299,8 +301,8 @@ def intersect(A,B):
     v.sort()
     h.sort()
     #print v,h
-    b,t = max(v[0],v[1]), min(v[2],v[3])
-    l,r = max(h[0],h[1]), min(h[2],h[3])
+    b,t = np.max([v[0],v[1]]), np.min([v[2],v[3]])
+    l,r = np.max([h[0],h[1]]), np.min([h[2],h[3]])
     #print t,b,l,r
     #print r-l, t-b
     return [t,b,l,r]
@@ -308,7 +310,7 @@ def intersect(A,B):
 def intersect_frac(A,B):
     t,b,l,r = intersect(A,B) 
     areaB = (B[0]-B[1]) * (B[3]-B[2])
-    return (max(r-l,0) * max(t-b,0)) / areaB
+    return (np.max([r-l,0]) * np.max([t-b,0])) / areaB
 
     areaA = (A[0]-A[1]) * (A[3]-A[2])
     areaB = (B[0]-B[1]) * (B[3]-B[2])
@@ -317,11 +319,11 @@ def intersect_frac(A,B):
     v.sort()
     h.sort()
     #print v,h
-    b,t = max(v[0],v[1]), min(v[2],v[3])
-    l,r = max(h[0],h[1]), min(h[2],h[3])
+    b,t = np.max([v[0],v[1]]), np.min([v[2],v[3]])
+    l,r = np.max([h[0],h[1]]), np.min([h[2],h[3]])
     #print t,b,l,r
     #print r-l, t-b
-    return (max(r-l,0) * max(t-b,0)) / areaB
+    return (np.max([r-l,0]) * np.max([t-b,0])) / areaB
 
 def irrhistogram2d(R,C,rbin,binsize, weights=None):
     assert weights is not None # for now
@@ -411,16 +413,17 @@ class PixelBasis(object):
         elif name == 'nbrs2':
             Log( 'Finding neighbors 2...' )
             super(PixelBasis, self).__setattr__('nbrs2', 
-                pixel_neighbors([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
+                pixel_neighbors([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
 
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             return self.nbrs2
         elif name == 'nbrs3':
             Log( 'Finding neighbors 3...' )
             super(PixelBasis, self).__setattr__('nbrs3', 
-                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
+                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
 
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
+            #for i,n in enumerate(self.nbrs3): print i, n
             return self.nbrs3
         else:
             raise AttributeError('Attribute %s not found in PixelBasis' % name)
@@ -441,7 +444,7 @@ class PixelBasis(object):
         Log( '=' * 80 )
 
         if rs:
-            rmin, rmax = min(rs), max(rs)
+            rmin, rmax = amin(rs), amax(rs)
             Log( "rmin=%s rmax=%s L=%s" % (rmin, rmax, L) )
         else:
             assert obj.maprad is not None, 'If no images are given, then maprad must be specified.'
@@ -506,8 +509,8 @@ class PixelBasis(object):
                 for p in self.int_ploc
             ])
 
-        print rkeys
-        print self.rs
+        #print rkeys
+        #print self.rs
         #assert 0
 
         #---------------------------------------------------------------------
@@ -609,8 +612,8 @@ class PixelBasis(object):
             ymin,ymax = np.inf, -np.inf
             for r,s in izip(self.int_ploc, self.int_cell_size):
                 x,y = r.real-s/2, r.imag-s/2
-                xmin,xmax = min([xmin,x]), max([xmax,x+s])
-                ymin,ymax = min([ymin,y]), max([ymax,y+s])
+                xmin,xmax = np.min([xmin,x]), np.max([xmax,x+s])
+                ymin,ymax = np.min([ymin,y]), np.max([ymax,y+s])
                 sp.add_artist(Rectangle([x,y], s,s, fill=False))
             pl.xlim(xmin,xmax)
             pl.ylim(ymin,ymax)
@@ -743,7 +746,9 @@ class PixelBasis(object):
         # These come directly from the solution
         #---------------------------------------------------------------------
 
-        ps['kappa']  = sol[ slice(*self.offs_pix) ]
+        stellar_mass = obj.stellar_mass if hasattr(obj, 'stellar_mass') else 0
+
+        ps['kappa']  = sol[ slice(*self.offs_pix) ] + stellar_mass
         ps['src']    = [complex(*(sol[i:i+2] / obj.sources[j].zcap - self.map_shift))
                         for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
@@ -752,8 +757,6 @@ class PixelBasis(object):
             ps[e.name] = sol[ start : end ] - e.shift
  
         ps['nu']     = sol[self.H0]
-        ps['H0']     = convert('nu to H0 in km/s/Mpc', ps['nu'])
-        ps['1/H0']   = convert('nu to H0^-1 in Gyr',   ps['nu'])
 
         #print ps['nu']
         #assert 0
@@ -936,7 +939,7 @@ class PixelBasis(object):
             while len(p.shape) > 1:
                 p = sum(p,axis=-1)
             p = np.reshape(p, xy.shape)
-            phi += p
+            phi -= p
 
         #print 'potential_grid: sum', sum(phi)
 
@@ -951,7 +954,7 @@ class PixelBasis(object):
             for img in src.images:
                 p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
                 for e in obj.extra_potentials:
-                    p += sum(data[e.name] * e.poten(img.pos).T)
+                    p -= sum(data[e.name] * e.poten(img.pos).T)
                 l.append(p)
             if l: lvls.append(l)
         return lvls
@@ -976,14 +979,14 @@ class PixelBasis(object):
             p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
             #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
             for e in obj.extra_potentials:
-                p += sum(data[e.name] * e.poten(img.pos).T)
+                p -= sum(data[e.name] * e.poten(img.pos).T)
 
             return geom + p
 
         for i,src in enumerate(obj.sources):
             r = data['src'][i]
             l = [_tau(img,src,r) for img in src.images if img.parity_name == 'sad']
-            if l: lvls.append(l)
+            lvls.append(l if l else None)
 
         return lvls
 
@@ -1015,10 +1018,9 @@ class PixelBasis(object):
         #s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
                     #dot(kappa, (poten_dy(dist,self.cell_size))))
         s = glass.potential.grad(kappa,theta, self.ploc, self.cell_size)
-        if obj.shear:
-            s1,s2 = data['shear']
-            s += complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),
-                         s1*shear.poten_dy(0,theta) + s2*shear.poten_dy(1,theta))
+        for e in obj.extra_potentials:
+            s -= complex(sum(data[e.name] * e.poten_dx(theta).T),
+                         sum(data[e.name] * e.poten_dy(theta).T))
         return s
 
     def magnification(self, r, theta, data):
@@ -1027,6 +1029,9 @@ class PixelBasis(object):
         kappa = data['kappa']
         dist  = r - self.ploc
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
+        for e in obj.extra_potentials:
+            if not hasattr(e, 'maginv'): continue
+            e -= sum(data[e.name] * e.maginv(dist,theta).T)
         K = matrix([ [ e[1], e[0] ], 
                      [ e[0], e[2] ] ])
 
@@ -1111,19 +1116,64 @@ class PixelBasis(object):
         obj = self.myobject
         return [ self._to_grid(self.srcdiff(data, i)) for i,src in enumerate(obj.sources) ]
 
-    def grid_to_grid(self, grid, grid_size, H0inv):
+    def project_grid(self, grid, grid_size, H0inv):
         o = self.myobject
         L = o.basis.pixrad
-        r = grid.shape[0]
-        J = r // 2
+        S = grid.shape[0]
+        J = S // 2
         #grid = congrid(grid, (2*L+1, 2*L+1), minusone=True)
 
-        grid_cell_size = grid_size / r
+        grid_cell_size = grid_size / S
         cell_size      = o.basis.top_level_cell_size
 
         #cell_size = grid_cell_size
 
-        grid *= grid_cell_size**2
+        #grid *= grid_cell_size**2
+
+        pg = zeros(len(self.ploc))
+        for idx,[l,cell_size] in enumerate(izip(self.ploc, self.cell_size)):
+            x,y = l.real, l.imag
+            rt = y + 0.5*cell_size
+            rb = y - 0.5*cell_size
+            cl = x - 0.5*cell_size
+            cr = x + 0.5*cell_size
+            for i in xrange(2*J+1):
+                for j in xrange(2*J+1):
+                    it = (J-i+0.5) * grid_cell_size
+                    ib = (J-i-0.5) * grid_cell_size
+                    jl = (j-J-0.5) * grid_cell_size
+                    jr = (j-J+0.5) * grid_cell_size
+                    frac = intersect_frac([rt,rb,cl,cr], [it,ib,jl,jr])
+                    #if frac: print frac
+                    pg[idx] += frac * grid[i,j]
+                    #pg[y,x] += grid[i,j]
+#                   if frac > 0:
+#                       print [rt,rb,cl,cr], [it,ib,jl,jr]
+#                       print frac, i,j, L,J, cell_size, grid_cell_size
+                        #assert 0
+
+            #break
+        #break
+
+        #pg *= 2
+        #pg /= cell_size**2
+        #pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
+
+        return pg
+
+    def project_gridX(self, grid, grid_size, H0inv):
+        o = self.myobject
+        L = o.basis.pixrad
+        S = grid.shape[0]
+        J = S // 2
+        #grid = congrid(grid, (2*L+1, 2*L+1), minusone=True)
+
+        grid_cell_size = grid_size / S
+        cell_size      = o.basis.top_level_cell_size
+
+        #cell_size = grid_cell_size
+
+        #grid *= grid_cell_size**2
 
         pg = zeros((2*L+1, 2*L+1))
         for y in xrange(2*L+1):
@@ -1139,7 +1189,9 @@ class PixelBasis(object):
                         jl = (j-J-0.5) * grid_cell_size
                         jr = (j-J+0.5) * grid_cell_size
                         frac = intersect_frac([rt,rb,cl,cr], [it,ib,jl,jr])
+                        #if frac: print frac
                         pg[y,x] += frac * grid[i,j]
+                        #pg[y,x] += grid[i,j]
 #                   if frac > 0:
 #                       print [rt,rb,cl,cr], [it,ib,jl,jr]
 #                       print frac, i,j, L,J, cell_size, grid_cell_size
@@ -1149,11 +1201,10 @@ class PixelBasis(object):
             #break
 
         #pg *= 2
-        pg /= cell_size**2
-        pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
+        #pg /= cell_size**2
+        #pg *= convert('Msun/arcsec^2 to kappa',  1., o.dL, convert('H0^-1 in Gyr to nu', H0inv, o.dL))
 
         return pg
-
     def grid_mass(self, X,Y,M, H0inv, to_kappa=True):
         obj = self.myobject
         Rmap = self.mapextent
@@ -1243,11 +1294,11 @@ class PixelBasis(object):
         gg = g(self.ploc.real-dx, self.ploc.real+dx, self.ploc.imag-dy, self.ploc.imag+dy)
         gg /= self.cell_size**2
         assert np.all(gg >= 0)
-        return self.solution_from_array(0.5*theta_E * gg,
+        return self.packaged_solution_from_array(0.5*theta_E * gg,
                                         src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
                                         top_level_func_name=top_level_func_name)
 
-    def solution_from_array(self, a, src=None, H0inv=None, shear=None, ptmass=None,
+    def packaged_solution_from_array(self, a, src=None, H0inv=None, shear=None, ptmass=None,
                             top_level_func_name='solution_from_array()'):
 
         assert src   is not None, '%s: src keyword must be set.' % top_level_func_name
@@ -1260,24 +1311,33 @@ class PixelBasis(object):
         # Now fill in the solution array.
         #-----------------------------------------------------------------------
 
-        o = 1 #self.array_offset
+        ps = {}
+        ps['kappa'] = a
+        ps['src'] = src
+        ps['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
+        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+            ps[e.name] = zeros(end - start)
+
+        return ps
+
+        o = 0 #self.array_offset
         sol = zeros(o+obj.basis.nvar)
 
-        sol[o+self.pix_start : o+self.pix_end] = a
-        if shear:  sol[o+self.shear_start  : o+self.shear_end]  = shear
-        if ptmass: sol[o+self.ptmass_start : o+self.ptmass_end] = ptmass
+        sol[slice(*(o+self.offs_pix))] = a
+        #if shear:  sol[o+self.shear_start  : o+self.shear_end]  = shear
+        #if ptmass: sol[o+self.ptmass_start : o+self.ptmass_end] = ptmass
 
-        if self.srcpos_start < self.srcpos_end:
-            for i,s in enumerate(src):
-                assert isinstance(s, (list, tuple)) and len(s) == 2, \
-                       "solution_from_grid(): Each element of src must be a 2 item list"
-                offs = o+self.srcpos_start + 2*i
-                sol[offs : offs+2] = s
-                sol[offs : offs+2] += self.map_shift
-                sol[offs : offs+2] *= obj.sources[i].zcap
+#       if self.srcpos_start < self.srcpos_end:
+#           for i,s in enumerate(src):
+#               assert isinstance(s, (list, tuple)) and len(s) == 2, \
+#                      "solution_from_grid(): Each element of src must be a 2 item list"
+#               offs = o+self.srcpos_start + 2*i
+#               sol[offs : offs+2] = s
+#               sol[offs : offs+2] += self.map_shift
+#               sol[offs : offs+2] *= obj.sources[i].zcap
 
         nu = convert('H0^-1 in Gyr to nu', H0inv)
-        print "nu", nu
+        #print "nu", nu
         sol[o+self.H0] = nu
         #sol[o+self.H0] = time_to_internal(obj, H0inv)
 
@@ -1287,7 +1347,7 @@ class PixelBasis(object):
 
     def solution_from_grid(self, grid, src=None, H0inv=None, shear=None, ptmass=None,
                            top_level_func_name='solution_from_grid'):
-        return self.solution_from_array(grid.ravel()[self.insideL].take(self.pmap),
+        return self.packaged_solution_from_array(grid.ravel()[self.insideL].take(self.pmap),
                                         src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
                                         top_level_func_name=top_level_func_name)
 
@@ -1297,7 +1357,7 @@ class PixelBasis(object):
         assert H0inv is not None, 'solution_from_data(): H0inv keyword must be set.'
 
         grid = self.grid_mass(X,Y,M, H0inv)
-        return self.solution_from_grid(grid, src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
+        return self.packaged_solution_from_grid(grid, src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
                                        top_level_func_name=top_level_func_name)
 
 

@@ -60,16 +60,30 @@ def PlotFigures():
     init_plots(4, [2,4])
     gcf().subplots_adjust(left=0.05, right=0.98)
 
-    #gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(state_file))[0]))
+    gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(opts[1]))[0]))
+
+    for g in gls:
+        for i,o in enumerate(g.objects):
+            if hasattr(o, 'stellar_mass'):
+                g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
 
     if 1: 
         begin_plot()
         for g in gls:
+            if 'image' in g.meta_info:
+                R = 20 #g.objects[0].basis.maprad
+                #cx,cy = -1.875, 0.08
+                cx,cy=0,0
+                g.image_plot(g.meta_info['image'], R, [cx,cy])
             #img_plot(g.ensemble_average,0,1)
             g.img_plot(obj_index=0)
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=550);
-            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=20, src_index=1);
-            g.src_plot(g.ensemble_average, obj_index=0)
+            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=0, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=4, colors='g');
+            #g.arrival_plot(g.models[100], only_contours=True, clevels=250, src_index=1);
+            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=1);
+            #g.src_plot(obj_index=0)
+            #g.src_plot(g.ensemble_average, obj_index=0)
             g.external_mass_plot(0)
             #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=1);
         end_plot()
@@ -84,7 +98,7 @@ def PlotFigures():
         si = style_iterator(colors)
         for g in gls:
             lw,ls,clr = si.next()
-            g.glerrorplot('kappa(R)', ['R', 'arcsec'])
+            g.glerrorplot('kappa(R)', ['R', 'arcsec'], yscale='linear')
         end_plot()
 
     if 1: 
@@ -111,10 +125,40 @@ def PlotFigures():
             g.glerrorplot('Sigma(R)', ['R', 'kpc'], yscale='linear')
         end_plot()
 
+    if 0:
+        for g in gls:
+            begin_plot()
+            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=20, vmax=1); #Re_plot(env().ensemble_average,0)
+            #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
+            #g.gradient_plot(g.ensemble_average, 0)
+            end_plot()
+
+    if 0:
+        for g in gls:
+            begin_plot()
+            if 'image' in g.meta_info:
+                R = 20 #g.objects[0].basis.maprad
+                #cx,cy = -1.875, 0.08
+                cx,cy=0,0
+                g.image_plot(g.meta_info['image'], R, [cx,cy])
+            s = 0
+            if hasattr(g.objects[0], 'stellar_mass'):
+                s = g.objects[0].stellar_mass
+
+            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=20, subtract=s) #, vmax=1, colors='r'); #Re_plot(env().ensemble_average,0)
+            #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
+            #g.gradient_plot(g.ensemble_average, 0)
+            end_plot()
+
     if 1:
         for g in gls:
             begin_plot()
-            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=80, vmax=1); #Re_plot(env().ensemble_average,0)
+            if 'image' in g.meta_info:
+                R = 20 #g.objects[0].basis.maprad
+                #cx,cy = -1.875, 0.08
+                cx,cy=0,0
+                g.image_plot(g.meta_info['image'], R, [cx,cy])
+            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=20) #, vmax=1, colors='r'); #Re_plot(env().ensemble_average,0)
             #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
             #g.gradient_plot(g.ensemble_average, 0)
             end_plot()

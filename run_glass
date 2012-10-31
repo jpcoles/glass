@@ -6,6 +6,7 @@ PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
 
 export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$LD_LIBRARY_PATH
+export PYTHONPATH=.:$PYTHONPATH
 export PYTHONPATH=$ROOT/build/python-glpk/$PLATDIR/glpk/:$PYTHONPATH
 export PYTHONPATH=$ROOT/build/$PLATDIR/glass:$PYTHONPATH
 
