@@ -62,10 +62,10 @@ def PlotFigures():
 
     gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(opts[1]))[0]))
 
-    for g in gls:
-        for i,o in enumerate(g.objects):
-            if hasattr(o, 'stellar_mass'):
-                g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
+#   for g in gls:
+#       for i,o in enumerate(g.objects):
+#           if hasattr(o, 'stellar_mass'):
+#               g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
 
     if 1: 
         begin_plot()
@@ -75,17 +75,13 @@ def PlotFigures():
                 #cx,cy = -1.875, 0.08
                 cx,cy=0,0
                 g.image_plot(g.meta_info['image'], R, [cx,cy])
-            #img_plot(g.ensemble_average,0,1)
             g.img_plot(obj_index=0)
-            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, colors='r');
             g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=0, colors='r');
             g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=4, colors='g');
-            #g.arrival_plot(g.models[100], only_contours=True, clevels=250, src_index=1);
-            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=1);
             #g.src_plot(obj_index=0)
             #g.src_plot(g.ensemble_average, obj_index=0)
             g.external_mass_plot(0)
-            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=1);
         end_plot()
 
     if 0: 
