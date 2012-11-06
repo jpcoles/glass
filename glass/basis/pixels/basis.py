@@ -36,11 +36,11 @@ from itertools import izip
 from glass.environment import Environment
 #glassimport . potential
 import glass.shear as shear
-from . potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy
+from . potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy, grad
 from glass.scales import convert
 from glass.handythread import parallel_map2, parallel_map
 
-from glass.potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
+from . potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
 
 from glass.log import log as Log
 
@@ -672,6 +672,8 @@ class PixelBasis(object):
         self.offs_pix    = array([0, npix], dtype='int32')
         self.offs_srcpos = array([0, 2*len(obj.sources)], dtype='int32') + self.offs_pix[1]
         self.H0          = 0 + self.offs_srcpos[1]
+        self.offs_sm_err = self.H0 + (obj.stellar_mass_error != 0)
+        last = self.offs_sm_err + 1
 
         #self.pix_start,    self.pix_end    = 0, npix
         #self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is True)
@@ -679,7 +681,6 @@ class PixelBasis(object):
         #self.srcpos_start, self.srcpos_end = self.pix_end, self.pix_end+2*len(obj.sources)
         #self.H0 = self.srcpos_end
 
-        last = self.H0 + 1
         self.extra_potentials_array_offsets = []
         for e in obj.extra_potentials:
             self.extra_potentials_array_offsets.append(array([last, last + e.nParams], dtype='int32'))
@@ -748,10 +749,11 @@ class PixelBasis(object):
 
         stellar_mass = obj.stellar_mass if hasattr(obj, 'stellar_mass') else 0
 
-        ps['kappa']  = sol[ slice(*self.offs_pix) ] + stellar_mass
         ps['src']    = [complex(*(sol[i:i+2] / obj.sources[j].zcap - self.map_shift))
                         for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
+        ps['sm_error_factor'] = sol[self.offs_sm_err] if self.offs_sm_err != 0 else 1
+        ps['kappa']  = sol[ slice(*self.offs_pix) ] + stellar_mass * ps['sm_error_factor']
 
         for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
             ps[e.name] = sol[ start : end ] - e.shift
@@ -1017,7 +1019,7 @@ class PixelBasis(object):
         #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
         #s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
                     #dot(kappa, (poten_dy(dist,self.cell_size))))
-        s = glass.potential.grad(kappa,theta, self.ploc, self.cell_size)
+        s = grad(kappa,theta, self.ploc, self.cell_size)
         for e in obj.extra_potentials:
             s -= complex(sum(data[e.name] * e.poten_dx(theta).T),
                          sum(data[e.name] * e.poten_dy(theta).T))
@@ -1031,7 +1033,7 @@ class PixelBasis(object):
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
         for e in obj.extra_potentials:
             if not hasattr(e, 'maginv'): continue
-            e -= sum(data[e.name] * e.maginv(dist,theta).T)
+            e -= sum(data[e.name] * e.maginv(dist,theta).T, axis=1)
         K = matrix([ [ e[1], e[0] ], 
                      [ e[0], e[2] ] ])
 
@@ -1067,7 +1069,7 @@ class PixelBasis(object):
 #                   if (i%100) == 0: 
 #                       print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
 #                       x = True
-                    deflect[i] = glass.potential.grad(kappa,theta,ploc,cell_size)
+                    deflect[i] = grad(kappa,theta,ploc,cell_size)
                     if obj.shear:
                         s1,s2 = data['shear']
                         s = complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),

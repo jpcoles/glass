@@ -105,6 +105,7 @@ def lens_eq(o, leq, eq, geq):
 
     pix_start, pix_end = 1+b.offs_pix
     srcpos_start, srcpos_end = 1+b.offs_srcpos
+    sm_err = 1+b.offs_sm_err
     #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
@@ -131,8 +132,15 @@ def lens_eq(o, leq, eq, geq):
             rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size)
             rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size)
 
-            rows[0,0] -= np.sum(poten_dx(positions, b.cell_size) * stellar_mass)
-            rows[1,0] -= np.sum(poten_dy(positions, b.cell_size) * stellar_mass)
+            sm_x = np.sum(poten_dx(positions, b.cell_size) * stellar_mass)
+            sm_y = np.sum(poten_dy(positions, b.cell_size) * stellar_mass)
+
+            if o.stellar_mass_error is not 0:
+                rows[0,sm_err] = -sm_x
+                rows[1,sm_err] = -sm_y
+            else:
+                rows[0,0] -= sm_x
+                rows[1,0] -= sm_y
 
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
@@ -1814,6 +1822,7 @@ def load_leier_grid(o, fname, grid_size, units, H0inv, scale=1.0):
         pl.show()
 
     #a = o.basis.from_grid(a)
+    #a[0] = np.mean(a[1:5])
     o.stellar_mass = a
 
 

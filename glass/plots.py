@@ -828,9 +828,13 @@ def _data_error_plot(models, X,Y, **kwargs):
             if tag not in v: break
             #if not v.has_key('%s:count'%tag): break
 
-            avg = np.mean(v[tag]['ys'], axis=0)
-            errp = np.amax(v[tag]['ys'], axis=0) - avg
-            errm = avg - np.amin(v[tag]['ys'], axis=0)
+            s = np.sort(v[tag]['ys'], axis=0)
+            avg = s[len(s)//2] if len(s)%2==1 else (s[len(s)//2] + s[len(s)//2+1])/2
+            #avg = np.median(v[tag]['ys'], axis=0)
+            errp = s[len(s) * .841] - avg
+            errm = avg - s[len(s) * .159]
+            #errp = np.amax(v[tag]['ys'], axis=0) - avg
+            #errm = avg - np.amin(v[tag]['ys'], axis=0)
             #errp = errm = np.std(v[tag]['ys'], axis=0, dtype=np.float64)
             xs = v[tag]['xs']
 
@@ -1171,11 +1175,13 @@ def glhist(env, data_key, **kwargs):
     #print 'H0_plot',H0s
 
     for d,s in zip(l, _styles):
+        kw = kwargs.copy()
         if d:
+            kw.setdefault('bins', ptp(d)//1+1)
+            kw.setdefault('histtype', 'step')
             #print len(d), d
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            pl.hist(d, bins=ptp(d)//1+1, 
-                    histtype='step', 
+            pl.hist(d, 
                     edgecolor=s['c'] if color is None else color, 
                     zorder=s['z'], 
                     label=s['label'] if label is None else label, 

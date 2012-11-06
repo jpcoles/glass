@@ -193,6 +193,7 @@ def leier_grid(env, fname, size, **kwargs):
     o.prior_options['minkappa Leier grid']['grid size'] = size
     o.prior_options['minkappa Leier grid']['grid size units'] = units
     o.prior_options['minkappa Leier grid']['scale'] = scale
+    o.stellar_mass_error = None
 
 
 @command
@@ -204,11 +205,11 @@ def extended_source_size(env, size):
 @command
 def subtract_kappa_from_models(env, a, obj_index=0, include_ensemble_average=True):
     for m in env.models:
-        m['obj,data'][obj_index][1]['kappa'] -= a
+        m['obj,data'][obj_index][1]['kappa'] -= a * m['obj,data'][obj_index][1]['sm_error_factor']
         default_post_process(m['obj,data'][obj_index])
 
     if include_ensemble_average and hasattr(env, 'ensemble_average'):
-        env.ensemble_average['obj,data'][obj_index][1]['kappa'] -= a
+        env.ensemble_average['obj,data'][obj_index][1]['kappa'] -= a * env.ensemble_average['obj,data'][obj_index][1]['sm_error_factor']
         default_post_process(env.ensemble_average['obj,data'][obj_index])
 
 
