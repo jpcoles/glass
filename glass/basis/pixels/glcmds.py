@@ -193,7 +193,7 @@ def leier_grid(env, fname, size, **kwargs):
     o.prior_options['minkappa Leier grid']['grid size'] = size
     o.prior_options['minkappa Leier grid']['grid size units'] = units
     o.prior_options['minkappa Leier grid']['scale'] = scale
-    o.stellar_mass_error = None
+    o.stellar_mass_error = 0
 
 
 @command
