@@ -240,8 +240,8 @@ def _model_dict(objs, sol):
 
 @command
 def package_solution(env, sol, objs, **kwargs):
-    fn_package_sol = kwargs.get('fn_package_sol', lambda x: solution_to_dict(x, sol))
-    fn_object_sol  = kwargs.get('fn_object_sol',  lambda x: obj_solution(x, sol))
+    fn_package_sol = kwargs.get('fn_package_sol', lambda x: solution_to_dict(x, sol) if sol is not None else {})
+    fn_object_sol  = kwargs.get('fn_object_sol',  lambda x: obj_solution(x, sol) if sol is not None else None)
     
     return {'sol':  sol,
             'obj,data': zip(objs, map(fn_package_sol, objs)),
@@ -342,7 +342,8 @@ def make_ensemble_average(env):
 #       Log( m['sol'] )
 #   Log( "s*********" )
 
-    sol = mean([m['sol'] for m in env.models], axis=0)
+    M = [m['sol'] for m in env.models]
+    sol = mean(M, axis=0) if M else None
     #sol = sol[1:]
     objs = env.objects
     #env.ensemble_average = package_solution(sol, objs)
@@ -354,7 +355,8 @@ def make_ensemble_average(env):
 
     env.ensemble_average = package_solution(sol, objs)
     for od in env.ensemble_average['obj,data']:
-        default_post_process(od)
+        if od[1]:
+            default_post_process(od)
 
 #   env.ensemble = [ package_solution(m['sol'], objs) for m in env.models ]
 #   for m in env.ensemble:

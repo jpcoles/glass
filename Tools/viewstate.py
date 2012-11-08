@@ -70,15 +70,15 @@ def PlotFigures():
     if 1: 
         begin_plot()
         for g in gls:
-            if 'image' in g.meta_info:
-                R = 20 #g.objects[0].basis.maprad
-                #cx,cy = -1.875, 0.08
-                cx,cy=0,0
-                g.image_plot(g.meta_info['image'], R, [cx,cy])
+#           if 'image' in g.meta_info:
+#               R = 20 #g.objects[0].basis.maprad
+#               #cx,cy = -1.875, 0.08
+#               cx,cy=0,0
+#               g.image_plot(g.meta_info['image'], R, [cx,cy])
             g.img_plot(obj_index=0)
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=0, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=150, src_index=4, colors='g');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=0, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=4, colors='g');
             #g.src_plot(obj_index=0)
             #g.src_plot(g.ensemble_average, obj_index=0)
             g.external_mass_plot(0)
@@ -149,11 +149,11 @@ def PlotFigures():
     if 1:
         for g in gls:
             begin_plot()
-            if 'image' in g.meta_info:
-                R = 20 #g.objects[0].basis.maprad
-                #cx,cy = -1.875, 0.08
-                cx,cy=0,0
-                g.image_plot(g.meta_info['image'], R, [cx,cy])
+#           if 'image' in g.meta_info:
+#               R = 20 #g.objects[0].basis.maprad
+#               #cx,cy = -1.875, 0.08
+#               cx,cy=0,0
+#               g.image_plot(g.meta_info['image'], R, [cx,cy])
             g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=20) #, vmax=1, colors='r'); #Re_plot(env().ensemble_average,0)
             #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
             #g.gradient_plot(g.ensemble_average, 0)
@@ -163,8 +163,8 @@ def PlotFigures():
         for g in gls:
             begin_plot()
             g.glhist('N1', label='N1', color='r', xlabel=r'$\theta_E$')
-            g.glhist('N3', label='N3', color='b', xlabel=r'$\theta_E$')
-            g.glhist('N4', label='N4', color='m', xlabel=r'$\theta_E$')
+            #g.glhist('N3', label='N3', color='b', xlabel=r'$\theta_E$')
+            #g.glhist('N4', label='N4', color='m', xlabel=r'$\theta_E$')
             g.glhist('N2', label='N2', color='g', xlabel=r'$\theta_E$')
             #g.glhist('N5', label='N5', color='c', xlabel=r'$\theta_E$')
             end_plot()

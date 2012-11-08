@@ -318,6 +318,7 @@ def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels
 @command
 def kappa_plot(env, model, obj_index, **kwargs):
     obj, data = model['obj,data'][obj_index]
+    if not data: return
 
     with_contours = kwargs.pop('with_contours', False)
     only_contours = kwargs.pop('only_contours', False)
@@ -488,6 +489,8 @@ def arrival_plot(env, model, **kwargs):
             pl.contour(g, lev, **kw)
 
     for obj,data in model['obj,data'][obj_slice]:
+        if not data: continue
+
         print len(obj.sources[src_slice])
         lev = obj.basis.arrival_contour_levels(data)
         print len(lev)

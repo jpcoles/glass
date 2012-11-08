@@ -30,6 +30,8 @@ class Object:
         self.post_process_funcs = []
         self.post_filter_funcs = []
 
+        self.stellar_mass_error = 0
+
     def current_source(self):
         return self._current_source
 
