@@ -1839,7 +1839,7 @@ def load_leier_grid(o, fname, grid_size, units, H0inv, scale=1.0):
     #assert 0
 
 
-@object_prior
+#@object_prior
 def min_kappa_leier_grid(o, leq, eq, geq):
 
     #assert 0
