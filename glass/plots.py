@@ -832,12 +832,13 @@ def _data_error_plot(models, X,Y, **kwargs):
             #if not v.has_key('%s:count'%tag): break
 
             s = np.sort(v[tag]['ys'], axis=0)
-            avg = s[len(s)//2] if len(s)%2==1 else (s[len(s)//2] + s[len(s)//2+1])/2
-            #avg = np.median(v[tag]['ys'], axis=0)
-            errp = s[len(s) * .841] - avg
-            errm = avg - s[len(s) * .159]
-            #errp = np.amax(v[tag]['ys'], axis=0) - avg
-            #errm = avg - np.amin(v[tag]['ys'], axis=0)
+            #avg = s[len(s)//2] if len(s)%2==1 else (s[len(s)//2] + s[len(s)//2+1])/2
+            avg = np.median(v[tag]['ys'], axis=0)
+            #errp = s[len(s) * .841] - avg
+            #errm = avg - s[len(s) * .159]
+
+            errp = np.amax(v[tag]['ys'], axis=0) - avg
+            errm = avg - np.amin(v[tag]['ys'], axis=0)
             #errp = errm = np.std(v[tag]['ys'], axis=0, dtype=np.float64)
             xs = v[tag]['xs']
 

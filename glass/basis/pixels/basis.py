@@ -672,8 +672,13 @@ class PixelBasis(object):
         self.offs_pix    = array([0, npix], dtype='int32')
         self.offs_srcpos = array([0, 2*len(obj.sources)], dtype='int32') + self.offs_pix[1]
         self.H0          = 0 + self.offs_srcpos[1]
-        self.offs_sm_err = self.H0 + (obj.stellar_mass_error != 0)
-        last = self.offs_sm_err + 1
+        if obj.stellar_mass_error != 0:
+            self.offs_sm_err = self.H0 + 1
+            last = self.offs_sm_err + 1
+        else:
+            self.offs_sm_err = 0
+            last = self.H0 + 1
+
 
         #self.pix_start,    self.pix_end    = 0, npix
         #self.shear_start,  self.shear_end  = self.pix_end,   self.pix_end+2*(obj.shear is True)
@@ -1031,9 +1036,12 @@ class PixelBasis(object):
         kappa = data['kappa']
         dist  = r - self.ploc
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
-        for e in obj.extra_potentials:
-            if not hasattr(e, 'maginv'): continue
-            e -= sum(data[e.name] * e.maginv(dist,theta).T, axis=1)
+        for p in obj.extra_potentials:
+            if not hasattr(p, 'maginv'): continue
+            #print e.name
+            #print e.maginv(dist,theta)
+            #print data[e.name]
+            e -= sum(data[p.name] * p.maginv(dist,theta).T, axis=1)
         K = matrix([ [ e[1], e[0] ], 
                      [ e[0], e[2] ] ])
 
@@ -1070,11 +1078,16 @@ class PixelBasis(object):
 #                       print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
 #                       x = True
                     deflect[i] = grad(kappa,theta,ploc,cell_size)
-                    if obj.shear:
-                        s1,s2 = data['shear']
-                        s = complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),
-                                    s1*shear.poten_dy(0,theta) + s2*shear.poten_dy(1,theta))
+                    s = complex(0,0)
+                    for e in obj.extra_potentials:
+                        s -= complex(sum(data[e.name] * e.poten_dx(theta).T),
+                                     sum(data[e.name] * e.poten_dy(theta).T))
                         deflect[i] += s
+#                   if obj.shear:
+#                       s1,s2 = data['shear']
+#                       s = complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),
+#                                   s1*shear.poten_dy(0,theta) + s2*shear.poten_dy(1,theta))
+#                       deflect[i] += s
 
                 #parallel_map(pot_grad, enumerate(ploc), threads = 1, return_ = False)
                 #parallel_map(pot_grad, enumerate(ploc), threads = env().ncpus, return_ = False)

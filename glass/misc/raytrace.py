@@ -125,7 +125,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         return [ [dxdx, dydx], [dxdy, dydy] ]
 
     xs = []
-    if obj.shear: s1,s2 = ps['shear']
+    #if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
         #x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], fprime=lenseq_prime, full_output=True) #, xtol=1e-12)
         x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-10)
@@ -166,8 +166,8 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             tau  = abs(r0-src)**2 / 2
             tau *= zcap
             tau -= dot(ps['kappa'], poten(r0 - obj.basis.ploc, obj.basis.cell_size))
-            if obj.shear:
-                tau -= s1*obj.shear.poten(1,r0) + s2*obj.shear.poten(2,r0)
+            for e in obj.extra_potentials:
+                tau -= dot(ps[e.name], e.poten(r0))
             #print tau
             #print '!!', poten(i - obj.basis.ploc, obj.basis.cell_size)[0]
             #print '!!', dot(ps['kappa'], poten(complex(1,0) - obj.basis.ploc, obj.basis.cell_size))

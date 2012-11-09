@@ -135,7 +135,7 @@ def lens_eq(o, leq, eq, geq):
             sm_x = np.sum(poten_dx(positions, b.cell_size) * stellar_mass)
             sm_y = np.sum(poten_dy(positions, b.cell_size) * stellar_mass)
 
-            if o.stellar_mass_error is not 0:
+            if o.stellar_mass_error != 0:
                 rows[0,sm_err] = -sm_x
                 rows[1,sm_err] = -sm_y
             else:
