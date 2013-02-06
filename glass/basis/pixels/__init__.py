@@ -304,7 +304,13 @@ def generate_models(env, objs, n, *args, **kwargs):
         objs[0].basis.array_offset = 1
 
         ps = objs[0].basis.solution_isothermal(*data)
-        yield package_solution(ps, [objs[0]])
+        m = {'sol':      None,
+             'obj,data': [[objs[0],ps]],
+             'obj,sol':  None,
+             'tagged':   False}
+        for od in m['obj,data']:
+            default_post_process(od)
+        yield m
 
     elif mode != 'default':
         assert False, 'Unsupported model mode "%s"' % mode
@@ -389,9 +395,18 @@ def _grid_model(obj, grid, grid_size, src, H0inv):
 
 def _particle_model(obj, X,Y,M, src, H0inv):
 
-    grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
-    ps = obj.basis.solution_from_grid(grid_mass, src=src, H0inv=H0inv)
-    print ps.shape
+    #grid_mass = obj.basis.grid_mass(X,Y,M, H0inv)
+    ps = obj.basis.solution_from_data(X,Y,M, src=src, H0inv=H0inv)
+    m = {'sol':      None,
+         'obj,data': [[obj,ps]],
+         'obj,sol':  None,
+         'tagged':   False}
+    for od in m['obj,data']:
+        default_post_process(od)
+    return m
+
+    return ps
+    #print ps.shape
     return package_solution(ps, [obj])
     #return package_solution(ps, [obj], fn_package_sol = lambda x:ps)
 #   return {'sol':      ps,
@@ -400,8 +415,8 @@ def _particle_model(obj, X,Y,M, src, H0inv):
 
 
 @command 
-def change_source(env, models, src, invalidate=True):
-    for m in models:
+def change_source(env, src, invalidate=True):
+    for m in env.models:
         assert len(src) == len(m['obj,data'])
         for [obj,data],s in izip(m['obj,data'], src):
             #if not isinstance(s, complex):
@@ -409,7 +424,7 @@ def change_source(env, models, src, invalidate=True):
             data['src'] = s
 
     if invalidate:
-        for m in models:
+        for m in env.models:
             for n in ['srcdiff', 'srcdiff_grid', 'arrival_grid', 'arrival_contour_levels', 'time_delays']:
                 if m['obj,data'][0][1].has_key(n):
                     del m['obj,data'][0][1][n]

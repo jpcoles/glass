@@ -129,18 +129,8 @@ def lens_eq(o, leq, eq, geq):
             rows[0,0] = img.pos.real * src.zcap
             rows[1,0] = img.pos.imag * src.zcap
             positions = img.pos - b.ploc
-            rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size)
-            rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size)
-
-            sm_x = np.sum(poten_dx(positions, b.cell_size) * stellar_mass)
-            sm_y = np.sum(poten_dy(positions, b.cell_size) * stellar_mass)
-
-            if o.stellar_mass_error != 0:
-                rows[0,sm_err] = -sm_x
-                rows[1,sm_err] = -sm_y
-            else:
-                rows[0,0] -= sm_x
-                rows[1,0] -= sm_y
+            rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size, o.basis.maprad)
+            rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size, o.basis.maprad)
 
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
@@ -148,6 +138,16 @@ def lens_eq(o, leq, eq, geq):
 
             rows[0,0] += b.map_shift * src.zcap
             rows[1,0] += b.map_shift * src.zcap
+
+            sm_x = np.sum(poten_dx(positions, b.cell_size, o.basis.maprad) * stellar_mass)
+            sm_y = np.sum(poten_dy(positions, b.cell_size, o.basis.maprad) * stellar_mass)
+
+            if o.stellar_mass_error != 0:
+                rows[0,sm_err] = -sm_x
+                rows[1,sm_err] = -sm_y
+            else:
+                rows[0,0] -= sm_x
+                rows[1,0] -= sm_y
 
             for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
@@ -164,13 +164,14 @@ def lens_eq(o, leq, eq, geq):
             eq(rows[0])
             eq(rows[1])
 
-#@object_prior_check(lens_eq)
+@object_prior_check(lens_eq)
 def check_lens_eq(o, sol):
     b    = o.basis
     offs = 0 #b.array_offset
 
     pix_start,    pix_end    = offs+b.offs_pix
     srcpos_start, srcpos_end = offs+b.offs_srcpos
+    sm_err = offs+b.offs_sm_err
     #shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
     #ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
 
@@ -178,22 +179,25 @@ def check_lens_eq(o, sol):
     for i,src in enumerate(o.sources):
         res = ''
         for img in src.images:
-            r0 = (img.pos.real + b.map_shift) * src.zcap
-            r1 = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
-            r0 -= sum(sol[pix_start:pix_end] * poten_dx(positions, b.cell_size))
-            r1 -= sum(sol[pix_start:pix_end] * poten_dy(positions, b.cell_size))
-
-            if o.shear:
-                pos = img.pos + complex(b.map_shift,b.map_shift)
-                r0 -= (sol[shear_start+0] - shear.shift) * shear.poten_dx(0, pos)
-                r0 -= (sol[shear_start+1] - shear.shift) * shear.poten_dx(1, pos)
-                r1 -= (sol[shear_start+0] - shear.shift) * shear.poten_dy(0, pos)
-                r1 -= (sol[shear_start+1] - shear.shift) * shear.poten_dy(1, pos)
-
             srcpos = srcpos_start + 2*i
-            r0 -= sol[srcpos+0]
-            r1 -= sol[srcpos+1]
+
+            r0 = img.pos.real * src.zcap
+            r1 = img.pos.imag * src.zcap
+            r0 -= sol[srcpos+0] - b.map_shift * src.zcap
+            r1 -= sol[srcpos+1] - b.map_shift * src.zcap
+
+            sm = o.stellar_mass
+
+            if o.stellar_mass_error != 0:
+                sm = sm * sol[sm_err]
+
+            r0 -= sum((sm + sol[pix_start:pix_end]) * poten_dx(positions, b.cell_size, o.basis.maprad))
+            r1 -= sum((sm + sol[pix_start:pix_end]) * poten_dy(positions, b.cell_size, o.basis.maprad))
+
+            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+                r0 -= np.sum((sol[start:end] - e.shift) * e.poten_dx(img.pos))
+                r1 -= np.sum((sol[start:end] - e.shift) * e.poten_dy(img.pos))
 
             #print img.pos, r0,r1, sol[srcpos:srcpos+2]
 
@@ -256,8 +260,8 @@ def time_delay(o, leq, eq, geq):
             row[0] += dot([x1-x0, y1-y0], shft) * src.zcap
 
             # The ln terms
-            row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
-            row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
+            row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
+            row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
 
             for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
@@ -287,7 +291,7 @@ def time_delay(o, leq, eq, geq):
             #print row
             #assert 0
 
-#@object_prior_check(time_delay)
+@object_prior_check(time_delay)
 def check_time_delay(o, sol):
 
     #return
@@ -309,10 +313,10 @@ def check_time_delay(o, sol):
 
 
     b  = o.basis
-    nu = 1+b.H0
+    nu = b.H0
 
-    pix_start,    pix_end    = 1+b.offs_pix
-    srcpos_start, srcpos_end = 1+b.offs_srcpos
+    pix_start,    pix_end    = b.offs_pix
+    srcpos_start, srcpos_end = b.offs_srcpos
 
     zLp1 = (o.z + 1) * o.dL
     shft = [b.map_shift, b.map_shift]
@@ -320,11 +324,9 @@ def check_time_delay(o, sol):
     report = ''
     for i, src in enumerate(o.sources):
         res = ''
-        for img0,img1,delay in src.time_delays:
+        for img0,img1,delay_years in src.time_delays:
 
-            delay = [d / zLp1 if d else d for d in delay]
-
-            row = new_row(o)
+            delay = [d / zLp1 if d else d for d in delay_years]
 
             srcpos = srcpos_start + 2*i
 
@@ -333,39 +335,47 @@ def check_time_delay(o, sol):
             x1, y1 = img1.pos.real, img1.pos.imag
 
             # The constant term
-            row[0]  = (abs(r1)**2 - abs(r0)**2) / 2
-            row[0] += dot([x1-x0, y1-y0], shft)
-            row[0] *= src.zcap
+            S  = (abs(r1)**2 - abs(r0)**2) / 2
+            #S += dot([x1-x0, y1-y0], shft)
+            S *= src.zcap
 
             # The beta term
-            row[srcpos:srcpos+2]  = x0-x1, y0-y1
-            #row[srcpos:srcpos+2] *= src.zcap
+            S += (x0-x1) * (sol[srcpos+0] - b.map_shift * src.zcap)
+            S += (y0-y1) * (sol[srcpos+1] - b.map_shift * src.zcap)
 
-            # The ln terms
-            row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size)
-            row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size)
+            sm = o.stellar_mass
 
-            if o.shear:
-                row[shear_start+0] -= shear.poten(0, img1.pos)
-                row[shear_start+0] += shear.poten(0, img0.pos)
-                row[shear_start+1] -= shear.poten(1, img1.pos)
-                row[shear_start+1] += shear.poten(1, img0.pos)
-                row[0] += shear.shift * shear.poten(0, img1.pos)
-                row[0] -= shear.shift * shear.poten(0, img0.pos)
-                row[0] += shear.shift * shear.poten(1, img1.pos)
-                row[0] -= shear.shift * shear.poten(1, img0.pos)
+            if o.stellar_mass_error != 0:
+                sm = sm * sol[sm_err]
+
+            S -= sum((sm + sol[pix_start:pix_end]) * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
+            S += sum((sm + sol[pix_start:pix_end]) * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
+
+#           if o.shear:
+#               row[shear_start+0] -= shear.poten(0, img1.pos)
+#               row[shear_start+0] += shear.poten(0, img0.pos)
+#               row[shear_start+1] -= shear.poten(1, img1.pos)
+#               row[shear_start+1] += shear.poten(1, img0.pos)
+#               row[0] += shear.shift * shear.poten(0, img1.pos)
+#               row[0] -= shear.shift * shear.poten(0, img0.pos)
+#               row[0] += shear.shift * shear.poten(1, img1.pos)
+#               row[0] -= shear.shift * shear.poten(1, img0.pos)
 
 #           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
 #               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
 #               row[offs] += o.ptmass.poten(n, img0.pos, o.basis.cell_size)
 
-            row2 = None
-
+            S2 = None
             if len(delay) == 1:
                 d = delay[0]
-                if d is None: row[nu] =  0
-                else:         row[nu] = -d
+                if d is None: continue
+                else:         S -= sol[nu] * d
+                #print '*'*80
+                #print S, sol[nu]*d, delay_years, delay_years[0]*365.25
+                #print '*'*80
             else:
+                continue
+                assert 0
                 l,u = delay
                 if   l is None: row[nu] = -u
                 elif u is None: row[nu] = -l
@@ -374,22 +384,16 @@ def check_time_delay(o, sol):
                     row[nu]  = -l
                     row2[nu] = -u
 
-            r0 = dot(row[1:], sol) + row[0]
-            if row2:
-                r1 = dot(row2[1:], sol) + row2[0]
-
-            l0 = log10(abs(r0)) if r0 else -13
-            if row2:
-                l1 = log10(abs(r1)) if r1 else -13
+            l0 = log10(abs(S)) if S else -13
+            l1 = log10(abs(S2)) if S2 else -13
 
             #res += '[%i %i]' % (r0,r1)
 
-            if l0 >= 12 or (row2 and l1 >= -12):
+            if l0 >= -12 or l1 >= -12:
                 res += '['
                 res += ' ' if l0 <= -15 else '.' if l0 <= -14 else '-' if l0 <= -13 else '*' if l0 <= -12 else '%-3i' % l0
-                if row2:
-                    res += ' '
-                    res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
+                res += ' '
+                res += ' ' if l1 <= -15 else '.' if l1 <= -14 else '-' if l1 <= -13 else '*' if l1 <= -12 else '% 3i' % l1
                 res += ']'
 
         if res:
@@ -397,6 +401,7 @@ def check_time_delay(o, sol):
 
     if report:
         Log( "Check Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
+        print "Check Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
@@ -655,19 +660,26 @@ def magnification(o, leq, eq, geq):
             if parity == MINIMUM:
                 rows[0, pix_start:pix_end] = -k1*xx + yy
                 rows[1, pix_start:pix_end] = -k2*yy + xx
+                rows[2, pix_start:pix_end] =     xy + xx*eps
+                rows[3, pix_start:pix_end] =    -xy + xx*eps
+                rows[4, pix_start:pix_end] =     xy + yy*eps
+                rows[5, pix_start:pix_end] =    -xy + yy*eps
 
             if parity == SADDLE:
                 rows[0, pix_start:pix_end] = -k1*xx - yy
                 rows[1, pix_start:pix_end] =  k2*yy + xx
+                rows[2, pix_start:pix_end] =     xy + xx*eps
+                rows[3, pix_start:pix_end] =    -xy + xx*eps
+                rows[4, pix_start:pix_end] =     xy - yy*eps
+                rows[5, pix_start:pix_end] =    -xy - yy*eps
 
             if parity == MAXIMUM:
                 rows[0, pix_start:pix_end] =  k1*xx - yy
                 rows[1, pix_start:pix_end] =  k2*yy - xx
-
-            rows[2, pix_start:pix_end] =     xy - xx*eps
-            rows[3, pix_start:pix_end] =    -xy - xx*eps
-            rows[4, pix_start:pix_end] =     xy - yy*eps
-            rows[5, pix_start:pix_end] =    -xy - yy*eps
+                rows[2, pix_start:pix_end] =     xy - xx*eps
+                rows[3, pix_start:pix_end] =    -xy - xx*eps
+                rows[4, pix_start:pix_end] =     xy - yy*eps
+                rows[5, pix_start:pix_end] =    -xy - yy*eps
 
             for e,[start,end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
                 start += 1
@@ -680,19 +692,26 @@ def magnification(o, leq, eq, geq):
                     if parity == MINIMUM: 
                         coeffs[0] = -k1*xx + yy
                         coeffs[1] = -k2*yy + xx
+                        coeffs[2] =     xy + xx*eps
+                        coeffs[3] =    -xy + xx*eps
+                        coeffs[4] =     xy + yy*eps
+                        coeffs[5] =    -xy + yy*eps
 
                     if parity == SADDLE:  
                         coeffs[0] = -k1*xx - yy
                         coeffs[1] =  k2*yy + xx
+                        coeffs[2] =     xy + xx*eps
+                        coeffs[3] =    -xy + xx*eps
+                        coeffs[4] =     xy - yy*eps
+                        coeffs[5] =    -xy - yy*eps
 
                     if parity == MAXIMUM: 
                         coeffs[0] =  k1*xx - yy
                         coeffs[1] =  k2*yy - xx
-
-                    coeffs[2] =     xy - xx*eps
-                    coeffs[3] =    -xy - xx*eps
-                    coeffs[4] =     xy - yy*eps
-                    coeffs[5] =    -xy - yy*eps
+                        coeffs[2] =     xy - xx*eps
+                        coeffs[3] =    -xy - xx*eps
+                        coeffs[4] =     xy - yy*eps
+                        coeffs[5] =    -xy - yy*eps
 
                     for i,r in enumerate(rows):
                         rows[i, offs] += coeffs[i]
@@ -875,24 +894,31 @@ def profile_steepness(o, leq, eq, geq):
 
     for l,[r0,r1] in enumerate(izip(o.basis.rings[:-1], o.basis.rings[1:])):
 
-        if not o.basis.hires_levels \
-        or (o.basis.hires_levels and l < (o.basis.hiresR*o.basis.hires_levels - o.basis.hires_levels//2)):
+        if 1:
+        #if not o.basis.hires_levels \
+        #or (o.basis.hires_levels and l < (o.basis.hiresR*o.basis.hires_levels - o.basis.hires_levels//2)):
 
             R0 = (o.basis.rs[l]   + o.basis.radial_cell_size[l]/2)
             R1 = (o.basis.rs[l+1] + o.basis.radial_cell_size[l+1]/2)
 
-            R0 = l
-            R1 = l+1
+            #print R0,R1, o.basis.radial_cell_size[l], o.basis.radial_cell_size[l+1]
 
-            if l == 0:
-                R0,R1 = 1,1
+            #R0 = l
+            #R1 = l+1
 
-            w0 = o.basis.cell_size[r0]**2 / sum(o.basis.cell_size[r0]**2)
-            w1 = o.basis.cell_size[r1]**2 / sum(o.basis.cell_size[r1]**2)
+            #if l == 0:
+                #R0,R1 = 1,1
+
+            #print o.basis.cell_size[r0]
+            w0 = o.basis.cell_size[r0]**2 / np.sum(o.basis.cell_size[r0]**2)
+            w1 = o.basis.cell_size[r1]**2 / np.sum(o.basis.cell_size[r1]**2)
 
             row = new_row(o)
-            row[pix_start+r0] =  w0 * R0**minsteep
-            row[pix_start+r1] = -w1 * R1**minsteep
+            row[pix_start+r0] =  w0 #* R0**minsteep
+            row[pix_start+r1] = -w1 #* R1**minsteep
+            #print row[pix_start+r0]
+            #print row[pix_start+r1]
+            #print 
 
             if minsteep == maxsteep:
                 eq(row)
@@ -903,6 +929,56 @@ def profile_steepness(o, leq, eq, geq):
                     row = new_row(o)
                     row[pix_start+r0] =  w0 * R0**maxsteep
                     row[pix_start+r1] = -w1 * R1**maxsteep
+                    leq(row)
+                    c += 1
+            c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+@default_prior
+@object_prior
+def profile_steepnessXXX(o, leq, eq, geq):
+    steep = o.prior_options.get('steepness', None)
+
+    if steep is None: 
+        Log( "[DISABLED] Profile Steepness" )
+        return
+
+    Log( indent + "Profile Steepness %s" % steep )
+
+    minsteep, maxsteep = steep
+
+    assert maxsteep is None or maxsteep >= minsteep
+
+    pix_start, pix_end = 1+o.basis.offs_pix
+
+    nrings = len(o.basis.rings)
+
+    c = 0
+
+    for l,[r0,r1,r2] in enumerate(izip(o.basis.rings[:-1], o.basis.rings[1:], o.basis.rings[2:])):
+
+        if not o.basis.hires_levels \
+        or (o.basis.hires_levels and l < (o.basis.hiresR*o.basis.hires_levels - o.basis.hires_levels//2)):
+
+            w0 = o.basis.cell_size[r0]**2 / sum(o.basis.cell_size[r0]**2)
+            w1 = o.basis.cell_size[r1]**2 / sum(o.basis.cell_size[r1]**2)
+            w2 = o.basis.cell_size[r2]**2 / sum(o.basis.cell_size[r2]**2)
+
+            row = new_row(o)
+            row[pix_start+r0] =  w0
+            row[pix_start+r1] = -2*w1
+            row[pix_start+r2] =  w2
+
+            if minsteep == maxsteep:
+                eq(row)
+            else:
+                geq(row)
+
+                if l > 0 and maxsteep is not None:
+                    row = new_row(o)
+                    row[pix_start+r0] =  w0
+                    row[pix_start+r1] = -w1
                     leq(row)
                     c += 1
             c += 1
@@ -1256,7 +1332,7 @@ def central_pixel_max(o, leq, eq, geq):
 @object_prior
 def central_pixel_min(o, leq, eq, geq):
 
-    cp = o.basis.central_pixel + 1+o.basis.pix_start
+    cp = o.basis.central_pixel + 1+o.basis.offs_pix[0]
     Log( "Central pixel minimum %i" % cp )
 
     #g = o.prior_options.get('central_pixel_minimum')
@@ -1269,7 +1345,7 @@ def central_pixel_min(o, leq, eq, geq):
     #M = convert('Msun/kpc^2 to kappa',  M, o.dL, max_nu)
 
     row = new_row(o)
-    row[ [0,cp] ] = -6.5, 1
+    row[ [0,cp] ] = -40, 1
     #row[ [0,cp] ] = -M, 1
     geq(row)
 
@@ -1397,15 +1473,26 @@ def PLsmoothness3(o, leq, eq, geq):
     c=0
     #wght = lambda x: 1.0 / len(x) if len(x) else 0
     wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2)
-    for i,r,nbrs in o.basis.nbrs:
+    nbr_list = o.basis.nbrs
+
+    #print 'In smooth!'
+
+    for i,r,nbrs in nbr_list:
         if not include_central_pixel and i == o.basis.central_pixel: continue
 
         row = new_row(o)
         #N = sum( (sum(wght(d)) for d in o.basis.nbrs3[i][2]) )
-        for d in o.basis.nbrs3[i][2]:
+        l = len(nbr_list[i][2])
+#       for d in nbr_list[i][2]:
+#           if d == o.basis.central_pixel:
+#               l -= 1
+
+        for d in nbr_list[i][2]:
+            #if d == o.basis.central_pixel: continue
             #print len(o.basis.nbrs3[i][2])
             #print i, o.basis.nbrs3[i][2]
-            row[pix_start + d] = wght(d) / len(o.basis.nbrs3[i][2])
+            row[pix_start + d] = 1. / 8
+            #row[pix_start + d] = wght(d) / l
 
         row[pix_start + i] = -1 / smoothness_factor
 
@@ -1991,7 +2078,7 @@ def check_link_sources(o, sol):
                 r1 -= sol[X]
                 r1 += np.sum(sol[Xs]) / len(sources)
                 #assert r1 >= 0, r1
-                print r0, r1
+                #print r0, r1
 
 if __name__ == '__main__':
     import pylab as pl

@@ -349,19 +349,59 @@ def ensemble_mass_rms(env, models, model0):
     return np.sqrt(total_rms2)
 
 
+#@command
+#def kappa_chi2(env, models, model0):
+#    n_chi2 = 0
+#    d_chi2 = 0
+#    for m in models:
+#        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+#            obj,data = m1
+#            obj0,data0 = m2
+#            v0 = data0['kappa']
+#            v1 = data['kappa']
+#            n_chi2 += np.sum((v1 - v0)**2)
+#            d_chi2 += np.sum(v0**2)
+#    return n_chi2 / d_chi2
+
 @command
 def kappa_chi2(env, models, model0):
-    n_chi2 = 0
-    d_chi2 = 0
+    n_max,d_max=0,0
+    n_min,d_min=np.inf,np.inf
+    ns, ds = [], []
     for m in models:
+        n,d = 0,0
         for m1,m2 in izip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
+            rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
+            rmin, rmax = np.amin(rs), np.amax(rs)
+
+            #b = np.argmin(abs(data['R'] - rmin))
+            #e = np.argmin(abs(data['R'] - rmax))
+            #v0 = data0['kappa'][b:e+1]
+            #v1 = data['kappa'][b:e+1]
+
             v0 = data0['kappa']
             v1 = data['kappa']
-            n_chi2 += np.sum((v1 - v0)**2)
-            d_chi2 += np.sum(v0**2)
-    return n_chi2 / d_chi2
+            n += np.sum((v1 - v0)**2)
+            d += np.sum(v0**2)
+        ns.append(n)
+        ds.append(d)
+
+        #n_max,d_max = np.amax([n,n_max]), np.amax([d,d_max])
+        #n_min,d_min = np.amin([n,n_min]), np.amin([d,d_min])
+    nd = array(ns) / array(ds)
+    nd.sort()
+    N = len(nd)
+    if len(nd) % 2 == 0:
+        M = (nd[(N-1)//2] + nd[(N-1)//2+1]) / 2
+        L = nd[(N-1)//2   - int(0.32*N)]
+        R = nd[(N-1)//2+1 + int(0.32*N)]
+    else:
+        M = nd[(N-1)//2]
+        L = nd[(N-1)//2 - int(0.32*N)]
+        R = nd[(N-1)//2 + int(0.32*N)]
+    return M, R, L
 
 
 @command
@@ -374,8 +414,14 @@ def kappa_profile_chi2(env, models, model0):
         for m1,m2 in izip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
-            v0 = data0['kappa(R)'][1:-2]
-            v1 = data['kappa(R)'][1:-2]
+            rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
+            rmin, rmax = np.amin(rs), np.amax(rs)
+
+            b = np.argmin(abs(data['R'] - rmin))
+            e = np.argmin(abs(data['R'] - rmax))
+
+            v0 = data0['kappa(R)'][b:e+1]
+            v1 = data['kappa(R)'][b:e+1]
             n += np.sum((v1 - v0)**2)
             d += np.sum(v0**2)
         ns.append(n)

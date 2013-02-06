@@ -159,8 +159,8 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     pl.xlim(oxlim); pl.ylim(oylim)
 
     if tight and rmax > 0:
-        pl.pl.gca().set_pl.xlim(-rmax, rmax)
-        pl.pl.gca().set_pl.ylim(-rmax, rmax)
+        pl.gca().set_xlim(-rmax, rmax)
+        pl.gca().set_ylim(-rmax, rmax)
 
 @command
 def external_mass_plot(env, obj_index=0, with_maximum=True, color=None, with_guide=False, tight=False):
@@ -296,9 +296,12 @@ def src_hist(models=None, hilite_model=None):
 @command
 def image_plot(env, im, radius, center, format=None):
     dx, dy = center
-    R = radius
+    if  isinstance(radius, (list,tuple)):
+        Rx,Ry = radius
+    else:
+        Rx = Ry = radius
     kw = {}
-    kw['extent'] = [-R-dx,R-dx,-R-dy,R-dy]
+    kw['extent'] = [-Rx-dx,Rx-dx,-Ry-dy,Ry-dy]
     if format:
         kw['format'] = format
     pl.imshow(pl.imread(im), **kw)
@@ -348,7 +351,8 @@ def kappa_plot(env, model, obj_index, **kwargs):
     print subtract
     grid = obj.basis._to_grid(data['kappa']-subtract,1)
     if vmin is None:
-        vmin = log10(np.amin(data['kappa']))
+        vmin = log10(np.amin(data['kappa'][data['kappa'] != 0]))
+        #print 'min?', np.amin(data['kappa'] != 0)
         kw.setdefault('vmin', vmin)
     grid = log10(grid.copy()) # + 1e-15)
 #   grid2 = grid.copy() 
@@ -518,7 +522,11 @@ def arrival_plot(env, model, **kwargs):
     pl.ylabel('arcsec')
 
 @command
-def srcdiff_plot(env, model, obj_index, src_index, with_colorbar=False):
+def srcdiff_plot(env, model, **kwargs):
+    obj_index = kwargs.pop('obj_index', 0)
+    src_index = kwargs.pop('src_index', 0)
+    with_colorbar = kwargs.pop('with_colorbar', False)
+
     obj, data = model['obj,data'][obj_index]
     S = obj.basis.subdivision
     R = obj.basis.mapextent
@@ -526,7 +534,7 @@ def srcdiff_plot(env, model, obj_index, src_index, with_colorbar=False):
     g = obj.basis.srcdiff_grid(data)[src_index]
     vmin = log10(amin(g[g>0]))
     g = g.copy() + 1e-10
-    kw = default_kw(R, vmin=vmin, vmax=vmin+2)
+    kw = default_kw(R, kwargs) #, vmin=vmin, vmax=vmin+2)
 
     #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
     pl.matshow(log10(g), **kw)
@@ -667,26 +675,15 @@ def _data_plot2(models, X,Y, **kwargs):
         for [obj, data] in m['obj,data']:
 
             try:
+                xs = data[x_prop][x_units]
+                ys = data[y_prop][y_units]
 
-                x_units, x_label = X
-                y_units, y_label = Y
+                x_label = _axis_label(xs, x_units)
+                y_label = _axis_label(ys, y_units)
 
-                xs = data[x_units]
-                ys = data[y_units]
-
-                #xs = _find_key(data, X)
-                #ys = _find_key(data, Y)
-
-                #x_label = 
-                #y_label = ys.label
-
-                #xsl = [0.] + xs.tolist()
-                #ysl = [ys[0]] + ys.tolist()
-
-                xsl = xs
-                ysl = ys
-
-                #xs, ys = xs.v, ys.v
+                objplot[obj].setdefault(tag, {'ys':[], 'xs':None})
+                objplot[obj][tag]['ys'].append(ys)
+                objplot[obj][tag]['xs'] = xs
 
             except KeyError as bad_key:
                 print "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key)
@@ -701,11 +698,11 @@ def _data_plot2(models, X,Y, **kwargs):
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
             if hilite_model == mi:
-                hilite += [xsl, ysl, hilite_color] # + s['ls']]
+                hilite += [xs, ys, hilite_color] # + s['ls']]
             elif si == 1:
-                accepted += [xsl, ysl, s['c']] # + s['ls']]
+                accepted += [xs, ys, s['c']] # + s['ls']]
             else:
-                normal += [xsl,ysl, s['c']] # + s['ls']]
+                normal += [xs,ys, s['c']] # + s['ls']]
 
             if mark_images:
                 for i,src in enumerate(obj.sources):
@@ -730,6 +727,138 @@ def _data_plot2(models, X,Y, **kwargs):
     if y_label: pl.ylabel(y_label)
     pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     #pl.ylim(0, ymax)
+
+def _data_plot3(models, X,Y, **kwargs):
+    with_legend = False
+    use = [0,0,0]
+
+    if isinstance(X, basestring): X = [X,None]
+    if isinstance(Y, basestring): Y = [Y,None]
+
+    x_prop, x_units = X
+    y_prop, y_units = Y
+
+    x_label = None
+    y_label = None
+
+    ret_list = []
+
+
+    every = kwargs.pop('every', 1)
+    upto = kwargs.pop('upto', len(models))
+    plotf = kwargs.pop('plotf', pl.semilogy)
+    mark_images = kwargs.pop('mark_images', True)
+    hilite_model = kwargs.pop('hilite_model', None)
+    hilite_color = kwargs.pop('hilite_color', 'm')
+    yscale = kwargs.pop('yscale', 'log')
+    xscale = kwargs.pop('xscale', 'linear')
+
+    kwargs.setdefault('color', 'k')
+    kwargs.setdefault('marker', '.')
+    kwargs.setdefault('ls', '-')
+
+    normal_kw   = {'zorder':0,    'drawstyle':'steps', 'alpha':1.0}
+    hilite_kw   = {'zorder':1000, 'drawstyle':'steps', 'alpha':1.0, 'lw':4, 'ls':'--'}
+    accepted_kw = {'zorder':500,  'drawstyle':'steps', 'alpha':0.5}
+
+    normal = []
+    hilite = []
+    accepted = []
+    #imgs = set()
+    imgs = defaultdict(set)
+    xmin, xmax = inf, -inf
+    ymin, ymax = inf, -inf
+
+    objplot = defaultdict(dict)
+    for mi in xrange(0,upto,every):
+        m = models[mi]
+
+        si = m.get('accepted', 2)
+        tag = ''
+        if si==False: tag = 'rejected'
+        if si==True: tag = 'accepted'
+
+        for [obj, data] in m['obj,data']:
+
+            try:
+                xs = data[x_prop][x_units]
+                ys = data[y_prop][y_units]
+
+                x_label = _axis_label(xs, x_units)
+                y_label = _axis_label(ys, y_units)
+
+                objplot[obj].setdefault(tag, {'ys':[], 'xs':None})
+                objplot[obj][tag]['ys'].append(ys)
+                objplot[obj][tag]['xs'] = xs
+
+                #objplot[obj].setdefault('%s:xs'%tag, xs)
+                #objplot[obj].setdefault('%s:ymax'%tag, ys)
+                #objplot[obj].setdefault('%s:ymin'%tag, ys)
+                #objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
+                #objplot[obj].setdefault('%s:count'%tag, 0)
+
+                #objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
+                #objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
+                #objplot[obj]['%s:ysum'%tag] += ys
+                #objplot[obj]['%s:count'%tag] += 1
+
+                if mark_images:
+                    for i,src in enumerate(obj.sources):
+                        for img in src.images:
+                            imgs[i].add(convert('arcsec to %s' % x_units, abs(img.pos), obj.dL, data['nu']))
+
+            except KeyError as bad_key:
+                print "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key)
+                continue
+
+            use[si] = 1
+
+            s = _styles[si]
+
+            #xmin, xmax = min(xmin, amin(data[X])), max(xmax, amax(data[X]))
+            #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
+
+    for i,tag in enumerate(['rejected', 'accepted', '']):
+        for k,v in objplot.iteritems():
+            if tag not in v: break
+
+            ys = np.array(v[tag]['ys'])
+            xs = np.repeat(np.atleast_2d(v[tag]['xs']), len(ys), axis=0)
+
+            ret_list.append([xs,ys])
+            if tag == 'rejected':
+                pl.plot(xs, ys, c=_styles[0]['c'], zorder=_styles[0]['z'])
+            else:
+                pl.plot(xs.T, ys.T, **kwargs)
+
+#   return
+
+    pl.yscale(yscale)
+    pl.xscale(xscale)
+
+    si = style_iterator()
+    for k,v in imgs.iteritems():
+        lw,ls,c = si.next()
+        for img_pos in v:
+            pl.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
+
+#   if use[0] or use[1]:
+#       lines  = [s['line']  for s,u in zip(_styles, use) if u]
+#       labels = [s['label'] for s,u in zip(_styles, use) if u]
+#       pl.legend(lines, labels)
+
+    if use[0]:
+        lines  = [ _styles[0]['line'] ]
+        labels = [ _styles[0]['label'] ]
+        pl.legend(lines, labels)
+
+    #axis('scaled')
+    if x_label: pl.xlabel(x_label)
+    if y_label: pl.ylabel(y_label)
+    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    #pl.ylim(0, ymax)
+
+    return ret_list
 
 def _axis_label(data, units):
     label = '%s' % data.symbol
@@ -893,7 +1022,7 @@ def _data_error_plot(models, X,Y, **kwargs):
 def glplot(env, ptype, xkeys, ykeys=[], **kwargs):
     if not ykeys: ykeys = ptype
     models = kwargs.pop('models', env.models)
-    _data_plot2(models, xkeys, ykeys, **kwargs)
+    _data_plot3(models, xkeys, ykeys, **kwargs)
 
 @command
 def glerrorplot(env, ptype, xkeys, ykeys=[], **kwargs):

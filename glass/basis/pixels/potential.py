@@ -1,4 +1,5 @@
 from __future__ import division
+import numpy as np
 from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos
 from glass.environment import Environment
@@ -21,7 +22,7 @@ def poten2d_indef(x,y):
     return poten_indef(complex(x,y))
 
 #@vectorize
-def poten(r, a):
+def poten(r, a, R):
 
     x,y = r.real, r.imag
 
@@ -38,10 +39,13 @@ def poten(r, a):
       + ( xp2*arctan(yp/xp) + yp2*arctan(xp/yp) + xp*yp*log(xp2 + yp2) )
       - ( xm2*arctan(yp/xm) + yp2*arctan(xm/yp) + xp*ym*log(xp2 + ym2) )
       - ( xp2*arctan(ym/xp) + ym2*arctan(xp/ym) + xm*yp*log(xm2 + yp2) ))
+
+    #v -= v * np.sin(np.angle(r)*2) / 2 * (abs(r) >= R-a)
+
     return v / (2*pi)
 
 #@vectorize
-def poten_dx(r, a):
+def poten_dx(r, a, R):
     x,y = r.real, r.imag
     xm = x - a/2
     xp = x + a/2
@@ -55,6 +59,7 @@ def poten_dx(r, a):
 
     v = ( (xm*arctan(ym/xm)  + xp*arctan(yp/xp)) + (ym*log(xm2 + ym2) + yp*log(xp2 + yp2)) / 2
       -   (xm*arctan(yp/xm)  + xp*arctan(ym/xp)) - (ym*log(xp2 + ym2) + yp*log(xm2 + yp2)) / 2 )
+    #v -= v * np.sin(np.angle(r)*2) / 2 * (abs(r) >= R-a)
     return v / pi
 
 def XXpoten_dx(r, a):
@@ -96,7 +101,7 @@ def XXpoten_dx(r, a):
     return v
 
 #@vectorize
-def poten_dy(r, a):
+def poten_dy(r, a, R):
     x,y = r.real, r.imag
     xm = x - a/2
     xp = x + a/2
@@ -112,6 +117,7 @@ def poten_dy(r, a):
        - ym*arctan(xp/ym)    - yp*arctan(xm/yp)
        + xm*log(xm2 + ym2)/2 + xp*log(xp2 + yp2)/2
        - xm*log(xm2 + yp2)/2 - xp*log(xp2 + ym2)/2)
+    #v -= v * np.sin(np.angle(r)*2)/2 * (abs(r) >= R-a)
     return v / pi
 
 def XXpoten_dy(r, a):

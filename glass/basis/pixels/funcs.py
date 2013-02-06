@@ -5,6 +5,7 @@ from numpy import cumsum, mean, array, where, pi, dot, abs
 from glass.environment import DArray
 from . potential import poten, poten_dx, poten_dy
 import glass.shear as shear
+from itertools import izip
 
 def estimated_Rlens(obj, ps, src_index):
 
@@ -69,9 +70,8 @@ def arrival_time(m):
 
             tau  = abs(theta-src)**2 / 2
             tau *= s.zcap
-            tau -= dot(ps['kappa'], poten(theta - obj.basis.ploc, obj.basis.cell_size))
-            for e in obj.extra_potentials:
-                tau -= dot(ps[e.name], e.poten(theta))
+            tau -= dot(ps['kappa DM'], poten(theta - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
+            tau -= np.sum( [ ps[e.name] * e.poten(theta).T for e in obj.extra_potentials ] )
 
             taus.append(tau)
         at.append(taus)
@@ -84,6 +84,7 @@ def arrival_time(m):
 #
 #    def f(gamma):
 #        return (a/2)**(2-gamma) * Gamma(gamma)**2 * Gamma(5 - gamma - beta) / Gamma(3 - beta)
+
 
 def default_post_process(m):
     obj,ps = m
@@ -105,14 +106,26 @@ def default_post_process(m):
     ps['R'] = DArray(b.rs + b.radial_cell_size / 2,
                      r'$R$', {'arcsec': [1, r'$\mathrm{arcsec}$'],
                               'kpc':    [rscale, r'$\mathrm{kpc}$']})
+
+    def mean_kappa(x):
+        return sum(ps['kappa'][x] * b.cell_size[x]**2) /  sum(b.cell_size[x]**2)
+
+    def mean_kappa2(x, a):
+        return sum(a[x] * b.cell_size[x]**2) /  sum(b.cell_size[x]**2)
+
+    for e in obj.extra_potentials:
+        if hasattr(e, 'kappa') and hasattr(obj, e.name):
+            ps['kappa %s' % e.name] = getattr(obj, e.name) * ps[e.name]
+            ps['kappa'] += ps['kappa %s' % e.name]
+            ps['kappa(R) %s' % e.name] = DArray([mean_kappa2(r, ps['kappa %s' % e.name]) for r in b.rings],
+                                    r'$\langle\kappa(R)\rangle$', {'$\kappa$': [1, None]})
+
     
     
     #print ps['R']['arcsec']
     #print ps['R']['kpc']
     #assert 0
     
-    def mean_kappa(x):
-        return sum(ps['kappa'][x] * b.cell_size[x]**2) /  sum(b.cell_size[x]**2)
 
     ps['M(<R)'] = DArray(cumsum([sum(ps['kappa'][r]*b.cell_size[r]**2)*dscale1 for r in b.rings]),
                          r'$M(<R)$', {'Msun': [1, r'$M_\odot$']})
@@ -147,6 +160,7 @@ def default_post_process(m):
                 d.append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, ps['nu'])) )
                 t0 = t
         ps['time delays'].append(d)
+
 
     # convert to DArray
 

@@ -155,7 +155,10 @@ def kappa_ensemble_plot3d(env, models=None, obj_index=0,
 
 @command
 def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=False, label=True, mark=None):
-    obj0,data0 = base_model['obj,data'][obj_index]
+    if base_model:
+        obj0,data0 = base_model['obj,data'][obj_index]
+    else:
+        obj0,data0 = None, None
     N  = len(models)
 
     assert len(models) > 0
@@ -171,7 +174,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
     rmax = np.abs(obj.basis.ploc[np.argmin(np.abs(np.abs(obj.basis.ploc)-rmax))])
 
     plist, = where(logical_and(np.abs(obj.basis.ploc) <= rmax, np.abs(obj.basis.ploc) >= rmin))
-    #plist = np.arange(len(obj.basis.ploc))
+    plist = np.arange(len(obj.basis.ploc))
     Nk = len(plist)
 
     kappas = np.empty((N, Nk))
@@ -180,26 +183,33 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
         _,data = model['obj,data'][obj_index]
         kappas[i,:] = data['kappa'][plist]
        
-    data0 = data0['kappa'][plist]
+    if data0:
+        data0 = data0['kappa'][plist]
 
     if sort:
-        bs = np.argsort(data0)
-        ks = kappas.take(bs, axis=1)
-        bs = data0[bs]
+        sort_order = np.argsort(data0)
+        ks = kappas.take(sort_order, axis=1)
+        bs = data0[sort_order]
     else:
-        bs = data0
+        if data0:
+            bs = data0
+        else:
+            bs = None
         ks = kappas
 
     every=1
 
-    ds = bs[::every]
+    if bs:
+        ds = bs[::every]
+    else:
+        ds = None
     ks.sort(axis=0) 
 
     if normalize:
         ks /= ds
         ds = 1
 
-    xs = np.arange(len(obj.basis.ploc))[::every]
+    xs = np.arange(len(obj.basis.ploc))
     ys = ks[int(N*0.50),:][::every]
     #ds = data0[bs][::every]
 
@@ -210,7 +220,7 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
     hi = ks[hi100,:][::every]
     lo = ks[lo100,:][::every]
     es = np.vstack((ys-lo, hi-ys))
-    pl.errorbar(xs[plist], ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
+    pl.errorbar(xs[plist][::every], ys, es, ecolor="#AAAAAA", ls='None', barsabove=True)
 
     bad = []
 
@@ -243,10 +253,16 @@ def kappa_compare_plot(env, models, base_model, obj_index, sort=True, normalize=
         for b in bad:
             pl.axvline(b, color='r')
 
-    if not normalize:
-        pl.plot(xs, ds, "k-", lw=4)
-    else:
-        pl.axhline(1, linewidth=4, color='k')
+    #print len(xs), len(ds)
+
+    if ds:
+        if not normalize:
+            pl.plot(xs[plist], ds, "k-", lw=4)
+            #pl.plot(xs[plist], models[99]['obj,data'][obj_index][1]['kappa'][plist].take(sort_order), 'r-', lw=4)
+            pl.plot(xs[plist], models[99]['obj,data'][obj_index][1]['kappa'][plist], 'r-', lw=4)
+        else:
+            pl.axhline(1, linewidth=4, color='k')
+
 
     for r in obj.basis.rings:
         R = r[0] #np.abs(obj.basis.ploc[r[0]])

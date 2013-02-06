@@ -62,10 +62,10 @@ def PlotFigures():
 
     gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(opts[1]))[0]))
 
-#   for g in gls:
-#       for i,o in enumerate(g.objects):
-#           if hasattr(o, 'stellar_mass'):
-#               g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
+    for g in gls:
+        for i,o in enumerate(g.objects):
+            if hasattr(o, 'stellar_mass'):
+                g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
 
     if 1: 
         begin_plot()
@@ -76,9 +76,14 @@ def PlotFigures():
 #               cx,cy=0,0
 #               g.image_plot(g.meta_info['image'], R, [cx,cy])
             g.img_plot(obj_index=0)
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=0, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=250, src_index=4, colors='g');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=0, colors='r');
+            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=4, colors='g');
+            if 1 or 'image' in g.meta_info:
+                R = 9/2.,2.7/2. #g.objects[0].basis.maprad
+                #cx,cy = -1.875, 0.08
+                cx,cy=-0.21,0
+                g.image_plot('brighter_red2_7_rot.png', R, [cx,cy])
             #g.src_plot(obj_index=0)
             #g.src_plot(g.ensemble_average, obj_index=0)
             g.external_mass_plot(0)

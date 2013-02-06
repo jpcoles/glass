@@ -81,13 +81,15 @@ def global_gradient(env, theta):
 @command
 def local_gradient(env, theta=None, L=None):
     o = env.current_object()
-    if not prior_included('J3gradient'): raise GLInputError("The 'J3gradient' prior must be included to enable the 'local_gradient()' command.")
+    #if not prior_included('J3gradient'): raise GLInputError("The 'J3gradient' prior must be included to enable the 'local_gradient()' command.")
 
     if theta is not None: 
         if not (0 < theta <= 90): raise GLInputError("local_gradient: need 0 < theta <= 90")
         o.prior_options['J3gradient']['theta'] = theta
+        o.prior_options['J2Gradient']['theta'] = theta
 
     if L is not None: o.prior_options['J3gradient']['size']  = L
+    if L is not None: o.prior_options['J2Gradient']['size']  = L
 
 @command
 def min_kappa(env, v):
@@ -188,12 +190,13 @@ def savestate_misc(env, fname):
 def leier_grid(env, fname, size, **kwargs):
     units=kwargs.get('units', 'arcsec')
     scale=kwargs.get('scale', 1.0)
+    error=kwargs.get('error', 0)
     o = env.current_object()
     o.prior_options['minkappa Leier grid']['filename'] = fname
     o.prior_options['minkappa Leier grid']['grid size'] = size
     o.prior_options['minkappa Leier grid']['grid size units'] = units
     o.prior_options['minkappa Leier grid']['scale'] = scale
-    o.stellar_mass_error = 0
+    o.stellar_mass_error = error
 
 
 @command

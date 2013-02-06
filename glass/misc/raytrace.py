@@ -128,7 +128,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     #if obj.shear: s1,s2 = ps['shear']
     for img in initial_guess:
         #x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], fprime=lenseq_prime, full_output=True) #, xtol=1e-12)
-        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-10)
+        x,_,ier,mesg = fsolve(lenseq, [img.real,img.imag], full_output=True, xtol=1e-12)
         #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
 
         if not ier: 
@@ -144,7 +144,8 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             #print leq
             xs.append([img, r, leq])
         else:
-            print 'Image at %s rejected. %e' % (r, leq)
+            #print 'Image at %s rejected. %e' % (r, leq)
+            pass
 
 
     #---------------------------------------------------------------------------
@@ -166,8 +167,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
             tau  = abs(r0-src)**2 / 2
             tau *= zcap
             tau -= dot(ps['kappa'], poten(r0 - obj.basis.ploc, obj.basis.cell_size))
-            for e in obj.extra_potentials:
-                tau -= dot(ps[e.name], e.poten(r0))
+            tau -= np.sum( [ ps[e.name] * e.poten(r0).T for e in obj.extra_potentials ] )
             #print tau
             #print '!!', poten(i - obj.basis.ploc, obj.basis.cell_size)[0]
             #print '!!', dot(ps['kappa'], poten(complex(1,0) - obj.basis.ploc, obj.basis.cell_size))
@@ -249,6 +249,8 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 
     #imgs = filter(lambda x: abs(x[2][3]) > Mavg*0.8, imgs)
 
+    #print imgs
+
     #---------------------------------------------------------------------------
     # (6) Sort by arrival time
     #---------------------------------------------------------------------------
@@ -301,16 +303,22 @@ def check_model_magnifications(model, **kw_orig):
     obj,ps = model
     for src_index,_ in enumerate(obj.sources):
         kw = kw_orig.copy()
+        #kw['viz'] = True
 
         rt_imgs  = raytrace([obj,ps,src_index],**kw)
-        Mrt = sum( [ abs(mu) for _,_,[mu,_],_ in rt_imgs ] )
+        Mrt = np.sum( [ abs(mu) for _,_,[mu,_],p in rt_imgs if p != 'max' ])
 
         kw['initial_guess'] = [x.pos for x in obj.sources[src_index].images]
+        kw['viz'] = False
 
         obj_imgs = raytrace([obj,ps,src_index],**kw)
-        Mobj = sum( [ abs(mu) for _,_,[mu,_],_ in obj_imgs ] )
+        Mobj = np.sum( [ abs(mu) for _,_,[mu,_],p in obj_imgs if p != 'max' ])
 
-        if abs(Mrt-Mobj) / Mobj > 0.05: 
+        print abs(Mrt-Mobj) / Mobj
+
+        bad = abs(Mrt-Mobj) / Mobj > 0.05
+
+        if bad:
             print src_index
             print 'Rejected:', abs(Mrt-Mobj), Mobj
             for r,t,[mu,_],p in rt_imgs: print r,t,mu,p
@@ -318,7 +326,7 @@ def check_model_magnifications(model, **kw_orig):
             for r,t,[mu,_],p in obj_imgs: print r,t,mu,p
             del kw['initial_guess']
             #kw['viz'] = True
-            obj_imgs = raytrace([obj,ps,src_index],**kw)
+            #obj_imgs = raytrace([obj,ps,src_index],**kw)
             return False
 
     return True

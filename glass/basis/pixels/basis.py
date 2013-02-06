@@ -16,6 +16,7 @@ from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, n
                   add, subtract, multiply, append, ceil, ones, sort, sign, diff, \
                   trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
                   sin, cos, pi, matrix, diag, average, log, sqrt, mean, hypot
+from scipy.integrate import dblquad, quad, fixed_quad
 
 if 1:
     import pylab as pl
@@ -180,6 +181,9 @@ def xy_list(L, R=0, refine=1):
         #xy  = append(xy, t)
         #size = append(size, s)
 
+    #rs   += [ r for r in xrange(R, L+1) ]
+    #rcs  += [ 1 for r in xrange(R, L+1) ]
+
     rs   += [ r for r in xrange(R, L+1) ]
     rcs  += [ 1 for r in xrange(R, L+1) ]
    # w    += [ refine**2 for r in xrange(R, L+1) ]
@@ -210,7 +214,8 @@ def visual_neighbor_verification(self, nbrs):
 
     f=figure(figsize=(8,8))
     sp=f.add_subplot(111)
-    for N in [nbrs[0]]+nbrs[225:]:
+    for N in nbrs[len(nbrs)-10:]: #[nbrs[0]]+nbrs[225:]:
+        print N
         sp.clear()
         #plot(self.ploc.real, self.ploc.imag)
         #scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
@@ -365,6 +370,29 @@ def irrhistogram2d(R,C,rbin,binsize, weights=None):
 
     return h
     
+def extra_kappa(obj, e):
+    K = []
+
+    for l,s in izip(obj.basis.ploc, obj.basis.cell_size):
+        k = dblquad(lambda y,x: e.kappa(complex(x,y)),
+                    l.real-s/2., l.real+s/2., lambda x: l.imag-s/2., lambda x: l.imag+s/2.)[0]
+        k /= s**2
+        K.append(k)
+
+    s = obj.basis.cell_size[0]
+    def g(x,y):
+        return e.kappa(complex(x,y))
+    def f(y):
+        return quad(g, -s/2, s/2, args=(y,), points=[0])[0]
+
+    K[0] = quad(f, -s/2., +s/2., points=[0])[0] / s**2
+
+    #pl.figure()
+    #pl.plot(K)
+    #pl.show()
+
+    return np.array(K)
+
 
 class PixelBasis(object): 
 
@@ -420,7 +448,7 @@ class PixelBasis(object):
         elif name == 'nbrs3':
             Log( 'Finding neighbors 3...' )
             super(PixelBasis, self).__setattr__('nbrs3', 
-                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
+                pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
 
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             #for i,n in enumerate(self.nbrs3): print i, n
@@ -467,7 +495,16 @@ class PixelBasis(object):
             #Log( 'Adjusting maprad to allow one ring outside images.' )
             #self.maprad = rmax+rmin
             #self.maprad = rmax + amin([rmin, rmax-rmin])
-            self.maprad = rmax + amax([(rmin * max_zcap)/2, 2*(2*rmax/(2*L+1))])
+
+            self.mapextent = rmax
+            self.maprad = rmax
+            self.top_level_cell_size = self.maprad / L
+
+            while (self.mapextent - rmax) / self.top_level_cell_size < 4:
+                self.maprad += rmax * 0.01
+                self.top_level_cell_size = self.maprad / L
+                self.mapextent = self.top_level_cell_size * (2*L + 1)/2
+            #self.maprad = rmax + amax([(rmin * max_zcap)/2, 2*(2*rmax/(2*L+1))])
 
         self.map_shift = self.maprad        # [arcsec]
 
@@ -505,9 +542,16 @@ class PixelBasis(object):
 
         rkeys = array(
             [ 
-                self.rs[ argmin(abs(abs(p)-(self.rs+self.int_radial_cell_size)))+1] if abs(p) > 0 else 0
+                self.rs[ argmin(abs(abs(p)-(self.rs)))] if abs(p) > 0 else 0
+                #self.rs[ argmin(abs(abs(p)-(self.rs+self.int_radial_cell_size)))+1] if abs(p) > 0 else 0
                 for p in self.int_ploc
             ])
+
+#       rkeys = array(
+#           [ 
+#               int(abs(p)) if abs(p) > 0 else 0
+#               for p in self.int_ploc
+#           ])
 
         #print rkeys
         #print self.rs
@@ -691,6 +735,10 @@ class PixelBasis(object):
             self.extra_potentials_array_offsets.append(array([last, last + e.nParams], dtype='int32'))
             last += e.nParams
 
+        for e in obj.extra_potentials:
+            if hasattr(e, 'kappa'):
+                setattr(obj, e.name, extra_kappa(obj,e))
+
         self.nvar = int(last)
 
         self.nvar_symm = self.nvar
@@ -758,7 +806,10 @@ class PixelBasis(object):
                         for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
         ps['sm_error_factor'] = sol[self.offs_sm_err] if self.offs_sm_err != 0 else 1
-        ps['kappa']  = sol[ slice(*self.offs_pix) ] + stellar_mass * ps['sm_error_factor']
+        ps['kappa DM']  = sol[ slice(*self.offs_pix) ]
+        ps['kappa star'] = stellar_mass * ps['sm_error_factor']
+
+        ps['kappa']  = ps['kappa DM'] + ps['kappa star']
 
         for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
             ps[e.name] = sol[ start : end ] - e.shift
@@ -801,7 +852,7 @@ class PixelBasis(object):
             for j,img in enumerate(src.images):
 
                 tau  = abs(img.pos-src_pos)**2 / 2  *  src.zcap
-                tau -= dot(data['kappa'], poten(img.pos - self.ploc, self.cell_size))
+                tau -= dot(data['kappa DM'], poten(img.pos - self.ploc, self.cell_size))
 
                 if obj.shear:
                     tau += data['shear'][0] * shear.poten(0, r) 
@@ -849,11 +900,13 @@ class PixelBasis(object):
             gridC = repeat(gridC, refinement, axis=1)
             gridC = repeat(gridC, refinement, axis=0)
 
+        gridC *= (self.top_level_cell_size/refinement)**2
+
         bins = (2*L+1) * refinement
-        gridR = histogram2d(Y, X, bins=bins, weights=a*(self.int_cell_size!=1), range=[[-R,R], [-R,R]])[0]
+        gridR = histogram2d(Y, X, bins=bins, weights=a*(self.int_cell_size!=1)*self.cell_size**2, range=[[-R,R], [-R,R]])[0]
         grid = gridC + gridR
 #       grid = histogram2d(Y, X, bins=bins, weights=a*self.cell_size**2, range=[[-R,R], [-R,R]])[0]
-#       grid /= self.top_level_cell_size**2
+        grid /= (self.top_level_cell_size/refinement)**2
 #       if refinement > 1
 #           grid = repeat(grid, refinement, axis=1)
 #           grid = repeat(grid, refinement, axis=0)
@@ -881,7 +934,7 @@ class PixelBasis(object):
         S = self.subdivision
         assert (S%2)==1
 
-        grid = self._to_grid(data['kappa'], S)
+        grid = self._to_grid(data['kappa DM'], S)
 
         #self.refined_cell_size = repeat(self.cell_size, S) / S
 
@@ -959,7 +1012,7 @@ class PixelBasis(object):
         for i,src in enumerate(obj.sources):
             l = []
             for img in src.images:
-                p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
+                p  = -dot(data['kappa DM'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
                 for e in obj.extra_potentials:
                     p -= sum(data[e.name] * e.poten(img.pos).T)
                 l.append(p)
@@ -972,6 +1025,11 @@ class PixelBasis(object):
         phi = self.potential_grid(data)
         xy  = self.refined_xy_grid(data)
         r   = data['src']
+        #print xy.shape
+        #print phi.shape
+        #print obj.sources[0].zcap
+        #print r[0]
+        #return [ abs(xy - r[i])**2/2 * src.zcap for i,src in enumerate(obj.sources)]
         return [ abs(xy - r[i])**2/2 * src.zcap + phi for i,src in enumerate(obj.sources)]
 
     @memoize
@@ -983,7 +1041,7 @@ class PixelBasis(object):
         def _tau(img,src,r):
             geom  = abs(img.pos - r)**2 / 2  *  src.zcap
 
-            p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
+            p  = -dot(data['kappa DM'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
             #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
             for e in obj.extra_potentials:
                 p -= sum(data[e.name] * e.poten(img.pos).T)
@@ -1002,7 +1060,7 @@ class PixelBasis(object):
         obj = self.myobject
         L = obj.basis.pixrad
 
-        kappa   = data['kappa']
+        kappa   = data['kappa DM']
         maginv0 = empty_like(kappa)
 
         grid = []
@@ -1018,22 +1076,28 @@ class PixelBasis(object):
 
     def deflect(self, theta, data):
         obj = self.myobject
-        kappa = data['kappa']
-        #dist  = theta - self.ploc
+        kappa = data['kappa DM']
+        dist  = theta - self.ploc
         #s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
         #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
-        #s = complex(dot(kappa, (poten_dx(dist,self.cell_size))),
-                    #dot(kappa, (poten_dy(dist,self.cell_size))))
+
+        #s = complex(sum(kappa * poten_dx(dist,self.cell_size)),
+                    #sum(kappa * poten_dy(dist,self.cell_size)))
         s = grad(kappa,theta, self.ploc, self.cell_size)
         for e in obj.extra_potentials:
-            s -= complex(sum(data[e.name] * e.poten_dx(theta).T),
-                         sum(data[e.name] * e.poten_dy(theta).T))
+            s += complex(sum(data[e.name] * e.poten_dx(theta)),
+                         sum(data[e.name] * e.poten_dy(theta)))
+#       print '??????????'
+        #print grad(obj.stellar_mass*data['sm_error_factor'],theta, self.ploc, self.cell_size)
+#       print complex(sum(obj.stellar_mass * poten_dx(dist,self.cell_size)), 
+#                     sum(obj.stellar_mass * poten_dy(dist,self.cell_size)))*data['sm_error_factor']
+#       print '??????????'
         return s
 
     def magnification(self, r, theta, data):
         
         obj = self.myobject
-        kappa = data['kappa']
+        kappa = data['kappa DM']
         dist  = r - self.ploc
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
         for p in obj.extra_potentials:
@@ -1055,7 +1119,7 @@ class PixelBasis(object):
         if not data.has_key('srcdiff'):
             obj = self.myobject
 
-            kappa   = data['kappa']
+            kappa   = data['kappa DM']
             deflect = empty_like(self.ploc)
             #dist    = empty_like(self.ploc)
             ploc    = self.ploc
@@ -1080,7 +1144,7 @@ class PixelBasis(object):
                     deflect[i] = grad(kappa,theta,ploc,cell_size)
                     s = complex(0,0)
                     for e in obj.extra_potentials:
-                        s -= complex(sum(data[e.name] * e.poten_dx(theta).T),
+                        s += complex(sum(data[e.name] * e.poten_dx(theta).T),
                                      sum(data[e.name] * e.poten_dy(theta).T))
                         deflect[i] += s
 #                   if obj.shear:
@@ -1227,7 +1291,11 @@ class PixelBasis(object):
 
         #return ones(len(self.insideL)+len(self.outsideL))
 
-        cell_size      = self.top_level_cell_size
+        if self.hires_levels is not None:
+            cell_size = self.cell_size
+        else:
+            cell_size = self.top_level_cell_size
+
         #phys_cell_size = Arcsec_to_Kpc(obj, cell_size, H0inv)
 
         #-----------------------------------------------------------------------
@@ -1242,17 +1310,18 @@ class PixelBasis(object):
         rx = convert('arcsec to kpc', Rmap, obj.dL, nu)
         ry = convert('arcsec to kpc', Rmap, obj.dL, nu)
 
-        bins = 2*Rpix+1
-        #binsX = self.ploc.real - cell_size
-        #binsY = self.ploc.imag - cell_size
-        #bins = [binsX, binsY]
 
-        phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
 
-        grid = histogram2d(-Y, X, bins=bins, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
-#       if not self.hires_levels:
-#       else:
-#           grid = irrhistogram2d(-Y, X, self.ploc, phys_cell_size, weights=M)
+        if not self.hires_levels:
+
+            print 'Projecting mass using histogram2d'
+            bins = 2*Rpix+1
+            phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
+            grid = histogram2d(-Y, X, bins=bins, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
+        else:
+            phys_cell_size = convert('arcsec to kpc', cell_size, obj.dL, nu)
+            grid = irrhistogram2d(-Y, X, self.ploc * convert('arcsec to kpc', 1., obj.dL, nu), phys_cell_size, weights=M)
+            phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
 
 #       kernel = array([[1,4,7,4,1], 
 #                       [4,16,26,16,4],
@@ -1328,7 +1397,8 @@ class PixelBasis(object):
 
         ps = {}
         ps['kappa'] = a
-        ps['src'] = src
+        ps['kappa DM'] = a
+        ps['src'] = [ complex(*s) for s in src ]
         ps['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
         for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
             ps[e.name] = zeros(end - start)
@@ -1372,8 +1442,12 @@ class PixelBasis(object):
         assert H0inv is not None, 'solution_from_data(): H0inv keyword must be set.'
 
         grid = self.grid_mass(X,Y,M, H0inv)
-        return self.packaged_solution_from_grid(grid, src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
-                                       top_level_func_name=top_level_func_name)
+        if self.hires_levels is not None:
+            return self.packaged_solution_from_array(grid, src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
+                                           top_level_func_name=top_level_func_name)
+        else:
+            return self.solution_from_grid(grid, src=src, H0inv=H0inv, shear=shear, ptmass=ptmass,
+                                           top_level_func_name=top_level_func_name)
 
 
 if __name__ == "__main__":
