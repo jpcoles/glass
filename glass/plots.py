@@ -1057,8 +1057,8 @@ def H0inv_plot(env, **kwargs):
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
             pl.hist(d, bins=ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
-    if not_accepted or accepted:
-        pl.legend()
+    #if not_accepted or accepted:
+        #pl.legend()
 
     pl.axvline(13.7, c='k', ls=':', zorder = 2)
 
@@ -1075,8 +1075,10 @@ def H0inv_plot(env, **kwargs):
         l = len(hs)
 
         m = hs[l * 0.50]
-        u = hs[l * 0.68]
-        l = hs[l * 0.32]
+        u = hs[l * (0.50 + 0.341)]
+        l = hs[l * (0.50 - 0.341)]
+        #u = hs[l * 0.68]
+        #l = hs[l * 0.32]
 
         pl.axvline(m, c='r', ls='-', zorder = 2)
         pl.axvline(u, c='g', ls='-', zorder = 2)
@@ -1133,8 +1135,8 @@ def H0_plot(env, **kwargs):
         l = len(hs)
 
         m = hs[l * 0.50]
-        u = hs[l * 0.84]
-        l = hs[l * 0.26]
+        u = hs[l * (0.50 + 0.341)]
+        l = hs[l * (0.50 - 0.341)]
 
         pl.axvline(m, c='r', ls='-', zorder = 2)
         pl.axvline(u, c='g', ls='-', zorder = 2)
