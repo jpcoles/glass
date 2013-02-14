@@ -852,7 +852,7 @@ class PixelBasis(object):
             for j,img in enumerate(src.images):
 
                 tau  = abs(img.pos-src_pos)**2 / 2  *  src.zcap
-                tau -= dot(data['kappa DM'], poten(img.pos - self.ploc, self.cell_size))
+                tau -= dot(data['kappa'], poten(img.pos - self.ploc, self.cell_size))
 
                 if obj.shear:
                     tau += data['shear'][0] * shear.poten(0, r) 
@@ -934,7 +934,7 @@ class PixelBasis(object):
         S = self.subdivision
         assert (S%2)==1
 
-        grid = self._to_grid(data['kappa DM'], S)
+        grid = self._to_grid(data['kappa'], S)
 
         #self.refined_cell_size = repeat(self.cell_size, S) / S
 
@@ -1012,7 +1012,7 @@ class PixelBasis(object):
         for i,src in enumerate(obj.sources):
             l = []
             for img in src.images:
-                p  = -dot(data['kappa DM'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
+                p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size))
                 for e in obj.extra_potentials:
                     p -= sum(data[e.name] * e.poten(img.pos).T)
                 l.append(p)
@@ -1041,7 +1041,7 @@ class PixelBasis(object):
         def _tau(img,src,r):
             geom  = abs(img.pos - r)**2 / 2  *  src.zcap
 
-            p  = -dot(data['kappa DM'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
+            p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
             #p  = -dot(data['kappa'], poten(img.pos - obj.basis.ploc, obj.basis.top_level_cell_size))
             for e in obj.extra_potentials:
                 p -= sum(data[e.name] * e.poten(img.pos).T)
@@ -1060,7 +1060,7 @@ class PixelBasis(object):
         obj = self.myobject
         L = obj.basis.pixrad
 
-        kappa   = data['kappa DM']
+        kappa   = data['kappa']
         maginv0 = empty_like(kappa)
 
         grid = []
@@ -1076,7 +1076,7 @@ class PixelBasis(object):
 
     def deflect(self, theta, data):
         obj = self.myobject
-        kappa = data['kappa DM']
+        kappa = data['kappa']
         dist  = theta - self.ploc
         #s = complex(dot(kappa, nan_to_num(poten_dx(dist,self.cell_size))),
         #            dot(kappa, nan_to_num(poten_dy(dist,self.cell_size))))
@@ -1097,7 +1097,7 @@ class PixelBasis(object):
     def magnification(self, r, theta, data):
         
         obj = self.myobject
-        kappa = data['kappa DM']
+        kappa = data['kappa']
         dist  = r - self.ploc
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
         for p in obj.extra_potentials:
@@ -1119,7 +1119,7 @@ class PixelBasis(object):
         if not data.has_key('srcdiff'):
             obj = self.myobject
 
-            kappa   = data['kappa DM']
+            kappa   = data['kappa']
             deflect = empty_like(self.ploc)
             #dist    = empty_like(self.ploc)
             ploc    = self.ploc

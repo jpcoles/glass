@@ -70,7 +70,7 @@ def arrival_time(m):
 
             tau  = abs(theta-src)**2 / 2
             tau *= s.zcap
-            tau -= dot(ps['kappa DM'], poten(theta - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
+            tau -= dot(ps['kappa'], poten(theta - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
             tau -= np.sum( [ ps[e.name] * e.poten(theta).T for e in obj.extra_potentials ] )
 
             taus.append(tau)
