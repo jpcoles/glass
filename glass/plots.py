@@ -325,6 +325,7 @@ def kappa_plot(env, model, obj_index, **kwargs):
 
     with_contours = kwargs.pop('with_contours', False)
     only_contours = kwargs.pop('only_contours', False)
+    label_contours = kwargs.pop('label_contours', False)
     clevels       = kwargs.pop('clevels', 30)
     with_colorbar = kwargs.pop('with_colorbar', True)
     vmin          = kwargs.pop('vmin', None)
@@ -381,7 +382,9 @@ def kappa_plot(env, model, obj_index, **kwargs):
         kw.setdefault('alpha', 0.7)
         kw.pop('cmap')
         #kw.pop('colors')
-        pl.over(pl.contour, grid, clevels, **kw)
+        C = pl.contour(grid, clevels, **kw)
+        if label_contours:
+            pl.clabel(C, inline=1, fontsize=10)
         pl.gca().set_aspect('equal')
 
     pl.xlabel('arcsec')

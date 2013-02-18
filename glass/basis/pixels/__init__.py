@@ -375,9 +375,9 @@ def make_stellar_model(env):
     for o in env.objects:
         if not hasattr(o, 'stellar_mass'): 
             l = o.basis.offs_pix[1] - o.basis.offs_pix[0]
-            s = o.basis.packaged_solution_from_array(zeros(l), [0,0], 1)
+            s = o.basis.packaged_solution_from_array(zeros(l), [[0,0]], 1)
         else:
-            s = o.basis.packaged_solution_from_array(o.stellar_mass, [0,0], convert('nu to H0^-1 in Gyr', env.nu[-1]))
+            s = o.basis.packaged_solution_from_array(o.stellar_mass, [[0,0]], convert('nu to H0^-1 in Gyr', env.nu[-1]))
         sm.append((o,s))
 
     m = {'sol':      None,

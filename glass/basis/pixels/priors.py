@@ -175,6 +175,8 @@ def check_lens_eq(o, sol):
     #shear_start,  shear_end  = offs+b.shear_start,  offs+b.shear_end
     #ptmass_start, ptmass_end = offs+b.ptmass_start, offs+b.ptmass_end
 
+    assert np.all(sol[pix_start:pix_end] >= 0)
+
     report = ''
     for i,src in enumerate(o.sources):
         res = ''
@@ -216,7 +218,7 @@ def check_lens_eq(o, sol):
             report += '\n%s%s  src.zcap=%6.4f %s' % (indent, o.name, src.zcap, res)
 
     if report:
-        Log( "Check Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
+        Log( "POSSIBLE NUMERICAL ERROR:\nCheck Lens Equation (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
 
 
 @default_prior
@@ -262,6 +264,14 @@ def time_delay(o, leq, eq, geq):
             # The ln terms
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
+
+            sm = o.stellar_mass
+
+            if o.stellar_mass_error != 0:
+                sm = sm * sol[sm_err]
+
+            row[0] -= sum(sm * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
+            row[0] += sum(sm * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
 
             for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
@@ -351,41 +361,30 @@ def check_time_delay(o, sol):
             S -= sum((sm + sol[pix_start:pix_end]) * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
             S += sum((sm + sol[pix_start:pix_end]) * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
 
-#           if o.shear:
-#               row[shear_start+0] -= shear.poten(0, img1.pos)
-#               row[shear_start+0] += shear.poten(0, img0.pos)
-#               row[shear_start+1] -= shear.poten(1, img1.pos)
-#               row[shear_start+1] += shear.poten(1, img0.pos)
-#               row[0] += shear.shift * shear.poten(0, img1.pos)
-#               row[0] -= shear.shift * shear.poten(0, img0.pos)
-#               row[0] += shear.shift * shear.poten(1, img1.pos)
-#               row[0] -= shear.shift * shear.poten(1, img0.pos)
-
-#           for n,offs in enumerate(xrange(ptmass_start, ptmass_end)):
-#               row[offs] -= o.ptmass.poten(n, img1.pos, o.basis.cell_size)
-#               row[offs] += o.ptmass.poten(n, img0.pos, o.basis.cell_size)
+            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+                p0 = e.poten(img0.pos)
+                p1 = e.poten(img1.pos)
+                coeff  = p1-p0
+                S -= sum((sol[start:end] - e.shift) * coeff)
 
             S2 = None
             if len(delay) == 1:
                 d = delay[0]
                 if d is None: continue
                 else:         S -= sol[nu] * d
-                #print '*'*80
-                #print S, sol[nu]*d, delay_years, delay_years[0]*365.25
-                #print '*'*80
             else:
-                continue
-                assert 0
+                # Only report an error if the sum lies outside the desired time delay range
                 l,u = delay
-                if   l is None: row[nu] = -u
-                elif u is None: row[nu] = -l
+                if   l is None: S -= (sol[nu] * u) if S > sol[nu]*u else S
+                elif u is None: S -= (sol[nu] * l) if S < sol[nu]*l else S
                 else:
-                    row2 = row.copy()
-                    row[nu]  = -l
-                    row2[nu] = -u
+                    S2 = S
+                    S  -= (sol[nu] * l) if S < sol[nu]*l else S
+                    S2 -= (sol[nu] * u) if S > sol[nu]*u else S2
 
-            l0 = log10(abs(S)) if S else -13
-            l1 = log10(abs(S2)) if S2 else -13
+
+            l0 = log10(abs(S))  if S  else -15
+            l1 = log10(abs(S2)) if S2 else -15
 
             #res += '[%i %i]' % (r0,r1)
 
@@ -400,8 +399,9 @@ def check_time_delay(o, sol):
             report += '\n%s%s  src.zcap=%6.4f %s' % (indent, o.name, src.zcap, res)
 
     if report:
-        Log( "Check Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report )
-        print "Check Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report
+        msg = "POSSIBLE NUMERICAL ERROR:\nCheck Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report
+        Log(msg)
+        print msg
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
