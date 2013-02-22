@@ -95,6 +95,38 @@ def new_row(obj, n=1):
 
 ##############################################################################
 
+def find_stellar_mass(o):
+    if not isinstance(o.stellar_mass,type(0)):
+        return o.stellar_mass
+    assert o.stellar_mass == 0
+
+    stellar_mass = 0
+
+    g = o.prior_options.get('minkappa Leier grid')
+    if g: 
+        fname = g['filename']
+        grid_size = g['grid size']
+        units = g['grid size units']
+        scale = g['scale']
+        H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
+        load_leier_grid(o, fname, grid_size, units, H0inv, scale)
+        stellar_mass = o.stellar_mass
+
+    assert g is None, 'min kappa already given by Leier grid'
+    g = o.prior_options.get('min_kappa_particles')
+    if g: 
+        X,Y,M = g['particles']
+        H0inv = g['H0inv']
+        nu    = g['nu']
+
+        phys_cell_size = convert('arcsec to kpc', o.basis.cell_size, o.dL, nu)
+        phys_ploc = convert('arcsec to kpc', o.basis.ploc, o.dL, nu)
+        h = irrhistogram2d(-Y, X, phys_ploc, phys_cell_size, weights=M) / phys_cell_size**2
+        h *= convert('Msun/kpc^2 to kappa',  1., o.dL, nu)
+        stellar_mass = o.stellar_mass = h
+
+    return stellar_mass
+
 
 @default_prior
 @object_prior
@@ -109,18 +141,8 @@ def lens_eq(o, leq, eq, geq):
     #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
-    stellar_mass = 0
+    stellar_mass = find_stellar_mass(o)
 
-    g = o.prior_options.get('minkappa Leier grid')
-
-    if g: 
-        fname = g['filename']
-        grid_size = g['grid size']
-        units = g['grid size units']
-        scale = g['scale']
-        H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
-        load_leier_grid(o, fname, grid_size, 'arcsec', H0inv, scale)
-        stellar_mass = o.stellar_mass
 
     for i,src in enumerate(o.sources):
         for j,img in enumerate(src.images):
@@ -236,6 +258,8 @@ def time_delay(o, leq, eq, geq):
 
     shft = [b.map_shift, b.map_shift]
 
+    stellar_mass = find_stellar_mass(o)
+
     for i, src in enumerate(o.sources):
         for img0,img1,delay in src.time_delays:
 
@@ -265,10 +289,10 @@ def time_delay(o, leq, eq, geq):
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
             row[pix_start:pix_end] += poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
 
-            sm = o.stellar_mass
+            sm = stellar_mass
 
             if o.stellar_mass_error != 0:
-                sm = sm * sol[sm_err]
+                sm = sm * sol[sm_err] # don't modified the original array with *=
 
             row[0] -= sum(sm * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
             row[0] += sum(sm * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
@@ -356,7 +380,7 @@ def check_time_delay(o, sol):
             sm = o.stellar_mass
 
             if o.stellar_mass_error != 0:
-                sm = sm * sol[sm_err]
+                sm *= sol[sm_err]
 
             S -= sum((sm + sol[pix_start:pix_end]) * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
             S += sum((sm + sol[pix_start:pix_end]) * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
@@ -642,6 +666,8 @@ def magnification(o, leq, eq, geq):
 
     coeffs = zeros(6)
 
+    stellar_mass = find_stellar_mass(o)
+
     for src in o.sources:
         for img in src.images:
             k1, k2, eps = img.elongation
@@ -681,6 +707,9 @@ def magnification(o, leq, eq, geq):
                 rows[4, pix_start:pix_end] =     xy - yy*eps
                 rows[5, pix_start:pix_end] =    -xy - yy*eps
 
+            for i,r in enumerate(rows):
+                r[0] += np.sum(r[pix_start:pix_end] * stellar_mass)
+
             for e,[start,end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
                 start += 1
                 end += 1
@@ -714,7 +743,8 @@ def magnification(o, leq, eq, geq):
                         coeffs[5] =    -xy - yy*eps
 
                     for i,r in enumerate(rows):
-                        rows[i, offs] += coeffs[i]
+                        #rows[i, offs] += coeffs[i]
+                        r[offs] += coeffs[i]
                         r[0] -= coeffs[i] * e.shift
 
             #print pix_start, pix_end
@@ -1664,7 +1694,7 @@ def min_annular_density(o, leq, eq, geq):
             geq(row)
         on = True
 
-@object_prior
+#@object_prior
 def min_kappa_particles(o, leq, eq, geq):
 
     g = o.prior_options.get('min_kappa_particles')
@@ -1946,7 +1976,7 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     max_nu = env().nu[-1]
     H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
 
-    load_leier_grid(o, fname, grid_size, 'arcsec', H0inv, scale)
+    load_leier_grid(o, fname, grid_size, units, H0inv, scale)
 
     pix_start, pix_end = 1+o.basis.offs_pix
     for i,j in enumerate(xrange(pix_start, pix_end)):
