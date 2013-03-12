@@ -17,7 +17,7 @@ class Object:
 
         self.S          = 0
         #self.shear      = None
-        self.external_masses = []
+        #self.external_masses = []
         self.extra_potentials = []
         self.z          = None       # [redshift]
         self.symm       = False

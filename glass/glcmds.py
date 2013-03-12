@@ -45,7 +45,7 @@ def shear(env, strength=0.1):
 
 @command
 def external_mass(env, mass_obj, mass_range=None):
-    env.current_object().extra_potentials.append(mass_obj)
+    if not prior_included('external_mass'): raise GLInputError("The 'external_mass' prior must be included to enable the external_mass() command.")
     if mass_range is None:
         min, max = None, None
     else:
@@ -57,8 +57,8 @@ def external_mass(env, mass_obj, mass_range=None):
             if max is not None and max < 0: raise GLInputError("external_mass: Upper bound 'max' must be at least zero.")
             if min > max: raise GLInputError("external_mass: Lower bound 'min' must be less than upper bound 'max'.")
     env.current_object().prior_options['external mass'][mass_obj] = min, max
-    #env.current_object().prior_options['external mass']['max'] = max
-    env.current_object().add_external_mass(mass_obj)
+    #env.current_object().add_external_mass(mass_obj)
+    env.current_object().extra_potentials.append(mass_obj)
 
 @command
 def zlens(env, z):
@@ -273,7 +273,7 @@ def model(env, nmodels=None, *args, **kwargs):
         models.append(m)
     else:
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
-            print 'Model %i/%i complete.' % (i+1, nmodels)
+            Log( 'Model %i/%i complete.' % (i+1, nmodels) )
             models.append(m)
             solutions.append(m['sol'])
             #print 'glcmds.py:model ???', id(m['sol'])
@@ -405,7 +405,7 @@ def kappa_chi2(env, models, model0):
 
 
 @command
-def kappa_profile_chi2(env, models, model0):
+def kappa_profile_chi2(env, models, model0, frac='1sigma'):
     n_max,d_max=0,0
     n_min,d_min=np.inf,np.inf
     ns, ds = [], []
@@ -414,32 +414,39 @@ def kappa_profile_chi2(env, models, model0):
         for m1,m2 in izip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
-            rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
+            rs = [ abs(img.pos) for src in obj.sources for img in src.images]
+            #rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
             rmin, rmax = np.amin(rs), np.amax(rs)
+            rmin = obj.basis.top_level_cell_size * 1.6
 
             b = np.argmin(abs(data['R'] - rmin))
+            #b = 0
             e = np.argmin(abs(data['R'] - rmax))
 
             v0 = data0['kappa(R)'][b:e+1]
             v1 = data['kappa(R)'][b:e+1]
             n += np.sum((v1 - v0)**2)
             d += np.sum(v0**2)
+            #d += len(v0) #np.sum(v0**2)
         ns.append(n)
         ds.append(d)
 
-        #n_max,d_max = np.amax([n,n_max]), np.amax([d,d_max])
-        #n_min,d_min = np.amin([n,n_min]), np.amin([d,d_min])
     nd = array(ns) / array(ds)
     nd.sort()
     N = len(nd)
-    if len(nd) % 2 == 0:
-        M = (nd[(N-1)//2] + nd[(N-1)//2+1]) / 2
-        L = nd[(N-1)//2   - int(0.32*N)]
-        R = nd[(N-1)//2+1 + int(0.32*N)]
+    frac = {'1sigma': 0.6827,
+            '2sigma': 0.9545,
+            '3sigma': 0.9973}.get(frac, frac)
+    n = int(frac/2. * N)
+    mid = (N-1) // 2
+    if N % 2 == 0:
+        M = (nd[mid] + nd[mid+1]) / 2
+        L = nd[mid   - n]
+        R = nd[mid+1 + n]
     else:
-        M = nd[(N-1)//2]
-        L = nd[(N-1)//2 - int(0.32*N)]
-        R = nd[(N-1)//2 + int(0.32*N)]
+        M = nd[mid]
+        L = nd[mid - n]
+        R = nd[mid + n]
     return M, R, L
     #return n/d, n_max/d_max, n_min/d_min
 

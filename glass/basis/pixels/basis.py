@@ -37,11 +37,13 @@ from itertools import izip
 from glass.environment import Environment
 #glassimport . potential
 import glass.shear as shear
+from glass.shear import Shear
 from . potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy, grad
 from glass.scales import convert
 from glass.handythread import parallel_map2, parallel_map
 
 from . potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
+from . lensmodel import PixelLensModel
 
 from glass.log import log as Log
 
@@ -453,6 +455,20 @@ class PixelBasis(object):
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             #for i,n in enumerate(self.nbrs3): print i, n
             return self.nbrs3
+        elif name == 'image_nbrs':
+            obj = self.myobject
+            #ctrunc = lambda c: complex(int(c.real), int(c.imag))
+            rs = [ img.pos for src in obj.sources for img in src.images]
+            #rs = [ ctrunc(img.pos/self.cell_size) for src in obj.sources for img in src.images]
+            print rs
+            #print self.int_ploc
+            w = [i for i,p in enumerate(self.int_ploc) for r in rs if r == p]
+            w = [pixel_containing(r,self.ploc,self.cell_size) for r in rs]
+            super(PixelBasis, self).__setattr__('image_nbrs', w)
+#               pixel_neighbors3([ [0,0],[0,1], [1,0], [0,-1], [-1,0], 
+#                                   [1,1], [-1,1], [1,-1], [-1,-1] ], 
+#                               self.int_ploc[w], self.int_cell_size[w], try_hard=False))
+            return self.image_nbrs
         else:
             raise AttributeError('Attribute %s not found in PixelBasis' % name)
 
@@ -793,23 +809,20 @@ class PixelBasis(object):
         obj    = self.myobject
         o      = 0 #self.array_offset
 
-        ps = {}
-
-
         #---------------------------------------------------------------------
         # These come directly from the solution
         #---------------------------------------------------------------------
 
-        stellar_mass = obj.stellar_mass if hasattr(obj, 'stellar_mass') else 0
+
+        ps = PixelLensModel(obj,sol)
 
         ps['src']    = [complex(*(sol[i:i+2] / obj.sources[j].zcap - self.map_shift))
                         for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
         ps['sm_error_factor'] = sol[self.offs_sm_err] if self.offs_sm_err != 0 else 1
         ps['kappa DM']  = sol[ slice(*self.offs_pix) ]
-        ps['kappa star'] = stellar_mass * ps['sm_error_factor']
 
-        ps['kappa']  = ps['kappa DM'] + ps['kappa star']
+        #ps['kappa']  = ps['kappa DM'] + ps['kappa star']
 
         for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
             ps[e.name] = sol[ start : end ] - e.shift
@@ -1102,10 +1115,7 @@ class PixelBasis(object):
         e = sum(kappa * nan_to_num(maginv(dist,theta,self.cell_size)), axis=1)
         for p in obj.extra_potentials:
             if not hasattr(p, 'maginv'): continue
-            #print e.name
-            #print e.maginv(dist,theta)
-            #print data[e.name]
-            e -= sum(data[p.name] * p.maginv(dist,theta).T, axis=1)
+            e += data[p.name] * sum(atleast_2d(p.maginv(r,theta)), axis=0)
         K = matrix([ [ e[1], e[0] ], 
                      [ e[0], e[2] ] ])
 
@@ -1314,7 +1324,7 @@ class PixelBasis(object):
 
         if not self.hires_levels:
 
-            print 'Projecting mass using histogram2d'
+            Log( 'Projecting mass using histogram2d' )
             bins = 2*Rpix+1
             phys_cell_size = convert('arcsec to ly', cell_size, obj.dL, nu)
             grid = histogram2d(-Y, X, bins=bins, weights=M, range=[[-ry,ry], [-rx,rx]])[0]
@@ -1395,13 +1405,24 @@ class PixelBasis(object):
         # Now fill in the solution array.
         #-----------------------------------------------------------------------
 
-        ps = {}
-        ps['kappa'] = a
+        ps = PixelLensModel(obj,None)
         ps['kappa DM'] = a
         ps['src'] = [ complex(*s) for s in src ]
+        ps['sm_error_factor'] = 0
         ps['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
         for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
-            ps[e.name] = zeros(end - start)
+            if isinstance(e, Shear): 
+                assert 0, 'Shear not supported from reconstructed mass (at the moment).'
+                # I'm not supporting this because the shear command only takes a scaling
+                # strength, not the values for gamma1,gamma2 which we would need here.
+
+                #assert end-start == 2, "Hmmm, I assumed there were two parameters for the shear."
+                #v = o.prior_options['shear']['strength']
+            else:
+                assert end-start == 1, "Hmmm, I assumed there was only one parameter for this potential."
+                v = obj.prior_options['external mass'][e][0]
+                assert v is not None
+            ps[e.name] = v
 
         return ps
 

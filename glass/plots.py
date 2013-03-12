@@ -99,7 +99,7 @@ def glscolorbar():
 
 @command
 def show_plots(env):
-    show()
+    pl.show()
 
 @command
 def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, with_guide=False, tight=False):
@@ -154,7 +154,7 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
                     r = sqrt(x**2 + y**2)
                     rmax = amax([r,rmax])
                     if with_guide:
-                        a.add_artist(Circle((0,0),r, fill=False))
+                        a.add_artist(Circle((0,0),r, fill=False,color='lightgrey'))
 
     pl.xlim(oxlim); pl.ylim(oylim)
 
@@ -348,13 +348,22 @@ def kappa_plot(env, model, obj_index, **kwargs):
     kw = default_kw(R, kwargs)
 
     #grid = obj.basis.kappa_grid(data)
-    print data['kappa'].shape
-    print subtract
+    #print data['kappa'].shape
+    #print subtract
     grid = obj.basis._to_grid(data['kappa']-subtract,1)
     if vmin is None:
-        vmin = log10(np.amin(data['kappa'][data['kappa'] != 0]))
+        w = data['kappa'] != 0
+        if not np.any(w):
+            vmin = -15
+            grid += 10**vmin
+        else:
+            vmin = log10(np.amin(data['kappa'][w]))
         #print 'min?', np.amin(data['kappa'] != 0)
         kw.setdefault('vmin', vmin)
+
+    if vmax is not None:
+        kw.setdefault('vmax', vmax)
+
     grid = log10(grid.copy()) # + 1e-15)
 #   grid2 = grid.copy() 
 #   for i in xrange(grid.shape[0]):
@@ -965,7 +974,10 @@ def _data_error_plot(models, X,Y, **kwargs):
 
             s = np.sort(v[tag]['ys'], axis=0)
             #avg = s[len(s)//2] if len(s)%2==1 else (s[len(s)//2] + s[len(s)//2+1])/2
+            #print s
             avg = np.median(v[tag]['ys'], axis=0)
+            #print avg
+            #print np.median(v[tag]['ys'], axis=1)
             #errp = s[len(s) * .841] - avg
             #errm = avg - s[len(s) * .159]
 
@@ -986,6 +998,9 @@ def _data_error_plot(models, X,Y, **kwargs):
             #print len(v['xs'])
             #print len(avg)
             #assert 0
+            #print len(xs)
+            #print len(avg)
+
             ret_list.append([xs,avg,errm,errp])
             if tag == 'rejected':
                 pl.errorbar(xs, avg, yerr=(errm,errp), c=_styles[0]['c'], zorder=_styles[0]['z'])

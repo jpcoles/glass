@@ -112,8 +112,8 @@ def find_stellar_mass(o):
         load_leier_grid(o, fname, grid_size, units, H0inv, scale)
         stellar_mass = o.stellar_mass
 
-    assert g is None, 'min kappa already given by Leier grid'
     g = o.prior_options.get('min_kappa_particles')
+    assert not (g and stellar_mass), 'min kappa already given by Leier grid'
     if g: 
         X,Y,M = g['particles']
         H0inv = g['H0inv']
@@ -124,6 +124,7 @@ def find_stellar_mass(o):
         h = irrhistogram2d(-Y, X, phys_ploc, phys_cell_size, weights=M) / phys_cell_size**2
         h *= convert('Msun/kpc^2 to kappa',  1., o.dL, nu)
         stellar_mass = o.stellar_mass = h
+        g['particles'] = None
 
     return stellar_mass
 
@@ -1299,29 +1300,36 @@ def J3gradient(o, leq, eq, geq):
     for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
         if i == o.basis.central_pixel: continue
 
-        n,e,s,w = o.basis.nbrs3[i][2]
+#       for j,n in enumerate(o.basis.image_nbrs):
+#           #for nn in n[2]:
+#           if i == n:
+#               print 'F', j,i, n
+#               #break
+#       else:
+        if 1:
+            n,e,s,w = o.basis.nbrs3[i][2]
 
-        px = r.real
-        py = r.imag
+            px = r.real
+            py = r.imag
 
-        def wght(x):
-            _wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2) if len(x) else 0
-            #_wght = lambda x: 1.0 / len(x) if len(x) else 0
-            return _wght(x)
+            def wght(x):
+                _wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2) if len(x) else 0
+                #_wght = lambda x: 1.0 / len(x) if len(x) else 0
+                return _wght(x)
 
-        for i in ([1,-1] if sn != 0 else [1]):
+            for i in ([1,-1] if sn != 0 else [1]):
 
-            x =   cs*px - i*sn*py
-            y = i*sn*px +   cs*py
+                x =   cs*px - i*sn*py
+                y = i*sn*px +   cs*py
 
-            row = new_row(o)
+                row = new_row(o)
 
-            row[pix_start + w] =  wght(w) * x
-            row[pix_start + e] = -wght(e) * x
-            row[pix_start + s] =  wght(s) * y
-            row[pix_start + n] = -wght(n) * y
-            geq(row)
-            c += 1
+                row[pix_start + w] =  wght(w) * x
+                row[pix_start + e] = -wght(e) * x
+                row[pix_start + s] =  wght(s) * y
+                row[pix_start + n] = -wght(n) * y
+                geq(row)
+                c += 1
 
     Log( 2*indent + "gradient eqs = %i" % c )
     Log( 2*indent + "sn=%g" % sn )
@@ -1517,14 +1525,17 @@ def PLsmoothness3(o, leq, eq, geq):
 #           if d == o.basis.central_pixel:
 #               l -= 1
 
+        W = 0
         for d in nbr_list[i][2]:
             #if d == o.basis.central_pixel: continue
             #print len(o.basis.nbrs3[i][2])
             #print i, o.basis.nbrs3[i][2]
-            row[pix_start + d] = 1. / 8
-            #row[pix_start + d] = wght(d) / l
+            #row[pix_start + d] = 1. / 8
+            w = np.exp(-(abs(o.basis.ploc[d] - r)/o.basis.top_level_cell_size)/2.)
+            W += 1 #np.sum(w)
+            row[pix_start + d] = w * wght(d)
 
-        row[pix_start + i] = -1 / smoothness_factor
+        row[pix_start + i] = -W / smoothness_factor
 
         #print 'PLs', row[row != 0]
         geq(row)

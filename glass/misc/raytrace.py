@@ -243,6 +243,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 
         parity = ['sad', 'sad', 'max', 'min'][(detA > 0)*2 + (trA > 0)]
 
+        print mu
         imgs.append(img + [ [mu, A], parity ])
 
     #Mavg = average(map(lambda x: (x[3] != 'max') * x[2][3], imgs))
@@ -436,6 +437,10 @@ def write_glass_code(model, obj_index, src_index, seq, simple=False):
     return
 
 def write_code(model, obj_index, src_index, seq, simple=False):
+    code = gen_code(model, obj_index, src_index, seq, simple=False)
+    print "[" + ",\n ".join(code) + "]"
+
+def gen_code(model, obj_index, src_index, seq, simple=False):
 
     obj,ps = model['obj,data'][obj_index]
 
@@ -457,9 +462,7 @@ def write_code(model, obj_index, src_index, seq, simple=False):
         else:
             return "['%s', (% 9.15f,% 9.15f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
         
-    print "[" + ",\n ".join(map(img2str, zip(letters, obs))) + "]"
-
-    return
+    return map(img2str, zip(letters, obs))
         
     imglist = ["['%s', (% 9.5f,% 9.5f), '%s']" % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])]
     prev = seq[0][1]

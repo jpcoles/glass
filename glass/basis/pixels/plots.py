@@ -2,6 +2,7 @@ import pylab as pl
 import numpy as np
 import matplotlib.cm as cm  
 import mpl_toolkits.mplot3d as p3
+from matplotlib.patches import Circle, Rectangle
 
 from matplotlib.lines import Line2D
 from itertools import izip
@@ -503,3 +504,19 @@ def misc_gradient_plot(env, kappa, obj):
         x1,y1 = x0 + dx, y0 + dy
         gca().add_artist(Line2D([x0,x1], [y0,y1], linewidth=1))
 
+@command
+def pixel_grid_plot(env, **kwargs):
+    obj_index = kwargs.pop('obj_index', 0)
+
+    obj = env.objects[obj_index]
+
+    loc = obj.basis.ploc
+    cs = obj.basis.cell_size
+
+    rmax = 0
+    for r,s in izip(loc, cs):
+        pl.gca().add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
+        rmax = np.amax([np.abs(r), rmax])
+
+    pl.gca().set_xlim(-rmax, rmax)
+    pl.gca().set_ylim(-rmax, rmax)
