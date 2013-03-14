@@ -100,6 +100,11 @@ def find_stellar_mass(o):
         return o.stellar_mass
     assert o.stellar_mass == 0
 
+    s = o.prior_options.has_key('minkappa Leier grid') \
+      + o.prior_options.has_key('min_kappa_particles')
+
+    assert s <= 1, 'Only one stellar mass source is allowed.'
+
     stellar_mass = 0
 
     g = o.prior_options.get('minkappa Leier grid')
@@ -113,7 +118,6 @@ def find_stellar_mass(o):
         stellar_mass = o.stellar_mass
 
     g = o.prior_options.get('min_kappa_particles')
-    assert not (g and stellar_mass), 'min kappa already given by Leier grid'
     if g: 
         X,Y,M = g['particles']
         H0inv = g['H0inv']
