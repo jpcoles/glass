@@ -196,7 +196,6 @@ def savestate(env, fname):
 
     import numpy as np
     with open(fname, 'w') as f:
-        print np.asanyarray(env)
         savez(f, env)
 
     #env.post_process_funcs = ppf
@@ -273,7 +272,7 @@ def model(env, nmodels=None, *args, **kwargs):
         models.append(m)
     else:
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
-            Log( 'Model %i/%i complete.' % (i+1, nmodels) )
+            Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
             models.append(m)
             solutions.append(m['sol'])
             #print 'glcmds.py:model ???', id(m['sol'])
@@ -298,6 +297,21 @@ def _post_process(models):
                     f((o,data), *args, **kwargs)
         nProcessed += has_ppfs
     Log('Post processed %i model(s), %i had post processing functions applied.' % (nmodels, nProcessed) )
+
+@command
+def apply_function(env, f, *args, **kwargs):
+    for i,m in enumerate(env.models):
+        for o,data in m['obj,data']:
+            f((o,data), *args, **kwargs)
+
+@command
+def apply_filter_function(env, f, *args, **kwargs):
+    for i,m in enumerate(env.models):
+        m['accepted'] = True
+        for o,data in m['obj,data']:
+            if not f((o,data), *args, **kwargs):
+                m['accepted'] = False
+                break
 
 @command
 def reprocess(env, state_file):

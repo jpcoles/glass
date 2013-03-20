@@ -1,22 +1,15 @@
 from __future__ import division
 import sys
-import numpy
-import gc
-from numpy import isfortran, asfortranarray, sign, logical_and, any, ceil, amax, fmin, fmax
-from numpy import set_printoptions
-from numpy import insert, zeros, vstack, append, hstack, array, all, sum, prod, ones, delete, log, empty, sqrt, arange, cov, empty_like
-from numpy import argwhere, argmin, inf, isinf, amin, abs, where, multiply, eye, mean
-from numpy import histogram, logspace, flatnonzero, isinf
+import time
+import numpy as np
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
-from numpy import dot
 import scipy.linalg.fblas
-from scipy.optimize import fmin_bfgs
-from itertools import izip, count
-import time
 
 from multiprocessing import Process, Queue, Value, Lock
 from Queue import Empty as QueueEmpty
+
+from glass.solvers.error import GlassSolverError
 
 #from glrandom import random, ran_set_seed
 
@@ -50,21 +43,19 @@ else:
     from glpklpsolve import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
     from glpklpsolve import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 
-from copy import deepcopy
+np.set_printoptions(linewidth=10000000, precision=20, threshold=2000)
 
-set_printoptions(linewidth=10000000, precision=20, threshold=2000)
+class SamplexUnboundedError(GlassSolverError):
+    def __init__(self, *args, **kwargs):
+        GlassSolverError.__init__(self, 'Constraints are not strong enough to form a closed solution volume.', *args, **kwargs)
 
-class SamplexUnboundedError:
-    def __init__(self, msg=""):
-        pass
+class SamplexNoSolutionError(GlassSolverError):
+    def __init__(self, *args, **kwargs):
+        GlassSolverError.__init__(self, 'Constraints are too strong and no solution exists.', *args, **kwargs)
 
-class SamplexNoSolutionError:
-    def __init__(self, msg=""):
-        pass
-
-class SamplexUnexpectedError:
-    def __init__(self, msg=""):
-        pass
+class SamplexUnexpectedError(GlassSolverError):
+    def __init__(self, *args, **kwargs):
+        GlassSolverError.__init__(self, 'An unexpected error happened.', *args, **kwargs)
 
 class SamplexSolution:
     def __init__(self):
@@ -73,8 +64,8 @@ class SamplexSolution:
 
 def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, eval,evec):
 
-    S   = zeros(samplex.eqs.shape[0])
-    S0  = zeros(samplex.eqs.shape[0])
+    S   = np.zeros(samplex.eqs.shape[0])
+    S0  = np.zeros(samplex.eqs.shape[0])
 
     vec  = vec.copy('A')
     eval = eval.copy('A')
@@ -84,14 +75,16 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
     accepted = 0
     rejected = 0
 
-    print ' '*39, 'STARTING rwalk_burnin THREAD %i' % id
+    offs = ' '*39
+    Log( offs + 'STARTING rwalk_burnin THREAD %i' % id, overwritable=True)
 
-    eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
-    #vec[:] = dot(evec.T, vec)
-    I = eye(evec.shape[0]).copy('F')
+    eqs[:,1:] = np.dot(samplex.eqs[:,1:], evec)
+    #vec[:] = np.dot(evec.T, vec)
+    I = np.eye(evec.shape[0]).copy('F')
 
     csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
 
+    offs = ' '*36
     i = 0
     j=0
     while True:
@@ -106,7 +99,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
                     break
                 elif cmd[0] == 'NEW DATA':
                     eval[:],evec[:],twiddle = cmd[1]
-                    eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
+                    eqs[:,1:] = np.dot(samplex.eqs[:,1:], evec)
                 elif cmd[0] == 'REQ TWIDDLE':
                     ackq.put(twiddle)
                 elif cmd[0] == 'WAIT':
@@ -121,7 +114,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
         if done:
             break
 
-        vec[:] = dot(evec.T, vec)
+        vec[:] = np.dot(evec.T, vec)
 
         accepted = False
         while not accepted:
@@ -142,7 +135,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
             # throw away the results if we are not so close. This allows for
             # a larger tolerance.
             #-------------------------------------------------------------------
-            accepted =  abs(r - samplex.accept_rate) < samplex.accept_rate_tol
+            accepted =  np.abs(r - samplex.accept_rate) < samplex.accept_rate_tol
 
             state = 'B'
             if not accepted:
@@ -150,16 +143,17 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
                 twiddle = max(1e-14,twiddle)
                 state = 'R' + state
 
-            print ' '*36, '% 2s %s' % (state, msg)
+            Log( offs + '% 2s %s' % (state, msg), overwritable=True )
+            #print ' '*36, '% 2s %s' % (state, msg)
 
-        vec[:] = dot(evec, vec)
+        vec[:] = np.dot(evec, vec)
 
-        if random() < abs(r - samplex.accept_rate)/samplex.accept_rate_tol:
+        if random() < np.abs(r - samplex.accept_rate)/samplex.accept_rate_tol:
             twiddle *= 1 + ((r-samplex.accept_rate) / samplex.accept_rate / 2)
             twiddle = max(1e-14,twiddle)
 
-        assert numpy.all(vec >= 0), vec[vec < 0]
-        #if numpy.any(vec < 0): sys.exit(0)
+        assert np.all(vec >= 0), vec[vec < 0]
+        #if np.any(vec < 0): sys.exit(0)
 
         samplex.project(vec)
 
@@ -179,8 +173,8 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
 
 def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
 
-    S   = zeros(samplex.eqs.shape[0])
-    S0  = zeros(samplex.eqs.shape[0])
+    S   = np.zeros(samplex.eqs.shape[0])
+    S0  = np.zeros(samplex.eqs.shape[0])
 
     vec  = vec.copy('A')
     eqs  = samplex.eqs.copy('A')
@@ -188,12 +182,14 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
     accepted = 0
     rejected = 0
 
-    print ' '*39, 'STARTING rwalk THREAD %i [this thread makes %i models]' % (id,nmodels)
+    offs = ' '*39
+    Log( offs + 'STARTING rwalk THREAD %i [this thread makes %i models]' % (id,nmodels), overwritable=True)
 
-    eqs[:,1:] = dot(samplex.eqs[:,1:], evec)
+    eqs[:,1:] = np.dot(samplex.eqs[:,1:], evec)
 
     csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
 
+    offs = ' '*36
     state = ''
     for i in xrange(nmodels):
 
@@ -202,13 +198,14 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec):
 
         done = False
 
-        vec[:] = dot(evec.T, vec)
+        vec[:] = np.dot(evec.T, vec)
         accepted,rejected,t = csamplex.rwalk(samplex, eqs, vec,eval,S,S0, twiddle, accepted,rejected)
-        vec[:] = dot(evec, vec)
+        vec[:] = np.dot(evec, vec)
 
         r = accepted / (accepted + rejected)
-        print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i)
-        assert numpy.all(vec >= 0), vec[vec < 0]
+        Log( offs + '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i), overwritable=True )
+        #print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i)
+        assert np.all(vec >= 0), vec[vec < 0]
         #if numpy.any(vec < 0): sys.exit(0)
 
         samplex.project(vec)
@@ -286,7 +283,6 @@ class Samplex:
         self.eqn_count = self.eq_count + self.geq_count + self.leq_count
 
         if 0:
-            import numpy as np
             import pylab as pl
             m = np.empty((len(self.eq_list), len(self.eq_list[0][1])))
             print m.shape
@@ -338,18 +334,18 @@ class Samplex:
         accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
-        store = zeros((dim, 1+burnin_len), order='Fortran', dtype=numpy.float64)
-        np    = zeros(dim, order='C', dtype=numpy.float64)
-        eval  = zeros(dim, order='C', dtype=numpy.float64)
-        evec  = zeros((dim,dim), order='F', dtype=numpy.float64)
+        store = np.zeros((dim, 1+burnin_len), order='Fortran', dtype=np.float64)
+        newp = np.zeros(dim, order='C', dtype=np.float64)
+        eval  = np.zeros(dim, order='C', dtype=np.float64)
+        evec  = np.zeros((dim,dim), order='F', dtype=np.float64)
 
-        self.eqs = zeros((self.eqn_count+dim,dim+1), order='C', dtype=numpy.float64)
+        self.eqs = np.zeros((self.eqn_count+dim,dim+1), order='C', dtype=np.float64)
         for i,[c,e] in enumerate(self.eq_list):
             self.eqs[i,:] = e
         for i in xrange(dim):
             self.eqs[self.eqn_count+i,1+i] = 1
 
-        self.dist_eqs = zeros((self.eqn_count-self.eq_count,dim+1), order='C', dtype=numpy.float64)
+        self.dist_eqs = np.zeros((self.eqn_count-self.eq_count,dim+1), order='C', dtype=np.float64)
         i=0
         for c,e in self.eq_list:
             if c == 'eq':
@@ -377,15 +373,15 @@ class Samplex:
         # Create pseudo inverse matrix to reproject samples back into the
         # solution space.
         #-----------------------------------------------------------------------
-        P = numpy.eye(dim) 
+        P = np.eye(dim) 
         if self.eq_count > 0:
-            self.A = zeros((self.eq_count, dim), order='C', dtype=numpy.float64)
-            self.b = zeros(self.eq_count, order='C', dtype=numpy.float64)
+            self.A = np.zeros((self.eq_count, dim), order='C', dtype=np.float64)
+            self.b = np.zeros(self.eq_count, order='C', dtype=np.float64)
             for i,[c,e] in enumerate(self.eq_list[:self.eq_count]):
                 self.A[i] = e[1:]
                 self.b[i] = e[0]
             self.Apinv = pinv(self.A)
-            P -= dot(self.Apinv, self.A)
+            P -= np.dot(self.Apinv, self.A)
         else:
             self.A = None
             self.B = None
@@ -400,35 +396,35 @@ class Samplex:
         #-----------------------------------------------------------------------
         Log('Finding first inner point')
         time_begin_inner_point = time.clock()
-        self.inner_point(np)
+        self.inner_point(newp)
         time_end_inner_point = time.clock()
-        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
+        ok,fail_count = self.in_simplex(newp, eq_tol=1e-12, tol=0, verbose=1)
         assert ok
 
-        self.avg0 = np
+        self.avg0 = newp
 
 #       eqs  = self.eqs.copy('A')
-#       eqs[:,1:] = dot(self.eqs[:,1:], evec)
+#       eqs[:,1:] = np.dot(self.eqs[:,1:], evec)
 
-#       print np
+#       print newp
 
 #       S = zeros(self.eqs.shape[0])
-#       np[:] = dot(evec.T, np)
-#       np0 = np.copy()
-#       steps = np.copy()
+#       newp[:] = np.dot(evec.T, newp)
+#       newp0 = newp.copy()
+#       steps = newp.copy()
 #       for q in range(100):
-#           csamplex.refine_center(self, eqs, np, ev, S, steps)
-#           d = np - np0
+#           csamplex.refine_center(self, eqs, newp, ev, S, steps)
+#           d = newp - newp0
 #           #print d
 #           print norm(d)
 #           #print
-#           np0 = np.copy()
+#           newp0 = newp.copy()
 
 #       #assert 0
-#       np[:] = dot(evec, np)
+#       newp[:] = np.dot(evec, newp)
 
 
-        store[:,0] = np
+        store[:,0] = newp
         n_stored = 1
 
 
@@ -437,7 +433,7 @@ class Samplex:
         #-----------------------------------------------------------------------
         Log('Estimating eigenvectors')
         time_begin_est_eigenvectors = time.clock()
-        self.measured_ev(np, ev, eval, evec)
+        self.measured_ev(newp, ev, eval, evec)
         time_end_est_eigenvectors = time.clock()
 
         #-----------------------------------------------------------------------
@@ -460,10 +456,10 @@ class Samplex:
             if id < models_under:
                 n += 1
             assert n > 0
-            print 'Thread %i gets %i' % (id,n)
+            Log( 'Thread %i gets %i' % (id,n) )
             cmdq = Queue()
             ackq = Queue()
-            thr = Process(target=rwalk_burnin, args=(id, n, int(ceil(burnin_len/nthreads)), self, q, cmdq, ackq, np, self.twiddle, eval.copy('A'), evec.copy('A')))
+            thr = Process(target=rwalk_burnin, args=(id, n, int(np.ceil(burnin_len/nthreads)), self, q, cmdq, ackq, newp, self.twiddle, eval.copy('A'), evec.copy('A')))
             threads.append([thr,cmdq,ackq])
             N += n
             id += 1
@@ -489,7 +485,7 @@ class Samplex:
         def adjust_threads(i, cont_cmd):
             pause_threads(threads)
             drainq(q)
-            print 'Computing eigenvalues... [%i/%i]' % (i, burnin_len)
+            Log( 'Computing eigenvalues... [%i/%i]' % (i, burnin_len) )
             self.compute_eval_evec(store, eval, evec, n_stored)
 
             # new twiddle <-- average twiddle
@@ -499,7 +495,7 @@ class Samplex:
                 t += ackq.get()
             t /= len(threads)
 
-            print 'New twiddle', t
+            Log( 'New twiddle %f' % t )
             for _,cmdq,_ in threads:
                 cmdq.put(['NEW DATA', [eval.copy('A'), evec.copy('A'), t]])
                 cmdq.put([cont_cmd])
@@ -533,10 +529,10 @@ class Samplex:
         i=0
         while i < nmodels:
             k,vec = q.get()
-            t = zeros(dim+1, order='Fortran', dtype=numpy.float64)
+            t = np.zeros(dim+1, order='Fortran', dtype=np.float64)
             t[1:] = vec
             i += 1
-            print '%i models left to generate' % (nmodels-i)
+            Log( '%i models left to generate' % (nmodels-i), overwritable=True)
             yield t
 
         time_end_get_models = time.clock()
@@ -554,8 +550,8 @@ class Samplex:
 
         time_end_next = time.clock()
 
-        max_time_threads = amax(time_threads) if time_threads else 0
-        avg_time_threads = mean(time_threads) if time_threads else 0
+        max_time_threads = np.amax(time_threads) if time_threads else 0
+        avg_time_threads = np.mean(time_threads) if time_threads else 0
 
         Log( '-'*80 )
         Log( 'SAMPLEX TIMINGS' )
@@ -566,36 +562,37 @@ class Samplex:
         Log( 'Modeling               %.2fs' % (time_end_get_models - time_begin_get_models) )
         Log( 'Max/Avg thread time    %.2fs %.2fs' % (max_time_threads, avg_time_threads) )
         Log( 'Total wall-clock time  %.2fs' % (time_end_next - time_begin_next) )
+        Log( '-'*80 )
 
-    def in_simplex(self, np, tol=0, eq_tol=1e-8, verbose=0):
+    def in_simplex(self, newp, tol=0, eq_tol=1e-8, verbose=0):
         bad = []
 
-        a_min = inf
+        a_min = np.inf
         for i,[c,e] in enumerate(self.eq_list):
-            a0 = dot(np, e[1:])
+            a0 = np.dot(newp, e[1:])
             a  = e[0] + a0
 
-            #print np.flags, e[1:].flags
+            #print newp.flags, e[1:].flags
             #assert 0
             if c == 'geq':
                 a_min = min(a_min, a)
                 if a < -tol: 
-                    if verbose: print 'F>', i,a
+                    if verbose: Log( 'F> %i %e' % (i,a) )
                     bad.append([i,a])
             elif c == 'leq':
                 a_min = min(a_min, a)
                 if a > tol: 
-                    if verbose: print 'F<', i,a
+                    if verbose: Log( 'F< %i %e' % (i,a) )
                     bad.append([i,a])
             elif c == 'eq':
-                if abs(a) > eq_tol: 
-                    if verbose: print 'F=', i,a, (1 - abs(e[0]/a0))
+                if np.abs(a) > eq_tol: 
+                    if verbose: Log( 'F= %i %e %e' %(i,a, (1 - np.abs(e[0]/a0))) )
                     bad.append([i,a])
 
             #if verbose > 1: print "TT", c, a
               
         if verbose > 1:
-            print 'Smallest a was %e' % (a_min,)
+            Log( 'Smallest a was %e' % (a_min,) )
 
         #print 'T '
         return not bad, bad
@@ -603,24 +600,24 @@ class Samplex:
     def distance_to_plane(self,pt,dir):
         ''' dir should be a normalized vector '''
 
-        dist = inf
+        dist = np.inf
 
         p = self.dist_eqs
-        a = dot(dir, p[:,1:].T)
+        a = np.dot(dir, p[:,1:].T)
         w = a > 0
 
         if w.any():
-            dtmp = -(p[:,0] + dot(pt, p[:,1:].T)) / a
-            dist = amin(dtmp[w])
+            dtmp = -(p[:,0] + np.dot(pt, p[:,1:].T)) / a
+            dist = np.amin(dtmp[w])
 
         # check implicit >= 0 contraints
         a = -dir 
         w = a > 0
         if w.any():
             dtmp = pt[w] / a[w]
-            dist = amin([dist, amin(dtmp)])
+            dist = np.amin([dist, np.amin(dtmp)])
 
-        assert dist != inf
+        assert dist != np.inf
 
         return dist
 
@@ -629,11 +626,11 @@ class Samplex:
         #s = max(0, n_stored - ceil(0.5*self.burnin_len))
         s = 0
 
-        eval0,evec0 = eigh(cov(store[:,  s:n_stored]))
+        eval0,evec0 = eigh(np.cov(store[:,  s:n_stored]))
         avg = store[:,  s:n_stored].mean(axis=1)
 
         if self.avg0 is not None:
-            print 'average store delta', norm(avg-self.avg0)
+            Log( 'average store delta %s' % str(norm(avg-self.avg0)) )
         self.avg0 = avg.copy()
 
         nzero = 0
@@ -646,24 +643,24 @@ class Samplex:
                 tmax1 = -self.distance_to_plane(avg, -direction)
                 tmax2 = +self.distance_to_plane(avg, +direction)
                 #print 'tmax', tmax1, tmax2
-                eval[r] = (tmax2 - tmax1) / sqrt(12)
+                eval[r] = (tmax2 - tmax1) / np.sqrt(12)
 
         evec[:] = evec0
         #print 'eval(inside)', eval
         if nzero != self.eq_count:
-            print '-'*80
+            Log( '!'*80 )
             Log( 'ERROR:', 'Expected number of zero length eigenvectors (%i) to equal number of equality constraints (%i)' % (nzero, self.eq_count) )
-            print '-'*80
+            Log( '!'*80 )
             sys.exit(0)
 
     def project(self,x):
         if self.Apinv is not None:
-            q = dot(self.A, x)
+            q = np.dot(self.A, x)
             q += self.b
-            q = dot(self.Apinv, q)
+            q = np.dot(self.Apinv, q)
             x -= q
 
-    def inner_point(self, np):
+    def inner_point(self, newp):
 
         lp = lpsolve('make_lp', 0, self.nVars+1) # +1 for variable used to find the first inner point
         lpsolve('set_epsb', lp, 1e-14)
@@ -680,11 +677,11 @@ class Samplex:
             if eq == 'geq': l.append(1); lpsolve('add_constraint', lp, l, GE, -a[0])
 
         for i in range(self.nVars):
-            q = zeros(self.nVars+1)
+            q = np.zeros(self.nVars+1)
             q[[i,-1]] = -1, 1
             lpsolve('add_constraint', lp, q.tolist(), LE, 0)
 
-        o = zeros(self.nVars+1)
+        o = np.zeros(self.nVars+1)
         o[-1] = 1
         lpsolve('set_obj_fn', lp, o.tolist())
         while True:
@@ -695,27 +692,27 @@ class Samplex:
             elif result == UNBOUNDED: raise SamplexUnboundedError()
             else:
                 Log( result )
-                raise SamplexUnexpectedError("unknown pivot result = %i" % result)
+                raise SamplexUnexpectedError("unknown pivot result %i from linear solver." % result)
 
-        objv  = array(lpsolve('get_objective', lp))
-        v1    = array(lpsolve('get_variables', lp)[0])
+        objv  = np.array(lpsolve('get_objective', lp))
+        v1    = np.array(lpsolve('get_variables', lp)[0])
         assert len(v1) == lpsolve('get_Norig_columns', lp)
         assert len(v1) == self.nVars+1
         del lp
 
         v1 = v1[:-1] # Remove the temporary variable that tracks the distance from the simplex boundary
-        v1[abs(v1) < 1e-14] = 0
-        assert all(v1 >= 0), v1[v1 < 0]
+        v1[np.abs(v1) < 1e-14] = 0
+        assert np.all(v1 >= 0), v1[v1 < 0]
 
         ok,fail_count = self.in_simplex(v1, eq_tol=1e-12, tol=0, verbose=1)
         ok,fail_count = self.in_simplex(v1, eq_tol=1e-12, tol=-1e-13, verbose=1)
         assert ok, len(fail_count)
-        np[:] = v1
-        self.project(np)
-        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=0, verbose=1)
-        ok,fail_count = self.in_simplex(np, eq_tol=1e-12, tol=-1e-5, verbose=1)
+        newp[:] = v1
+        self.project(newp)
+        ok,fail_count = self.in_simplex(newp, eq_tol=1e-12, tol=0, verbose=1)
+        ok,fail_count = self.in_simplex(newp, eq_tol=1e-12, tol=-1e-5, verbose=1)
 
-    def measured_ev(self, np, ev, eval, evec, eval_tol=1e-12):
+    def measured_ev(self, newp, ev, eval, evec, eval_tol=1e-12):
         nzero = 0
         for r in range(eval.size):
             if ev[r] < eval_tol:
@@ -723,9 +720,9 @@ class Samplex:
                 nzero += 1
             else:
                 direction = evec[:,r]
-                tmax1 = -self.distance_to_plane(np, -direction)
-                tmax2 = +self.distance_to_plane(np, +direction)
-                eval[r] = (tmax2 - tmax1) / sqrt(12)
+                tmax1 = -self.distance_to_plane(newp, -direction)
+                tmax2 = +self.distance_to_plane(newp, +direction)
+                eval[r] = (tmax2 - tmax1) / np.sqrt(12)
                 assert tmax1 < tmax2, 'tmax %i %i  ev[%i] %e' % (tmax1, tmax2, r, ev[r])
 
         assert nzero == self.eq_count, "Number of zero length eigenvectors doesn't equal number of equalities. (%i != %i)" % (nzero, self.eq_count)

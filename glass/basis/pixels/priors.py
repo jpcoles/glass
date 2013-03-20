@@ -113,6 +113,7 @@ def find_stellar_mass(o):
         grid_size = g['grid size']
         units = g['grid size units']
         scale = g['scale']
+        Log( 'Loading stellar mass from %s.' % fname )
         H0inv = convert('nu to H0^-1 in Gyr', env().nu[-1], o.dL)
         load_leier_grid(o, fname, grid_size, units, H0inv, scale)
         stellar_mass = o.stellar_mass
@@ -123,6 +124,7 @@ def find_stellar_mass(o):
         H0inv = g['H0inv']
         nu    = g['nu']
 
+        Log( 'Projecting mass onto grid.' % fname )
         phys_cell_size = convert('arcsec to kpc', o.basis.cell_size, o.dL, nu)
         phys_ploc = convert('arcsec to kpc', o.basis.ploc, o.dL, nu)
         h = irrhistogram2d(-Y, X, phys_ploc, phys_cell_size, weights=M) / phys_cell_size**2
@@ -1535,6 +1537,57 @@ def PLsmoothness3(o, leq, eq, geq):
             #print len(o.basis.nbrs3[i][2])
             #print i, o.basis.nbrs3[i][2]
             #row[pix_start + d] = 1. / 8
+            w = 1
+            W += 1 #np.sum(w)
+            row[pix_start + d] = w * wght(d)
+
+        row[pix_start + i] = -W / smoothness_factor
+
+        #print 'PLs', row[row != 0]
+        geq(row)
+        c += 1
+
+    Log( 2*indent + "# eqs = %i" % c )
+
+#@default_prior
+@object_prior
+def PLsmoothnessExp(o, leq, eq, geq):
+    """A pixel cannot be more that twice the average of the neighbouring pixels."""
+
+    smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
+    if not smth:
+        Log( "[DISABLED] PLSmoothness3" )
+        return
+
+    pix_start, pix_end    = 1+o.basis.offs_pix
+    smoothness_factor     = smth.get('factor', 2)
+    include_central_pixel = smth.get('include_central_pixel', True)
+
+    Log( indent + "PLSmoothness3 (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+
+    c=0
+    #wght = lambda x: 1.0 / len(x) if len(x) else 0
+    wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2)
+    nbr_list = o.basis.nbrs
+
+    #print 'In smooth!'
+
+    for i,r,nbrs in nbr_list:
+        if not include_central_pixel and i == o.basis.central_pixel: continue
+
+        row = new_row(o)
+        #N = sum( (sum(wght(d)) for d in o.basis.nbrs3[i][2]) )
+        l = len(nbr_list[i][2])
+#       for d in nbr_list[i][2]:
+#           if d == o.basis.central_pixel:
+#               l -= 1
+
+        W = 0
+        for d in nbr_list[i][2]:
+            #if d == o.basis.central_pixel: continue
+            #print len(o.basis.nbrs3[i][2])
+            #print i, o.basis.nbrs3[i][2]
+            #row[pix_start + d] = 1. / 8
             w = np.exp(-(abs(o.basis.ploc[d] - r)/o.basis.top_level_cell_size)/2.)
             W += 1 #np.sum(w)
             row[pix_start + d] = w * wght(d)
@@ -1936,6 +1989,7 @@ def load_leier_grid(o, fname, grid_size, units, H0inv, scale=1.0):
         pl.colorbar()
 
 
+    Log( 'Projecting mass onto grid.' )
     grid *= (grid_size / grid.shape[0])**2
     a = o.basis.project_grid(grid, grid_size, H0inv)
     a /= o.basis.cell_size**2

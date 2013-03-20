@@ -8,6 +8,8 @@ from glass.environment import env, Environment
 from glass.command import command
 from glass.scales import convert
 
+from glass.solvers.error import GlassSolverError
+
 from . import glcmds
 from . import funcs
 from . import priors
@@ -320,13 +322,19 @@ def generate_models(env, objs, n, *args, **kwargs):
             init_model_generator(env, n)
             mg = env.model_gen
             mg.start()
-            for sol in mg.next(n):
-                ps = package_solution(sol, objs)
-                check_model(objs, ps)
-                yield ps
+            try:
+                for sol in mg.next(n):
+                    ps = package_solution(sol, objs)
+                    check_model(objs, ps)
+                    yield ps
+            except GlassSolverError as e:
+                Log( '!' * 80)
+                Log( 'Unable to generate models:', str(e) )
+                Log( '!' * 80)
 
-    for o in objs:
-        o.post_process_funcs.insert(0, [default_post_process, [], {}])
+
+    #for o in objs:
+        #o.post_process_funcs.insert(0, [default_post_process, [], {}])
 
 @command
 def regenerate_models(env, objs):

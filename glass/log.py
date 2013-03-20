@@ -1,17 +1,27 @@
 import sys
 from command import command
 
-log_files = [sys.stdout]
+log_files = [[sys.stdout, False]]
 
 @command
-def setup_log(env, files=[], stdout=True, stderr=False):
+def setup_log(env, *files, **kwargs):
     global log_files
-    if not hasattr(files, '__iter__'): files = [files]
-    log_files = [ open(f,'a') if isinstance(f,str) else f for f in files ]
-    if stdout: log_files.append(sys.stdout)
-    if stderr: log_files.append(sys.stderr)
+    stdout = kwargs.get('stdout', True)
+    stderr = kwargs.get('stderr', False)
+    log_files = [ [open(f,'a'),False] if isinstance(f,str) else [f,False] for f in files ]
+    if stdout: log_files.append([sys.stdout, False])
+    if stderr: log_files.append([sys.stderr, False])
 
-    
-def log(*args):
-    for f in log_files:
-        print >>f, '    '.join(args)
+def log(*args, **kwargs):
+    overwritable = kwargs.get('overwritable', False)
+    for fo in log_files:
+        f,is_overwritable = fo
+        s = '\r' if f.isatty() else ''
+        if is_overwritable and f.isatty():
+            s += '\x1b[2K'
+        s += '\n    '.join(args)
+        if not overwritable or not f.isatty():
+            s += '\n'
+        f.write(s)
+        f.flush()
+        fo[1] = overwritable

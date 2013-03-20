@@ -52,7 +52,7 @@ class PixelLensModel(LensModel):
         k = ' '.join(['kappa'] + component)
         dscale2 = convert('kappa to Msun/kpc^2',    1, self.obj.dL, self['nu'])
         return DArray([self.mean_kappa(self[k],r)*dscale2 for r in self.obj.basis.rings],
-                       r'$\Sigma$', {'Msun/kpc^2': [1, r'$(M_\odot/\mathrm{kpc}^2)$']})
+                       r'$\Sigma$', {'Msun/kpc^2': [1, r'$M_\odot/\mathrm{kpc}^2$']})
     @prop('kappa(<R)')
     def kappa_ltR(self, component=[]):
         k = ' '.join(['kappa'] + component)

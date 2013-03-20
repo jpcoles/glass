@@ -9,7 +9,7 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   mat, eye, asarray, matrix, empty_like, zeros, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
-from glass.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
+from glass.basis.pixels.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
 from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
