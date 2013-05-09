@@ -166,7 +166,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         else:
             tau  = abs(r0-src)**2 / 2
             tau *= zcap
-            tau -= dot(ps['kappa'], poten(r0 - obj.basis.ploc, obj.basis.cell_size))
+            tau -= dot(ps['kappa'], poten(r0 - obj.basis.ploc, obj.basis.cell_size, obj.basis.maprad))
             tau -= np.sum( [ ps[e.name] * e.poten(r0).T for e in obj.extra_potentials ] )
             #print tau
             #print '!!', poten(i - obj.basis.ploc, obj.basis.cell_size)[0]
