@@ -1,0 +1,52 @@
+glass_basis('glass.basis.pixels', solver='rwalk')
+meta(author='Jonathan Coles', notes='Just testing')
+setup_log('1104.log')
+samplex_random_seed(0)
+samplex_acceptance(rate=0.25, tol=0.15)
+exclude_all_priors()
+include_prior(
+    'lens_eq', 
+    'time_delay', 
+    'profile_steepness', 
+    #'gradient', 
+    #'Pgradient', 
+    #'J2gradient', 
+    'J3gradient', 
+    'magnification',
+    'hubble_constant',
+    'PLsmoothness3',
+    'shared_h',
+)
+
+hubble_time(13.7)
+
+globject('1104')
+
+zlens(0.73)
+
+pixrad(8)
+maprad(4)
+
+steepness(0,None)
+
+smooth(2,include_central_pixel=False)
+
+local_gradient(45)
+
+symm()
+
+#maprad(1.9637)
+
+#shear(30)
+
+
+A =  -1.927, -0.822
+B =  0.974, 0.510
+
+source(2.320, A,'min', 
+              B,'sad', 161)
+
+
+model(1000)
+
+savestate('1104.state')

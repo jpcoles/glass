@@ -1,0 +1,55 @@
+glass_basis('glass.basis.pixels', solver='rwalk')
+meta(author='Jonathan Coles', notes='Just testing')
+setup_log('SBS1520.log')
+samplex_random_seed(0)
+samplex_acceptance(rate=0.25, tol=0.15)
+exclude_all_priors()
+include_prior(
+    'lens_eq', 
+    'time_delay', 
+    'profile_steepness', 
+    'J3gradient', 
+    'magnification',
+    'hubble_constant',
+    'PLsmoothness3',
+    'shared_h',
+    'external_shear',
+    'external_mass'
+)
+
+hubble_time(13.7)
+
+globject('SBS1520+530')
+
+zlens(0.71)
+
+pixrad(8)
+
+steepness(0,None)
+
+smooth(2,include_central_pixel=False)
+
+local_gradient(50)
+
+symm()
+
+#maprad(1.9637)
+
+#shear(strength=0.1)
+
+G1 = 2,2
+external_mass(PointMass(G1, name='G1'), 0, 0.1)
+
+A =  1.141, 0.395
+B =  -0.288, -0.257
+
+#A =  -A[1], A[0]
+#B =  -B[1], B[0]
+
+source(1.855, A,'min', 
+              B,'sad', 130)
+
+
+model(1000)
+
+savestate('1520.state')
