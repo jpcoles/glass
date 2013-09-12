@@ -13,6 +13,7 @@ from glass.shear import Shear
 from glass.scales import convert
 from glass.log import log as Log, setup_log
 from glass.exceptions import GLInputError
+from glass.utils import dist_range
 
 @command
 def ptmass(xc, yc, mmin, mmax): raise GLInputError("ptmass not supported. Use external_mass().")
@@ -378,7 +379,7 @@ def ensemble_mass_rms(env, models, model0):
 #    return n_chi2 / d_chi2
 
 @command
-def kappa_chi2(env, models, model0):
+def kappa_chi2(env, models, model0, frac='1sigma'):
     n_max,d_max=0,0
     n_min,d_min=np.inf,np.inf
     ns, ds = [], []
@@ -390,13 +391,17 @@ def kappa_chi2(env, models, model0):
             rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
             rmin, rmax = np.amin(rs), np.amax(rs)
 
+            #w = (abs(obj.basis.rs) >= rmin) * (abs(obj.basis.rs) <= rmax)
+            #w = abs(obj.basis.rs) <= rmax
+            w = (abs(obj.basis.ploc) >= obj.basis.top_level_cell_size * 0.9) * (abs(obj.basis.ploc) <= (rmax+ obj.basis.top_level_cell_size * 0.5))
+
             #b = np.argmin(abs(data['R'] - rmin))
             #e = np.argmin(abs(data['R'] - rmax))
             #v0 = data0['kappa'][b:e+1]
             #v1 = data['kappa'][b:e+1]
 
-            v0 = data0['kappa']
-            v1 = data['kappa']
+            v0 = data0['kappa'][w]
+            v1 = data['kappa'][w]
             n += np.sum((v1 - v0)**2)
             d += np.sum(v0**2)
         ns.append(n)
@@ -405,17 +410,18 @@ def kappa_chi2(env, models, model0):
         #n_max,d_max = np.amax([n,n_max]), np.amax([d,d_max])
         #n_min,d_min = np.amin([n,n_min]), np.amin([d,d_min])
     nd = array(ns) / array(ds)
-    nd.sort()
-    N = len(nd)
-    if len(nd) % 2 == 0:
-        M = (nd[(N-1)//2] + nd[(N-1)//2+1]) / 2
-        L = nd[(N-1)//2   - int(0.32*N)]
-        R = nd[(N-1)//2+1 + int(0.32*N)]
-    else:
-        M = nd[(N-1)//2]
-        L = nd[(N-1)//2 - int(0.32*N)]
-        R = nd[(N-1)//2 + int(0.32*N)]
-    return M, R, L
+    return dist_range(nd, frac)
+#   nd.sort()
+#   N = len(nd)
+#   if len(nd) % 2 == 0:
+#       M = (nd[(N-1)//2] + nd[(N-1)//2+1]) / 2
+#       L = nd[(N-1)//2   - int(0.32*N)]
+#       R = nd[(N-1)//2+1 + int(0.32*N)]
+#   else:
+#       M = nd[(N-1)//2]
+#       L = nd[(N-1)//2 - int(0.32*N)]
+#       R = nd[(N-1)//2 + int(0.32*N)]
+#   return M, R, L
 
 
 @command
@@ -431,10 +437,12 @@ def kappa_profile_chi2(env, models, model0, frac='1sigma'):
             rs = [ abs(img.pos) for src in obj.sources for img in src.images]
             #rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
             rmin, rmax = np.amin(rs), np.amax(rs)
-            rmin = obj.basis.top_level_cell_size * 1.6
+            if 0:
+                b = 0
+            else:
+                rmin = obj.basis.top_level_cell_size * 1.6
+                b = np.argmin(abs(data['R'] - rmin))
 
-            b = np.argmin(abs(data['R'] - rmin))
-            #b = 0
             e = np.argmin(abs(data['R'] - rmax))
 
             v0 = data0['kappa(R)'][b:e+1]
@@ -446,23 +454,25 @@ def kappa_profile_chi2(env, models, model0, frac='1sigma'):
         ds.append(d)
 
     nd = array(ns) / array(ds)
-    nd.sort()
-    N = len(nd)
-    frac = {'1sigma': 0.6827,
-            '2sigma': 0.9545,
-            '3sigma': 0.9973}.get(frac, frac)
-    n = int(frac/2. * N)
-    mid = (N-1) // 2
-    if N % 2 == 0:
-        M = (nd[mid] + nd[mid+1]) / 2
-        L = nd[mid   - n]
-        R = nd[mid+1 + n]
-    else:
-        M = nd[mid]
-        L = nd[mid - n]
-        R = nd[mid + n]
-    return M, R, L
+    return dist_range(nd, frac)
+#   nd.sort()
+#   N = len(nd)
+#   frac = {'1sigma': 0.6827,
+#           '2sigma': 0.9545,
+#           '3sigma': 0.9973}.get(frac, frac)
+#   n = int(frac/2. * N)
+#   mid = (N-1) // 2
+#   if N % 2 == 0:
+#       M = (nd[mid] + nd[mid+1]) / 2
+#       L = nd[mid   - n]
+#       R = nd[mid+1 + n]
+#   else:
+#       M = nd[mid]
+#       L = nd[mid - n]
+#       R = nd[mid + n]
+#   return M, R, L
     #return n/d, n_max/d_max, n_min/d_min
+
 
 
 @command

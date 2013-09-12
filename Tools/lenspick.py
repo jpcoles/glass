@@ -436,4 +436,5 @@ if __name__ == '__main__':
     rax = pl.axes([0.20, 0.2, 0.15, 0.05])
     button_setfixed = Button(rax, 'Set fixed point')
     button_setfixed.on_clicked(on_setfixed)
+    pl.ioff()
     pl.show()

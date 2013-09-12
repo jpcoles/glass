@@ -25,8 +25,8 @@ if 1:
 
 from scipy.ndimage.filters import correlate
 from scipy.misc import central_diff_weights
-from scipy.linalg import eig, eigh, norm
-from scipy.signal import convolve2d
+#from scipy.linalg import eig, eigh, norm
+#from scipy.signal import convolve2d
 
 import scipy.ndimage._ni_support as _ni_support
 import scipy.ndimage._nd_image as _nd_image

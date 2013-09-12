@@ -8,6 +8,7 @@ from itertools import izip
 from basis import PixelBasis as basis_class
 from glass.scales import convert
 from glass.exceptions import GLInputError
+from glass.utils import dist_range
 from . funcs import default_post_process
 
 @command
@@ -214,5 +215,71 @@ def subtract_kappa_from_models(env, a, obj_index=0, include_ensemble_average=Tru
     if include_ensemble_average and hasattr(env, 'ensemble_average'):
         env.ensemble_average['obj,data'][obj_index][1]['kappa'] -= a * env.ensemble_average['obj,data'][obj_index][1]['sm_error_factor']
         default_post_process(env.ensemble_average['obj,data'][obj_index])
+
+
+def _shape(kappa,r):
+    from scipy.linalg import eig, inv
+
+    I = np.zeros((2,2))
+    I[0,0] =  np.sum(kappa * r.imag**2)
+    I[1,1] =  np.sum(kappa * r.real**2)
+    I[0,1] = -np.sum(kappa * r.imag * r.real)
+    I[1,0] =  I[0,1]
+
+    V,D = eig(inv(I))
+    if V[0] < V[1]:
+        np.roll(V,1)
+        np.roll(D,1,0)
+
+    # flip vectors to between on the right half-plane
+    if D[0,0] < 0: D[:,0] *= -1
+    if D[0,1] < 0: D[:,1] *= -1
+
+    #import sys
+    theta = np.arctan2(D[1,0], D[0,0])
+    #print >>sys.stderr, "THETA", D[0,0], D[1,0], theta
+    assert -np.pi/2 <= theta <= np.pi/2
+    phi   = np.arctan2(D[1,1], D[0,1])
+
+    return theta,phi
+
+
+@command
+def shape_chi(env, models, model0, frac='1sigma'):
+    ns, ds = [[],[]], [[],[]]
+
+    for m in models:
+        nT,dT = 0,0
+        nP,dP = 0,0
+        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+            obj,data = m1
+            obj0,data0 = m2
+            rs = [ abs(img.pos) for src in obj.sources for img in src.images]
+            rmin, rmax = np.amin(rs), np.amax(rs)
+            w = (abs(obj.basis.ploc) >= obj.basis.top_level_cell_size * 0.9) * (abs(obj.basis.ploc) <= (rmax+ obj.basis.top_level_cell_size * 0.5))
+
+            t0,p0 = _shape(data0['kappa'][w], obj0.basis.ploc[w])
+            t,p   = _shape(data['kappa'][w],  obj.basis.ploc[w])
+
+            #dTheta = lambda t0,t1 = (t0-t1) if np.abs(t0-t1) < np.pi else 2*np.pi-(t0-t1)
+
+            nT += (t-t0)**2
+            nT = (t-t0)
+            dT += t0**2
+
+            nP += (p-p0)**2
+            nP = (p-p0)
+            dP += p0**2
+
+        ns[0].append(nT)
+        ds[0].append(dT)
+        ns[1].append(nP)
+        ds[1].append(dP)
+
+    return dist_range(np.array(ns[0]), frac), dist_range(np.array(ns[1]), frac)
+    #return dist_range(np.array(ns[0]) / np.array(ds[0]), frac), dist_range(np.array(ns[1]) / np.array(ds[1]), frac)
+
+
+
 
 

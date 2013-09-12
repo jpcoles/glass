@@ -98,16 +98,9 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     color = kwargs.pop('color', None)
     with_maximum = kwargs.pop('with_maximum', True)
 
-    if src_index is not None and not isinstance(src_index, (list,tuple)):
-        src_index = [src_index]
+    #src_index = np.atleast_1d(src_index)
 
-    #obj,_ = model['obj,data'][obj_index]
     obj = env.objects[obj_index]
-
-#   if isinstance(model, (list, tuple)):
-#       obj,_ = model
-#   else:
-#       obj = model
 
     oxlim, oylim = pl.xlim(), pl.ylim()
 
@@ -116,7 +109,8 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     for i,src in enumerate(obj.sources):
         lw,ls,c = si.next()
 
-        if src_index is not None and i not in src_index: continue
+        if src_index:
+            if i not in np.atleast_1d(src_index): continue
         xs,ys,cs = [], [], []
 
         for img in src.images:
@@ -146,6 +140,7 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     pl.xlim(oxlim); pl.ylim(oylim)
 
     if tight and rmax > 0:
+        #rmax *= 1.01
         pl.gca().set_xlim(-rmax, rmax)
         pl.gca().set_ylim(-rmax, rmax)
 
@@ -192,14 +187,16 @@ def external_mass_plot(env, obj_index=0, with_maximum=True, color=None, with_gui
         pl.pl.gca().set_pl.ylim(-rmax, rmax)
 
 @command
-def Re_plot(env, models=None, obj_index=0, color=None):
+def Re_plot(env, *args, **kwargs):
 
-    if models is None:
-        models = env.models
-    elif not hasattr(models, '__getslice__'):
-        models = [models]
+    models    = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', 0)
 
-    if not color: color = 'k'
+    models = np.atleast_1d(models)
+    kwargs.setdefault('color', 'k')
+    kwargs.setdefault('fill', False)
+    kwargs.setdefault('lw', 2)
+
 
     for m in models:
         obj,data = m['obj,data'][obj_index]
@@ -212,18 +209,17 @@ def Re_plot(env, models=None, obj_index=0, color=None):
         #pl.gca().add_artist(Line2D([0,B[0]], [0,B[1]], lw=2, color=color))
         #pl.gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
         #pl.gca().add_artist(Circle((0,0), b, fill=False, lw=2, color=color))
-        pl.gca().add_artist(Ellipse((0,0), 2*a,2*b, theta, fill=False, lw=2, color=color))
+        pl.gca().add_artist(Ellipse((0,0), 2*a,2*b, theta, **kwargs))
         #pl.gca().add_artist(Circle((0,0), a, fill=False, lw=2, color=color))
 
 @command
-def src_plot(env, models=None, **kwargs):
+def src_plot(env, *args, **kwargs):
 
+    models    = kwargs.pop('models', env.models)
     obj_index = kwargs.pop('obj_index', 0)
     src_index = kwargs.pop('src_index', None)
     hilite_model = kwargs.pop('hilite_model', None)
     hilite_color = kwargs.pop('hilite_color', 'g')
-
-    if models is None: models = env.models
 
     oxlim, oylim = pl.xlim(), pl.ylim()
 
@@ -281,17 +277,18 @@ def src_hist(**kwargs):
     pl.ylabel(ylabel)
 
 @command
-def image_plot(env, im, radius, center, format=None):
-    dx, dy = center
-    if  isinstance(radius, (list,tuple)):
-        Rx,Ry = radius
-    else:
-        Rx = Ry = radius
-    kw = {}
-    kw['extent'] = [-Rx-dx,Rx-dx,-Ry-dy,Ry-dy]
-    if format:
-        kw['format'] = format
-    pl.imshow(pl.imread(im), **kw)
+def image_plot(env, im, radius, **kwargs):
+
+    center = kwargs.pop('center', 0)
+    format = kwargs.pop('format', None)
+
+    dx,dy = center if not np.isscalar(center) else [center,center]
+    Rx,Ry = radius if not np.isscalar(radius) else [radius,radius]
+
+    kwargs.setdefault('extent', [-Rx-dx,Rx-dx,-Ry-dy,Ry-dy])
+    if format: kwargs.setdefault('format', format)
+
+    pl.imshow(pl.imread(im), **kwargs)
 
 #def kappa_avg_plot(models):
 #    objs = {} 
@@ -302,7 +299,7 @@ def image_plot(env, im, radius, center, format=None):
 #    grid
 
 def mass_plot(model, obj_index, with_contours=True, only_contours=False, clevels=30):
-    print "WARNING: use of mass_plot is deprecated. Use kappa_plot instead."
+    Log( "WARNING: use of mass_plot is deprecated. Use kappa_plot instead." )
     return kappa_plot(model, obj_index, with_contours, only_contours, clevels)
 
 @command
@@ -714,7 +711,7 @@ def _data_plot(models, X,Y, **kwargs):
                             imgs[i].add(convert('arcsec to %s' % x_units, np.abs(img.pos), obj.dL, data['nu']))
 
             except KeyError as bad_key:
-                print "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key)
+                Log( "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key) )
                 continue
 
             use[si] = 1
@@ -850,7 +847,7 @@ def _data_error_plot(models, X,Y, **kwargs):
                             imgs[i].add(convert('arcsec to %s' % x_units, np.abs(img.pos), obj.dL, data['nu']))
 
             except KeyError as bad_key:
-                print "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key)
+                Log( "Missing information for object %s with key %s. Skipping plot." % (obj.name,bad_key) )
                 continue
 
             use[si] = 1
@@ -1002,10 +999,10 @@ def H0inv_plot(env, **kwargs):
         pl.axvline(u, c='g', ls='-', zorder = 2)
         pl.axvline(l, c='g', ls='-', zorder = 2)
 
-        print 'H0inv_plot: ', m, u, l
-        print 'H0inv_plot: ', m, (u-m), (m-l)
+        Log( 'H0inv_plot: ', m, u, l )
+        Log( 'H0inv_plot: ', m, (u-m), (m-l) )
     else:
-        print "H0inv_plot: No H0inv values accepted"
+        Log( "H0inv_plot: No H0inv values accepted" )
 
 _H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command

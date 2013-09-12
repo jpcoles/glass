@@ -65,7 +65,7 @@ def sigp(objmodel, lightC, lpars, aperture, beta, alphalim=3.5, interpnts=None, 
 
     arcsec2kpc = convert('arcsec to kpc', 1, obj.dL, data['nu'])
 
-    rho3d(objmodel, alphalim=alphalim, interpnts=interpnts, rspan=rspan)
+    rho3d(objmodel, alphalim=alphalim, interpnts=interpnts, intpnts=intpnts,rspan=rspan)
     r       = data['rho3d:r'   ]
     rho     = data['rho3d:rho' ]
     drho    = data['rho3d:drho']

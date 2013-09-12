@@ -10,7 +10,6 @@ from numpy import amin, amax, diff, argsort, abs, array, sum, \
                   sort, any, sqrt, dot, ceil, arctan2, pi, mean, identity, average
 from random import random
 from glass.basis.pixels.potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, poten_dxdy, poten_dydx
-from scipy.linalg import det
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 from scipy.optimize import fsolve, fmin
@@ -229,6 +228,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     #---------------------------------------------------------------------------
     # (5) Determine magnification information
     #---------------------------------------------------------------------------
+    from scipy.linalg import det
 
     imgs = []
     for img in imgs0:
