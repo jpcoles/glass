@@ -83,7 +83,7 @@ def PlotFigures():
                 R = 9/2.,2.7/2. #g.objects[0].basis.maprad
                 #cx,cy = -1.875, 0.08
                 cx,cy=-0.21,0
-                g.image_plot('brighter_red2_7_rot.png', R, [cx,cy])
+                #g.image_plot('brighter_red2_7_rot.png', R, center=[cx,cy])
             #g.src_plot(obj_index=0)
             #g.src_plot(g.ensemble_average, obj_index=0)
             g.external_mass_plot(0)
@@ -141,7 +141,7 @@ def PlotFigures():
                 R = 20 #g.objects[0].basis.maprad
                 #cx,cy = -1.875, 0.08
                 cx,cy=0,0
-                g.image_plot(g.meta_info['image'], R, [cx,cy])
+                g.image_plot(g.meta_info['image'], R, center=[cx,cy])
             s = 0
             if hasattr(g.objects[0], 'stellar_mass'):
                 s = g.objects[0].stellar_mass

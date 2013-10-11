@@ -512,22 +512,23 @@ class PixelBasis(object):
             #self.maprad = rmax+rmin
             #self.maprad = rmax + amin([rmin, rmax-rmin])
 
-            self.mapextent = rmax
-            self.maprad = rmax
-            self.top_level_cell_size = self.maprad / L
+#           self.mapextent = rmax
+#           self.maprad = rmax
+#           self.top_level_cell_size = self.maprad / L
 
-            while (self.mapextent - rmax) / self.top_level_cell_size < 4:
-                self.maprad += rmax * 0.01
-                self.top_level_cell_size = self.maprad / L
-                self.mapextent = self.top_level_cell_size * (2*L + 1)/2
+#           while (self.mapextent - rmax) / self.top_level_cell_size < 4:
+#               self.maprad += rmax * 0.01
+#               self.top_level_cell_size = self.maprad / L
+#               self.mapextent = self.top_level_cell_size * (2*L + 1)/2
             #self.maprad = rmax + amax([(rmin * max_zcap)/2, 2*(2*rmax/(2*L+1))])
 
+            self.top_level_cell_size = rmax / (L - 4)
+            self.maprad = self.top_level_cell_size * L
+
+
         self.map_shift = self.maprad        # [arcsec]
-
         self.top_level_cell_size = self.maprad / L
-
         self.mapextent = self.top_level_cell_size * (2*L + 1)/2
-
 
         if self.hires_levels is not None:
             self.subdivision = self.hires_levels

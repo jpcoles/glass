@@ -86,7 +86,7 @@ zlens(0.31)
 # may depend of the complexity of the problem and how well the mass needs to be
 # resolved. We will choose a value of 10.
 
-pixrad(3)
+pixrad(7)
 
 # All of the priors have default values if they take parameters but for this
 # example we will explicitly set the default values.

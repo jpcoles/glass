@@ -12,6 +12,7 @@ def _detect_cpus():
     From http://codeliberates.blogspot.com/2008/05/detecting-cpuscores-in-python.html
     From http://www.artima.com/weblogs/viewpost.jsp?thread=230001
     """
+    import subprocess
     # Linux, Unix and MacOS:
     if hasattr(os, "sysconf"):
         if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):

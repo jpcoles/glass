@@ -1,0 +1,69 @@
+GLASS - The free-form gravitational lens modeling framework
+-----------------------------------------------------------
+
+GLASS is a software package for modeling strong gravitianal lenses. It produces
+an ensemble of possible models that fit the observed input data and conform to
+certain constraints specified by the user. This document describes the installation
+process and how to run a typical case.
+
+Dependecies
+-----------
+
+GLASS is currently written in Python 2.7 with a small portion written in C. GLASS
+does not support Python 3 at the current time. GLASS makes heavy use of the numerical
+routines provided by the numpy and scipy packages as well as the linear programming
+package GLPK. This latter package, and its Python interface, is provided with GLASS
+and will be installed automatically in the GLASS build directory by following the
+directions below.
+
+
+Downloading and unpacking GLASS
+-------------------------------
+
+GLASS can be downloaded as a .zip file or using git from GitHub:
+
+https://github.com/jpcoles/glass
+
+After obtaining the source code, it will, by default, be located in a directory
+called 'glass'.
+
+Building GLASS
+--------------
+
+GLASS and the GLPK can be built simply by running the command 'make' in the 
+glass source code directory. This will unpack the GLPK packages and compile
+them. It will also build and install GLASS. All compiled code and executables
+will exist under the glass/build directory.
+
+Running GLASS
+-------------
+
+In the glass directory there is a script called 'run_glass' which will execute
+GLASS with the proper environment paths regardless of the current directory.
+
+For example, running 'run_glass' with no arguments produces the following output:
+
+    $ ./run_glass
+    Usage: glass.py <input>
+
+
+The Examples directory contains a number of example input files. The simplest example
+is B1115.gls
+
+Run this example from the Examples directory:
+
+    Examples $ ../run_glass B1115.gls
+
+This will produce an output file B1115.state which contains the entire running state
+of the modeling including all of the generated models.
+
+
+Analyzing the Output
+--------------------
+
+In the 'Tools' directory there is a proram called 'viewstate.py' uses GLASS as a
+library and can generate plots from the output state file. To see the default
+plots run the command
+
+    Examples $ ../run_glass ../Tools/viewstate.py B1115.state
+

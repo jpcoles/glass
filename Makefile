@@ -9,6 +9,15 @@ PYTHON_INC=$(shell python -c "from distutils.sysconfig import get_python_inc; pr
 PYTHON_LIB=$(shell python -c "from distutils.sysconfig import get_python_lib; print get_python_lib(plat_specific=0)")
 CPATH := "$(PYTHON_INC):$(PYTHON_LIB)/../config"
 LIBRARY_PATH := $(ROOT_DIR)/build/glpk_build/lib
+UNAME?=$(shell uname)
+
+ifeq ($(UNAME),Darwin)
+	CHANGE_PGLPK_MAKEFILE=cp $(ROOT_DIR)/lib/python-glpk-swig-Makefile swig/Makefile
+	GLPK_FLAGS="CFLAGS=-arch i386"
+else
+	CHANGE_PGLPK_MAKEFILE="true"
+	GLPK_FLAGS=""
+endif
 
 all: glpk python-glpk glass
 
@@ -16,7 +25,7 @@ glpk:
 	(cd lib \
 	&& tar xvzf $(GLPK_DIST) \
 	&& cd $(GLPK_SRC_DIR)\
-	&& ./configure --prefix=$(ROOT_DIR)/build/glpk_build \
+	&& $(GLPK_FLAGS) ./configure --prefix=$(ROOT_DIR)/build/glpk_build \
 	&& make \
 	&& make install)
 
@@ -29,9 +38,10 @@ python-glpk:
 	&& cd $(PYTHON_GLPK_SRC_DIR)/src \
 	&& export CPATH=$(CPATH) \
 	&& export LIBRARY_PATH=$(LIBRARY_PATH) \
+	&& $(CHANGE_PGLPK_MAKEFILE) \
 	&& make -C swig all \
 	&& cp swig/glpkpi.py python/glpkpi.py \
 	&& python setup.py build --build-base=$(ROOT_DIR)/build/python-glpk)
 
 glass:
-	python setup.py build
+	python setup.py build install
