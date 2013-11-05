@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Glass by jpcoles</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/jpcoles/glass">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/jpcoles/glass/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/jpcoles/glass/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Glass</h1>
+          <p>A parallel, free-form gravitational lens modeling tool and framework</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/jpcoles">jpcoles</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h2>
+<a name="glass---the-free-form-gravitational-lens-modeling-framework" class="anchor" href="#glass---the-free-form-gravitational-lens-modeling-framework"><span class="octicon octicon-link"></span></a>GLASS - The free-form gravitational lens modeling framework</h2>
+
+<p>GLASS is a software package for modeling strong gravitianal lenses. It produces
+an ensemble of possible models that fit the observed input data and conform to
+certain constraints specified by the user. This document describes the installation
+process and how to run a typical case.</p>
+
+<h2>
+<a name="dependecies" class="anchor" href="#dependecies"><span class="octicon octicon-link"></span></a>Dependecies</h2>
+
+<p>GLASS is currently written in Python 2.7 with a small portion written in C. GLASS
+does not support Python 3 at the current time. GLASS makes heavy use of the numerical
+routines provided by the numpy and scipy packages as well as the linear programming
+package GLPK. This latter package, and its Python interface, is provided with GLASS
+and will be installed automatically in the GLASS build directory by following the
+directions below.</p>
+
+<h2>
+<a name="downloading-and-unpacking-glass" class="anchor" href="#downloading-and-unpacking-glass"><span class="octicon octicon-link"></span></a>Downloading and unpacking GLASS</h2>
+
+<p>GLASS can be downloaded as a .zip file or using git from GitHub:</p>
+
+<p><a href="https://github.com/jpcoles/glass">https://github.com/jpcoles/glass</a></p>
+
+<p>After obtaining the source code, it will, by default, be located in a directory
+called 'glass'.</p>
+
+<h2>
+<a name="building-glass" class="anchor" href="#building-glass"><span class="octicon octicon-link"></span></a>Building GLASS</h2>
+
+<p>GLASS and the GLPK can be built simply by running the command 'make' in the 
+glass source code directory. This will unpack the GLPK packages and compile
+them. It will also build and install GLASS. All compiled code and executables
+will exist under the glass/build directory.</p>
+
+<h2>
+<a name="running-glass" class="anchor" href="#running-glass"><span class="octicon octicon-link"></span></a>Running GLASS</h2>
+
+<p>In the glass directory there is a script called 'run_glass' which will execute
+GLASS with the proper environment paths regardless of the current directory.</p>
+
+<p>For example, running 'run_glass' with no arguments produces the following output:</p>
+
+<pre><code>$ ./run_glass
+Usage: glass.py &lt;input&gt;
+</code></pre>
+
+<p>The Examples directory contains a number of example input files. The simplest example
+is B1115.gls</p>
+
+<p>Run this example from the Examples directory:</p>
+
+<pre><code>Examples $ ../run_glass B1115.gls
+</code></pre>
+
+<p>This will produce an output file B1115.state which contains the entire running state
+of the modeling including all of the generated models.</p>
+
+<h2>
+<a name="analyzing-the-output" class="anchor" href="#analyzing-the-output"><span class="octicon octicon-link"></span></a>Analyzing the Output</h2>
+
+<p>In the 'Tools' directory there is a proram called 'viewstate.py' uses GLASS as a
+library and can generate plots from the output state file. To see the default
+plots run the command</p>
+
+<pre><code>Examples $ ../run_glass ../Tools/viewstate.py B1115.state
+</code></pre>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
