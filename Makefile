@@ -16,7 +16,7 @@ ifeq ($(UNAME),Darwin)
 	GLPK_FLAGS="CFLAGS=-arch i386"
 else
 	CHANGE_PGLPK_MAKEFILE="true"
-	GLPK_FLAGS=""
+	GLPK_FLAGS=
 endif
 
 all: glpk python-glpk glass
