@@ -44,4 +44,7 @@ python-glpk:
 	&& python setup.py build --build-base=$(ROOT_DIR)/build/python-glpk)
 
 glass:
-	python setup.py build install
+	python setup.py build 
+
+.PHONY: glass
+
