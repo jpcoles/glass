@@ -16,6 +16,9 @@ package GLPK. This latter package, and its Python interface, is provided with GL
 and will be installed automatically in the GLASS build directory by following the
 directions below.
 
+On Debian based systems, the following packages should get you running:
+apt-get install build-essential swig python-dev python python-numpy python-scipy python-matplotlib
+
 
 Downloading and unpacking GLASS
 -------------------------------
