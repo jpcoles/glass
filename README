@@ -17,7 +17,12 @@ and will be installed automatically in the GLASS build directory by following th
 directions below.
 
 On Debian based systems, the following packages should get you running:
-apt-get install build-essential swig python-dev python python-numpy python-scipy python-matplotlib
+apt-get install build-essential swig python-dev python python-numpy python-scipy python-pip tk tk-dev
+
+(DONT install python-matplotlib)
+
+Due to a bug(?) you need to install matplotlib with pip (to properly build some of the backends):
+pip install matplotlib
 
 
 Downloading and unpacking GLASS
