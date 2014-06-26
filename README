@@ -21,6 +21,11 @@ apt-get install build-essential swig python-dev python python-numpy python-scipy
 
 (DONT install python-matplotlib)
 
+You'll need LaTeX for the plots:
+apt-get install texlive texlive-latex-extra
+
+the extra package for some fonts matplotlib uses, but are not installed in default package
+
 Due to a bug(?) you need to install matplotlib with pip (to properly build some of the backends):
 pip install matplotlib
 
