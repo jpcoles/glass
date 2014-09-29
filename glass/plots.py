@@ -1460,6 +1460,7 @@ def _hist(env, data_key, **kwargs):
     xlabel      = kwargs.pop('xlabel', data_key)
     ylabel      = kwargs.pop('ylabel', r'Count')
     sigma       = kwargs.pop('sigma', '1sigma')
+    mark_sigma  = kwargs.pop('mark_sigma', True)
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1492,22 +1493,23 @@ def _hist(env, data_key, **kwargs):
     if not_accepted or label:
         pl.legend()
 
-    if mark_sigma and (accepted or not not_accepted):
-        if accepted:
-            h = np.array(accepted)
+    if mark_sigma:
+        if accepted or notag:
+            if accepted:
+                h = np.array(accepted)
+            else:
+                h = np.array(notag)
+
+            m,u,l = dist_range(h, sigma=sigma)
+
+            pl.axvline(m, c='r', ls='-', zorder = 2)
+            pl.axvline(u, c='g', ls='-', zorder = 2)
+            pl.axvline(l, c='g', ls='-', zorder = 2)
+
+            Log( '%s: %f %f %f' % (data_key, m, u, l) )
+            Log( '%s: %f +/- %f %f' % (data_key, m, (u-m), (m-l)) )
         else:
-            h = np.array(accepted + notag)
-
-        m,u,l = dist_range(h, sigma=sigma)
-
-        pl.axvline(m, c='r', ls='-', zorder = 2)
-        pl.axvline(u, c='g', ls='-', zorder = 2)
-        pl.axvline(l, c='g', ls='-', zorder = 2)
-
-        Log( '%s: %f %f %f' % (data_key, m, u, l) )
-        Log( '%s: %f %f %f' % (data_key, m, (u-m), (m-l)) )
-    else:
-        Log( "%s: No H0 values accepted" % data_key )
+            Log( "%s: No H0 values accepted" % data_key )
 
     #pl.axvline(72, c='k', ls=':', zorder = 2)
 

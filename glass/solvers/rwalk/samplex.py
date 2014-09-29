@@ -6,7 +6,7 @@ from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
 import scipy.linalg.fblas
 
-from multiprocessing import Process, Queue, Value, Lock
+import multiprocessing.dummy as MP
 from Queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
@@ -108,6 +108,8 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
                     done = True
                 elif cmd[0] == 'RWALK':
                     done = True
+                else:
+                    print 'Unknown cmd:', cmd
         except QueueEmpty:
             pass
 
@@ -442,7 +444,7 @@ class Samplex:
 
         Log( "Getting solutions" )
 
-        q = Queue()
+        q = MP.Queue()
 
         #-----------------------------------------------------------------------
         # Launch the threads
@@ -457,9 +459,9 @@ class Samplex:
                 n += 1
             assert n > 0
             Log( 'Thread %i gets %i' % (id,n) )
-            cmdq = Queue()
-            ackq = Queue()
-            thr = Process(target=rwalk_burnin, args=(id, n, int(np.ceil(burnin_len/nthreads)), self, q, cmdq, ackq, newp, self.twiddle, eval.copy('A'), evec.copy('A')))
+            cmdq = MP.Queue()
+            ackq = MP.Queue()
+            thr = MP.Process(target=rwalk_burnin, args=(id, n, int(np.ceil(burnin_len/nthreads)), self, q, cmdq, ackq, newp, self.twiddle, eval.copy('A'), evec.copy('A')))
             threads.append([thr,cmdq,ackq])
             N += n
             id += 1
@@ -546,7 +548,7 @@ class Samplex:
             m,t = ackq.get()
             assert m == 'TIME'
             time_threads.append(t)
-            thr.terminate()
+            #thr.terminate()
 
         time_end_next = time.clock()
 

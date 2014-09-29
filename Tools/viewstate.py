@@ -62,10 +62,10 @@ def PlotFigures():
 
     gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(opts[1]))[0]))
 
-    for g in gls:
-        for i,o in enumerate(g.objects):
-            if hasattr(o, 'stellar_mass'):
-                g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
+#   for g in gls:
+#       for i,o in enumerate(g.objects):
+#           if hasattr(o, 'stellar_mass'):
+#               g.subtract_kappa_from_models(o.stellar_mass, i, include_ensemble_average=False)
 
     if 1: 
         begin_plot()
@@ -89,7 +89,7 @@ def PlotFigures():
             g.external_mass_plot(0)
         end_plot()
 
-    if 0: 
+    if 1: 
         begin_plot()
         g.H0inv_plot()
         end_plot()
@@ -102,7 +102,7 @@ def PlotFigures():
             g.glerrorplot('kappa(R)', ['R', 'arcsec'], yscale='linear')
         end_plot()
 
-    if 1: 
+    if 0: 
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
