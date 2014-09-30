@@ -9,6 +9,8 @@ process and how to run a typical case.
 Dependecies
 -----------
 
+(For OpenSUSE 13.1, see install_opensuse.md)
+
 GLASS is currently written in Python 2.7 with a small portion written in C. GLASS
 does not support Python 3 at the current time. GLASS makes heavy use of the numerical
 routines provided by the numpy and scipy packages as well as the linear programming
