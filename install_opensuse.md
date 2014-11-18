@@ -17,7 +17,7 @@
 
     sudo zypper install python-numpy
 
-The scipy in repro has a bug (import error _fblas), we use pip to compile the latest:
+The scipy in repro (versions < 0.13.0) has a bug (import error _fblas), we use pip to compile the latest:
 
     sudo zypper install python-pip
     sudo pip install scipy
