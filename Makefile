@@ -8,7 +8,7 @@ PYTHON_GLPK_SRC_DIR := python-glpk-0.4.43
 PYTHON_INC=$(shell python -c "from distutils.sysconfig import get_python_inc; print get_python_inc(plat_specific=0)")
 PYTHON_LIB=$(shell python -c "from distutils.sysconfig import get_python_lib; print get_python_lib(plat_specific=0)")
 CPATH := "$(PYTHON_INC):$(PYTHON_LIB)/../config"
-LIBRARY_PATH := $(ROOT_DIR)/build/glpk_build/lib
+LIBRARY_PATH := $(ROOT_DIR)/build/glpk_build/lib:$(ROOT_DIR)/build/glpk_build/lib64
 UNAME?=$(shell uname)
 
 ifeq ($(UNAME),Darwin)
