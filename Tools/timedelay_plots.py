@@ -38,7 +38,8 @@ for nr in sl_nrs:
 
     url = "http://mite.physik.uzh.ch/result/%06i/state.txt" % nr
     statefilename = os.path.join(statedir, '%06i.state' % nr)
-    imgfilename = os.path.join(plotdir, '%06i_dt_plot.png' % nr)
+    imgfilename1 = os.path.join(plotdir, '%06i_dt_plot_f1.png' % nr)
+    imgfilename25 = os.path.join(plotdir, '%06i_dt_plot_f25.png' % nr)
     
     with open(statefilename, 'wb') as handle:
         response = requests.get(url, stream=True)
@@ -58,7 +59,10 @@ for nr in sl_nrs:
     print('  > plotting ...', end='')
     gls = loadstate(statefilename)
     gls.time_delays_plot(arb_fact = 2.50)
-    pl.savefig(imgfilename)
+    pl.savefig(imgfilename25)
+    pl.close()
+    gls.time_delays_plot(arb_fact = 1)
+    pl.savefig(imgfilename1)
     pl.close()
     print('OK')
 
