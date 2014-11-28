@@ -1077,20 +1077,31 @@ def time_delays_plot(env, **kwargs):
     src_index = kwargs.pop('src_index', 0)
     key = kwargs.pop('key', 'accepted')
 
+    arb_factor = kwargs.pop('arb_fact', 1) # some arbtritrary factor due to wrong scaling
+    #print arb_factor, type(arb_factor)
+    arb_factor = float(arb_factor)
+
     d = defaultdict(list)
     for m in models:
         obj,data = m['obj,data'][obj_index]
         t0 = data['arrival times'][src_index][0]
         for i,t in enumerate(data['arrival times'][src_index][1:]):
-            d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
+            d[i].append( arb_factor**2 * float( '%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
             t0 = t
 
-    s = product(range(1,1+len(d)), ['solid', 'dashed', 'dashdot', 'dotted'])
+#    s = product(range(1,1+len(d)), ['solid', 'dashed', 'dashdot', 'dotted'])
+    s = product(range(1,1+len(d)), [
+        ('solid', 'black'),
+        ('solid', 'blue'),
+        ('solid', 'green'),
+        ('solid', 'red'),    
+    ])
     for k,v in d.iteritems():
         #print 'td plot', k, len(v)
         #print v
-        lw,ls = s.next()
-        pl.hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
+        lw,xxx = s.next()
+        ls, color = xxx
+        pl.hist(v, bins=25, histtype='step', ls=ls, lw=lw, color=color, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
 
     #pl.xlim(xmin=0)
     pl.ylim(ymin=0)
