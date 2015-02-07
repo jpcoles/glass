@@ -13,7 +13,8 @@ UNAME?=$(shell uname)
 
 ifeq ($(UNAME),Darwin)
 	CHANGE_PGLPK_MAKEFILE=cp $(ROOT_DIR)/lib/python-glpk-swig-Makefile swig/Makefile
-	GLPK_FLAGS="CFLAGS=-arch i386"
+	#GLPK_FLAGS="CFLAGS=-arch i386"
+	GLPK_FLAGS="CFLAGS=-arch i386 -arch x86_64"
 else
 	CHANGE_PGLPK_MAKEFILE="true"
 	GLPK_FLAGS=
