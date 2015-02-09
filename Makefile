@@ -26,7 +26,7 @@ glpk:
 	(cd lib \
 	&& tar xvzf $(GLPK_DIST) \
 	&& cd $(GLPK_SRC_DIR)\
-	&& ./configure --prefix=$(ROOT_DIR)/build/glpk_build $(GLPK_FLAGS) \
+	&& ./configure --prefix=$(ROOT_DIR)/build/glpk_build $(GLPK_FLAGS) --disable-dependency-tracking\
 	&& make \
 	&& make install)
 
