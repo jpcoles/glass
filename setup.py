@@ -1,55 +1,81 @@
-import os
+import sys, os
 from distutils.core import setup, Extension
-from distutils.sysconfig import get_python_lib
+from distutils.sysconfig import get_python_lib, get_python_inc
+import distutils.sysconfig 
+from distutils.ccompiler import new_compiler
+
+compiler='clang'
+#compiler='gcc'
+#compiler='icc'
+
+try:
+    import numpy
+except ImportError:
+    print 'Could import numpy, which is necessary for compilation.'
+    sys.exit(1)
 
 libraries=[#'profiler', 'gomp'
 ]
 #libraries=None #['rt']
-extra_compile_args = ['-msse3', 
-                      #'-mfpmath=sse',
-                      '-ftree-vectorizer-verbose=4', '-ftree-vectorize',
-                      #'-funsafe-math-optimizations',
-                      '-fno-omit-frame-pointer',
-                      #'-floop-optimize2',
-                      '-funroll-loops',
-                      '-fprefetch-loop-arrays',
-                      '-fstrict-aliasing',
-                      '-mpreferred-stack-boundary=4',
-                      '-std=c99',
-                      #'-I/local/ATLAS/include',
-                      #'-malign-double',
-                      #'-march=core2',
-                      '-O3',
-                      '-mtune=native',
-                      '-Wall']
 
-#extra_compile_args += ['-fnested-functions']
-#extra_compile_args += ['-arch_only x86_64']
-extra_link_args = [] #'-L/local/ATLAS/lib']
-#extra_compile_args += ['-fopenmp','-msse2']
-extra_compile_args += ['-msse2']
-#extra_link_args = ['-lgomp']
+extra_link_args = []
+extra_compile_args = []
 
-incdir = os.path.join(get_python_lib(plat_specific=1), 'numpy/core/include')
-#csamplex = Extension('glass.solvers.samplex.csamplex',
-#                     sources = ['glass/solvers/samplex/csamplex_omp.c'],
-#		     include_dirs=[incdir],
-#             undef_macros=['DEBUG'],
-#             libraries=libraries,
-#             extra_compile_args=extra_compile_args,
-#             extra_link_args=extra_link_args)
-#
-#csamplexsimple = Extension('glass.solvers.samplexsimple.csamplex',
-#                     sources = ['glass/solvers/samplexsimple/csamplex_omp.c'],
-#		     include_dirs=[incdir],
-#             undef_macros=['DEBUG'],
-#             libraries=libraries,
-#             extra_compile_args=extra_compile_args,
-#             extra_link_args=extra_link_args)
+if compiler=='clang':
+    extra_compile_args = ['-msse3', 
+                          '-fno-omit-frame-pointer',
+                          '-funroll-loops',
+                          '-fprefetch-loop-arrays',
+                          '-fstrict-aliasing',
+                          '-std=c99',
+                          '-O3',
+                          '-mtune=native',
+                          '-Wall']
+
+if compiler=='gcc':
+    extra_compile_args = ['-msse3', 
+                          #'-mfpmath=sse',
+                          '-ftree-vectorize',
+                          '-ftree-vectorizer-verbose=4',
+                          #'-funsafe-math-optimizations',
+                          '-fno-omit-frame-pointer',
+                          #'-floop-optimize2',
+                          '-funroll-loops',
+                          '-fprefetch-loop-arrays',
+                          '-fstrict-aliasing',
+                          '-mpreferred-stack-boundary=4',
+                          '-std=c99',
+                          #'-I/local/ATLAS/include',
+                          #'-malign-double',
+                          #'-march=core2',
+                          '-O3',
+                          '-mtune=native',
+                          '-Wall',
+                          '-openmp']
+    extra_link_args = ['-lgomp']
+
+if compiler=='icc':
+    extra_compile_args = [
+                          '-fno-omit-frame-pointer',
+                          '-funroll-loops',
+                          '-fstrict-aliasing',
+                          '-std=c99',
+                          '-vec-report=0',
+                          '-par-report=0',
+                          '-O3',
+                          '-xHost',
+                          '-mtune=native',
+                          '-Wall',
+                          '-openmp']
+
+try:
+    numpy_inc = [numpy.get_include()]
+except AttributeError:
+    numpy_inc = [numpy.get_numpy_include()]
 
 crwalk = Extension('glass.solvers.rwalk.csamplex',
                      sources = ['glass/solvers/rwalk/csamplex_omp.c', 'glass/solvers/rwalk/WELL44497a.c'],
-		     include_dirs=[incdir],
+		     include_dirs=numpy_inc,
              undef_macros=['DEBUG'],
              libraries=libraries,
              extra_compile_args=extra_compile_args,
@@ -57,9 +83,9 @@ crwalk = Extension('glass.solvers.rwalk.csamplex',
 
 setup(name = 'Glass',
       author = 'Jonathan Coles',
-      author_email = 'jonathan@physik.uzh.ch',
+      author_email = 'jonathan@jpcoles.com',
       version = '1.0',
-      description = 'Gravitational Lensing and Something Something',
+      description = 'Gravitational Lensing AnalysiS Software',
       package_dir = {'glass': 'glass'},
       packages = ['', 'glass', 
                   'glass.solvers', 'glass.solvers.rwalk',
