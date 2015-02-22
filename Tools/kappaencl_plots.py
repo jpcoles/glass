@@ -9,6 +9,7 @@ import requests as rq
 import os
 import sys
 import json
+import zipfile
 import multiprocessing as mp
 from multiprocessing import Process, Lock
 
@@ -35,6 +36,10 @@ def work(lock, tasknr, procnr, nr):
     fpath = os.path.join(statesdir, "%06i.state"%nr)
     imgfile = os.path.join(imagesdir, "%06i_kappa_encl.png"%nr)
     datafile = os.path.join(datadir, '%06i.json'%nr)
+    
+    if os.path.isfile(fpath):
+        print('> %03i (%i; %5i): skip %06i' % (tasknr, procnr, pid, nr))
+        return
     
     if not os.path.isfile(fpath):
         with open(fpath, 'wb') as handle:
@@ -240,29 +245,39 @@ def main():
             models.append(int(line))
             
     print(models)
+    rmodels = list(reversed(models))
         
     
     procs = [None, None, None, None]
     tasknr = 0
     l = Lock()
     
-    while len(models) > 0:
-        
-        for procnr, p in enumerate(procs):
-            if p:
-                p.join(1)
-                if not p.is_alive():
-                    p = None
-                
-            if not p and len(models)>0:
-                tasknr += 1
-                nr = models.pop()
+#    while len(models) > 0:
+#        
+#        for procnr, p in enumerate(procs):
+#            if p:
+#                p.join(1)
+#                if not p.is_alive():
+#                    p = None
+#                
+#            if not p and len(models)>0:
+#                tasknr += 1
+#                nr = models.pop()
+#
+#                with l:
+#                    print("XXX   (X; XXXXX): start p%03i on %i (%06i)" % (tasknr, procnr, nr))
+#                    sys.stdout.flush()
+#                p = Process(target=work, args=(l, tasknr, procnr, nr,))
+#                p.start()
 
-                with l:
-                    print("XXX   (X; XXXXX): start p%03i on %i (%06i)" % (tasknr, procnr, nr))
-                    sys.stdout.flush()
-                p = Process(target=work, args=(l, tasknr, procnr, nr,))
-                p.start()
+    while len(models) > 0:
+        tasknr += 1
+        nr = rmodels.pop()
+        try:
+            work(l, tasknr, 0, nr )        
+        except zipfile.BadZipfile:
+            pass
+
 
                 
 #
