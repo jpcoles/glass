@@ -1529,3 +1529,34 @@ def _hist(env, data_key, **kwargs):
 
     pl.xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     pl.ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))
+
+
+
+@command
+def overlay_input_points(env, model, **kwargs):
+    '''adds the input points (min, max, sad, pmass) ontop of existing plot'''
+  
+    obj_index       = kwargs.pop('obj_index', 0)
+    src_index       = kwargs.pop('src_index', 0)
+    overlay_ext_pot = kwargs.pop('overlay_ext_pot', True)
+    
+    obj, data = model['obj,data'][obj_index]
+
+    if overlay_ext_pot:
+        for epot in obj.extra_potentials:
+            if isinstance(epot, glass.exmass.PointMass):
+                #epot.r #coordinatess as complex
+                #epot.name
+                #pms.append(epot)
+                pl.plot([epot.r.real], [epot.r.imag], 'sy')
+  
+    for img in obj.sources[0].images:
+        #print img, img.parity
+
+        #['min', 'sad', 'max', 'unk'].index(parity)
+        tp = ['c', 'g', 'r', 'm'][img.parity]
+        pl.plot([img.pos.real], [img.pos.imag], 'o'+tp)
+
+    #mark origin
+    pl.plot([0], [0], 'or')
+  
