@@ -18,6 +18,8 @@ from glass.scales import convert
 from glass.shear import Shear
 from glass.utils import dist_range
 
+import glass.exmass
+
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 
