@@ -247,6 +247,8 @@ def apply_filters(env):
 
 @command
 def model(env, nmodels=None, *args, **kwargs):
+    
+    update_hook = kwargs.pop('update_hook', lambda _: None) # allows an external prog to update the status
 
     Log( '=' * 80 )
     Log('GLASS version 0.1  %s' % time.asctime())
@@ -273,6 +275,7 @@ def model(env, nmodels=None, *args, **kwargs):
         models.append(m)
     else:
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
+            if not (i%5): update_hook({'text': '', 'progress': (i+1,nmodels)})
             Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
             models.append(m)
             solutions.append(m['sol'])

@@ -13,7 +13,8 @@ UNAME?=$(shell uname)
 
 ifeq ($(UNAME),Darwin)
 	CHANGE_PGLPK_MAKEFILE=cp $(ROOT_DIR)/lib/python-glpk-swig-Makefile swig/Makefile
-	GLPK_FLAGS="CFLAGS=-arch i386"
+	#GLPK_FLAGS="CFLAGS=-arch i386"
+	GLPK_FLAGS="CFLAGS=-arch i386 -arch x86_64"
 else
 	CHANGE_PGLPK_MAKEFILE="true"
 	GLPK_FLAGS=
@@ -25,7 +26,7 @@ glpk:
 	(cd lib \
 	&& tar xvzf $(GLPK_DIST) \
 	&& cd $(GLPK_SRC_DIR)\
-	&& ./configure --prefix=$(ROOT_DIR)/build/glpk_build $(GLPK_FLAGS) \
+	&& ./configure --prefix=$(ROOT_DIR)/build/glpk_build $(GLPK_FLAGS) --disable-dependency-tracking\
 	&& make \
 	&& make install)
 
