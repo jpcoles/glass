@@ -1,6 +1,14 @@
 import matplotlib as mpl
 import pylab as pl
 glass_basis('glass.basis.pixels', solver='rwalk')
+
+
+
+def stat(args):
+    print "!"*5, [str(_) for _ in args]
+
+
+
 meta(author='some user', notes='using LensModellingTools')
 setup_log('log.txt')
 samplex_random_seed(0)
@@ -42,7 +50,10 @@ external_mass(PointMass(11.4564,-0.0854,name='PM3'),25.578368)
 external_mass(PointMass(3.9831,-18.9461,name='PM4'),16.957259)
 external_mass(PointMass(-6.9245,-19.5404,name='PM6'),76.566878)
 external_mass(PointMass(13.0156,-14.6534,name='PM7'),13.065595)
-model(200)
+model(200, update_hook=stat)
+
+
+
 savestate('state.txt')
 env().make_ensemble_average()
 env().arrival_plot(env().ensemble_average, only_contours=True, colors='magenta', clevels=40)
