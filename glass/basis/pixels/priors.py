@@ -821,7 +821,7 @@ def external_mass(o, leq, eq, geq):
     for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
         if not (hasattr(e.__class__, '__bases__') and ExternalMass in e.__class__.__bases__): continue
         min,max = o.prior_options['external mass'][e]
-        print indent + 'External mass %s  %g-%g' % (e.name, min, max)
+        Log(indent + 'External mass %s  %g-%g' % (e.name, min, max))
         for s in xrange(1+start, 1+end):
             if min == max and min is not None:
                 row = new_row(o)
