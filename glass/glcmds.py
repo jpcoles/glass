@@ -273,7 +273,13 @@ def model(env, nmodels=None, *args, **kwargs):
              'obj,data': [ [o, {}] for o in env.objects ],
              'tagged':  False}
         models.append(m)
+       
     else:
+        # here all the work is done!
+        # generate_models first generates the models (approx 2/3 of the tot time)
+        # only then the for loop kicks in and does something (what??? takes approx 1/3 of tot time)
+        print "!!!! start main for loop"
+        
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
             if not (i%5): update_hook({'text': '', 'progress': (i+1,nmodels)})
             Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)

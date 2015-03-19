@@ -26,6 +26,14 @@ except ImportError:
         print x
     Log = l
 
+try:
+    from glass.log import report_status as report_status
+except ImportError:
+    def rs(*args, **kwargs):
+        pass
+    report_status = rs
+
+
 import csamplex
 if 0:
     import glpklpsolve as lpsolve55
@@ -230,7 +238,9 @@ class Samplex:
         self.redo_factor        = kw.get('redo factor', 1)
         self.redo_exp           = kw.get('redo exp', 2)
         self.twiddle            = kw.get('twiddle', 2.4)
-        self.burnin_factor = kw.get('burnin factor', 10)
+        self.burnin_factor      = kw.get('burnin factor', 10)
+        
+        #self.report             = kw.get('reporter', lambda _: None)
 
         assert ncols is not None
         self.nVars = ncols
@@ -300,6 +310,7 @@ class Samplex:
 
 
     def next(self, nsolutions=None):
+    # this does the first part of the cpu intensive tasks
 
         Log( '=' * 80 )
         Log( 'Simplex Random Walk' )
