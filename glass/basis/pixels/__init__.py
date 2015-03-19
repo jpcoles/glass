@@ -4,6 +4,7 @@ from numpy import mean, zeros, argwhere
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from glass.log import log as Log
+from glass.log import Status
 from glass.environment import env, Environment
 from glass.command import command
 from glass.scales import convert
@@ -329,7 +330,7 @@ def generate_models(env, objs, n, *args, **kwargs):
                 for sol in mg.next(n):   # next does the main work of getting solutions.. 
                     ps = package_solution(sol, objs)
                     check_model(objs, ps)
-                    print "\n!!!! returning new model\n"
+                    #print "\n!!!! returning new model\n"
                     yield ps
             except GlassSolverError as e:
                 Log( '!' * 80)
