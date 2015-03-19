@@ -6,7 +6,7 @@ from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
 import scipy.linalg.blas
 
-import multiprocessing.dummy as MP
+import multiprocessing as MP
 from Queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
@@ -26,12 +26,14 @@ except ImportError:
         print x
     Log = l
 
-try:
-    from glass.log import report_status as report_status
-except ImportError:
-    def rs(*args, **kwargs):
-        pass
-    report_status = rs
+
+#try:
+#    from glass.log import update_status as status
+#except ImportError:
+#    def us(*args, **kwargs):
+#        pass
+#    status = us
+from glass.log import Status
 
 
 import csamplex
@@ -516,10 +518,12 @@ class Samplex:
         #-----------------------------------------------------------------------
         # Burn-in
         #-----------------------------------------------------------------------
+        Status("computing eigenvalues", i=0, of=burnin_len)
         time_begin_burnin = time.clock()
         compute_eval_window = 2 * self.dof
         j = 0
         for i in xrange(burnin_len):
+            Status("computing eigenvalues", i=i, of=burnin_len)
             j += 1
             k,vec = q.get()
 
@@ -533,10 +537,13 @@ class Samplex:
             elif len(threads) < compute_eval_window:
                 threads[k][1].put(['CONT'])
         time_end_burnin = time.clock()
+        Status("computing eigenvalues", i=burnin_len, of=burnin_len)
 
         #-----------------------------------------------------------------------
         # Actual random walk
         #-----------------------------------------------------------------------
+        Status("generating models", i=0, of=nmodels)
+        
         time_begin_get_models = time.clock()
         adjust_threads(burnin_len, 'RWALK')
         i=0
@@ -546,9 +553,11 @@ class Samplex:
             t[1:] = vec
             i += 1
             Log( '%i models left to generate' % (nmodels-i), overwritable=True)
+            Status("generating models", i=i, of=nmodels)
             yield t
 
         time_end_get_models = time.clock()
+        Status("generating models", i=nmodels, of=nmodels)
 
         #-----------------------------------------------------------------------
         # Stop the threads and get their running times.
