@@ -11,9 +11,10 @@ from glass.environment import Image, Arc, Source, Environment
 from glass.command import command, Commands
 from glass.shear import Shear
 from glass.scales import convert
-from glass.log import log as Log, setup_log, Status
+from glass.log import log as Log, setup_log, Status, setup_status_reporter, get_status_history, set_status
 from glass.exceptions import GLInputError
 from glass.utils import dist_range
+
 
 
 @command
