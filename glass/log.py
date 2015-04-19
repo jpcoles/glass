@@ -75,11 +75,15 @@ def Status(*args, **kwargs):
     if not status_reporter:
         return
     
-    if len(args)==3 and len(kwargs)==0:
+    if len(args)==3 and len(kwargs)==0: # Status('bla', 2, 5)
         text = args[0]
         i = int(args[1])
         n = int(args[2])
-    elif len(args)==0:
+    elif len(args)==1 and len(kwargs)==2: # Status('bla', i=2, of=5)
+        text = args[0]
+        i = int(kwargs.get('i', -1))
+        n = int(kwargs.get('of', -1))
+    elif len(args)==0: 
         text = kwargs.get('text', "--missing--")
         i = int(kwargs.get('i', -1))
         n = int(kwargs.get('of', -1))
