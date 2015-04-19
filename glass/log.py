@@ -75,12 +75,18 @@ def Status(*args, **kwargs):
     if not status_reporter:
         return
     
-    if len(args)>0:
-        text = ' | '.join(args)
-    else:
+    if len(args)==3 and len(kwargs)==0:
+        text = args[0]
+        i = int(args[1])
+        n = int(args[2])
+    elif len(args)==0:
         text = kwargs.get('text', "--missing--")
-    i = int(kwargs.get('i', -1))
-    n = int(kwargs.get('of', -1))
+        i = int(kwargs.get('i', -1))
+        n = int(kwargs.get('of', -1))
+    else:
+        text = " | ".join(args)
+        i = 0
+        n = 0
     
     try:
         oldtxt = status_history[-1][0]
