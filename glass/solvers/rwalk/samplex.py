@@ -6,7 +6,7 @@ from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
 import scipy.linalg.fblas
 
-import multiprocessing as MP
+import multiprocessing.dummy as MP
 from Queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
