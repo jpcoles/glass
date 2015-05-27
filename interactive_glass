@@ -1,0 +1,16 @@
+#!/bin/bash
+
+PYTHON="ipython"
+ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
+GLASS="$PYTHON $ROOT/build/$PLATDIR/setup_glass.py"
+
+export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$ROOT/build/glpk_build/lib64:$LD_LIBRARY_PATH
+export PYTHONPATH=.:$PYTHONPATH
+export PYTHONPATH=$ROOT/build/python-glpk/$PLATDIR/glpk/:$PYTHONPATH
+export PYTHONPATH=$ROOT/build/$PLATDIR/glass:$PYTHONPATH
+
+export PYTHONPATH=$HOME/pynbody/build/$PLATDIR:$PYTHONPATH
+export PYTHONPATH=$HOME/pynbody/pynbody/build/$PLATDIR:$PYTHONPATH
+
+$GLASS -i $*
