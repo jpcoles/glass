@@ -5,13 +5,19 @@ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
 
+export PATH=/home/ara/rafik/.local/bin:$PATH
+export LIBRARY_PATH=/home/ara/rafik/.local/lib
+export LD_LIBRARY_PATH=/home/ara/rafik/.local/lib
+
 export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$LD_LIBRARY_PATH
-export PYTHONPATH=.:$PYTHONPATH
+export PYTHONPATH=.:/home/ara/rafik/.local/lib/python2.7/site-packages
 export PYTHONPATH=$ROOT/build/python-glpk/$PLATDIR/glpk/:$PYTHONPATH
 export PYTHONPATH=$ROOT/build/$PLATDIR/glass:$PYTHONPATH
 
 export PYTHONPATH=$HOME/pynbody/build/$PLATDIR:$PYTHONPATH
 export PYTHONPATH=$HOME/pynbody/pynbody/build/$PLATDIR:$PYTHONPATH
+
+echo $LD_LIBRARY_PATH
 
 $GLASS $*
 
