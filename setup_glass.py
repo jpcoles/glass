@@ -1,10 +1,29 @@
+# -*- coding: utf-8 -*-
 '''
-does all the imports and setups required for glass
 
+does all the imports and setups required for glass
+use `set_ncpu(4)` to set the number of threads after start up
+and then run any glass commands
+
+Will assume a quad core machine by default
+
+It's not very usefull if just run on it's own, so:
+
+-- EITHER: --
 use this for interactive sessions with ipython
 %run setup_glass.py
 
 make sure to run ./setup_env before starting ipython
+
+-- OR: -----
+best to use with the shellscript:
+./interactive_glass
+(will call this file automatically and drop you into an interactive ipython
+shell)
+
+
+Modified version of `glass.py`
+-- RK 2015.07.08
 '''
 
 from __future__ import division, with_statement, absolute_import
@@ -29,6 +48,12 @@ def glass_basis(env, name, **kwargs):
             print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name])
         __builtins__.__dict__[name] = g
 
+
+# small helper to set the number of procs on the fly
+def set_ncpus(nc):
+    Environment.global_opts['ncpus'] = nc
+    Environment.global_opts['ncpus_detected'] = nc
+    
 
 Commands.set_env(Environment())
 

@@ -28,7 +28,7 @@ def _detect_cpus():
         ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
         if ncpus > 0:
             return ncpus
-    return 4 # Default
+    return 1 # Default
 
 _omp_opts = None
 def _detect_omp():
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2: help()
 
     Environment.global_opts['ncpus_detected'] = _detect_cpus()
-    Environment.global_opts['ncpus'] = 4
+    Environment.global_opts['ncpus'] = 1
     Environment.global_opts['omp_opts'] = _detect_omp()
     Environment.global_opts['withgfx'] = True
 
