@@ -50,8 +50,10 @@ d = {
     'maximgpos': max(imgradii),
 }
     
+# clean up filename
+pklfn = '.'.join(mname.split('.')[:-1]) + '.pkl'
 
-with open(mname+'.pkl','w') as fil:
+with open(pklfn,'w') as fil:
     pickle.dump(d,fil)
 
 

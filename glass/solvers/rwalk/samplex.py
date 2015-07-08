@@ -477,6 +477,13 @@ class Samplex:
             cmdq = MP.Queue()
             ackq = MP.Queue()
             thr = MP.Process(target=rwalk_burnin, args=(id, n, int(np.ceil(burnin_len/nthreads)), self, q, cmdq, ackq, newp, self.twiddle, eval.copy('A'), evec.copy('A')))
+            thr.daemon = False  # make non daemonic threads. Make sure to
+                                # shut them down afterwards! But this way, one
+                                # can use glass inside a celery worker (which
+                                # is a daemon. since daemonic processes are not
+                                # allowed to start daemonic processes, this has
+                                # to be non daemonic)
+            
             threads.append([thr,cmdq,ackq])
             N += n
             id += 1
