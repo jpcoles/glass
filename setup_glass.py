@@ -32,8 +32,8 @@ def glass_basis(env, name, **kwargs):
 
 Commands.set_env(Environment())
 
-Environment.global_opts['ncpus_detected'] = 2
-Environment.global_opts['ncpus'] = 2
+Environment.global_opts['ncpus_detected'] = 4
+Environment.global_opts['ncpus'] = 4
 Environment.global_opts['omp_opts'] = {} #_detect_omp()
 Environment.global_opts['withgfx'] = True
 
