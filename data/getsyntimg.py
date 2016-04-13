@@ -8,14 +8,14 @@ Created on Thu Dec 18 11:39:04 2014
 from __future__ import division
 
 import numpy as np
-import scipy as sp
-from scipy import misc
+#import scipy as sp
+#from scipy import misc
 import matplotlib.pyplot as plt
 
 import imgproc as ip
 
 
-from pprint import pprint
+#from pprint import pprint
 
 
 glass_basis('glass.basis.pixels', solver=None)
@@ -63,10 +63,11 @@ theta = map(ip.px2arcs, pixel)
 d_source = np.array(map(delta_beta, theta))
 #print pix_arr
 
-#plt.scatter(pix_arr[:,1], -1*pix_arr[:,0])
-#plt.scatter(np.array(theta).real, np.array(theta).imag)
-#plt.scatter(np.array(d_source).real, np.array(d_source).imag)
-#plt.show()
+#if True:
+#    plt.scatter(pix_arr[:,1], -1*pix_arr[:,0])
+#    plt.scatter(np.array(theta).real, np.array(theta).imag)
+#    plt.scatter(np.array(d_source).real, np.array(d_source).imag)
+#    plt.show()
 
 
 # range of grid on sourceplane
@@ -127,8 +128,9 @@ for (x,y), lst in np.ndenumerate(pxllist):
 diff = np.array(ip.image, dtype=np.int16)
 diff = np.array(np.clip(np.abs(diff - nimage)*2,0,255), dtype=np.uint8)
 
-f, (ax1, ax2, ax3) = plt.subplots(1, 3)
+f, (ax0, ax1, ax2, ax3) = plt.subplots(1, 4)
 
+ax0.imshow(ip.img, interpolation='none')
 ax1.imshow(ip.image, interpolation='none')
 ax2.imshow(nimage, interpolation='none')
 ax3.imshow(diff, interpolation='none')
