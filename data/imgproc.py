@@ -61,6 +61,19 @@ def get_image(iname, shapes, cut):
     
     return image
 
+
+def get_mask(shapes, cutslice):
+
+    global img
+    mask = np.zeros(img.shape[:-1], dtype=np.bool) # fill with False
+    
+    for tjpe, parameters in shapes:
+        if tjpe=="sq": #square:
+            x1,x2,y1,y2 = parameters
+            mask[x1:x2,y1:y2] = True
+            
+    return mask[cutslice]
+
 #bimg = np.zeros(img.shape[0:1], dtype=np.bool)
 #
 #bimg[48:73,146:161] = np.ones()
