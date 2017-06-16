@@ -17,9 +17,9 @@
 #
 # RK, 2015-07-08
 
-PYTHON="ipython"
+PYTHON="ipython2"
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PLATDIR=`python -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
+PLATDIR=`python2 -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/setup_glass.py"
 
 export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$ROOT/build/glpk_build/lib64:$LD_LIBRARY_PATH
