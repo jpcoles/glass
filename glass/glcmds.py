@@ -11,9 +11,11 @@ from glass.environment import Image, Arc, Source, Environment
 from glass.command import command, Commands
 from glass.shear import Shear
 from glass.scales import convert
-from glass.log import log as Log, setup_log
+from glass.log import log as Log, setup_log, Status, setup_status_reporter, get_status_history, set_status
 from glass.exceptions import GLInputError
 from glass.utils import dist_range
+
+
 
 @command
 def ptmass(xc, yc, mmin, mmax): raise GLInputError("ptmass not supported. Use external_mass().")
@@ -183,6 +185,7 @@ def clear(env):
 @command
 def savestate(env, fname):
 
+    Status('saving state')
     Log('Saving state to %s' % fname)
 
     env.meta_info['glheader'] = '\n'.join([
@@ -208,6 +211,9 @@ def loadstate(env, fname, setenv=True):
     setenv is False the environment will not be replaced. Return the loaded
     environment.  
     """
+
+    Status('loading state')
+
     x = load(fname)['arr_0'].item()
     for o in x.objects:
         for i,s in enumerate(o.sources):
@@ -247,6 +253,9 @@ def apply_filters(env):
 
 @command
 def model(env, nmodels=None, *args, **kwargs):
+    
+    #update_hook = kwargs.pop('update_hook', lambda _: None) # allows an external prog to update the status
+    Status('started modelling')
 
     Log( '=' * 80 )
     Log('GLASS version 0.1  %s' % time.asctime())
@@ -271,8 +280,15 @@ def model(env, nmodels=None, *args, **kwargs):
              'obj,data': [ [o, {}] for o in env.objects ],
              'tagged':  False}
         models.append(m)
+       
     else:
+        # here all the work is done!
+        # generate_models first generates the models (approx 2/3 of the tot time)
+        # only then the for loop kicks in and does something (what??? takes approx 1/3 of tot time)
+        
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
+            #if not (i%5): update_hook({'text': '', 'progress': (i+1,nmodels)})
+            #Status("generating models", i=i+1, of=nmodels)
             Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
             models.append(m)
             solutions.append(m['sol'])

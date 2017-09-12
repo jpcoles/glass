@@ -4,6 +4,7 @@ from numpy import mean, zeros, argwhere
 from priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from glass.log import log as Log
+from glass.log import Status
 from glass.environment import env, Environment
 from glass.command import command
 from glass.scales import convert
@@ -265,6 +266,9 @@ def check_model(objs, ps):
 
 @command
 def generate_models(env, objs, n, *args, **kwargs):
+    # this is part of the main loop that does all the work
+    #
+    #
 
     #if n <= 0: return
 
@@ -317,15 +321,16 @@ def generate_models(env, objs, n, *args, **kwargs):
     elif mode != 'default':
         assert False, 'Unsupported model mode "%s"' % mode
     else:
-
         if opts.get('solver', None):
             init_model_generator(env, n)
-            mg = env.model_gen
-            mg.start()
+            mg = env.model_gen    # = Samplex(**env.model_gen_options) # defined in init_model_generator()
+            mg.start()            # this doesn't need much time
+            
             try:
-                for sol in mg.next(n):
+                for sol in mg.next(n):   # next does the main work of getting solutions.. 
                     ps = package_solution(sol, objs)
                     check_model(objs, ps)
+                    #print "\n!!!! returning new model\n"
                     yield ps
             except GlassSolverError as e:
                 Log( '!' * 80)

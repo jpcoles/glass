@@ -18,8 +18,15 @@ from glass.scales import convert
 from glass.shear import Shear
 from glass.utils import dist_range
 
+import glass.exmass
+
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
+
+# added by rafik
+import scipy.interpolate as interp
+import scipy.optimize as optimize
+from matplotlib import colors as mplcolors
 
 rc('text', usetex=True)
 #rc('text', dvipnghack=True)
@@ -546,6 +553,240 @@ def srcdiff_plot(env, model, **kwargs):
     pl.xlabel(xlabel)
     pl.ylabel(ylabel)
 
+@command
+def srcdiff_plot_adv(env, model, **kwargs):
+    obj_index       = kwargs.pop('obj_index', 0)
+    src_index       = kwargs.pop('src_index', 0)
+    xlabel          = kwargs.pop('xlabel', r'')
+    ylabel          = kwargs.pop('ylabel', r'')
+    nightMode       = kwargs.pop('night', False) # colormode for use with black background (use with savefig(.. facecolor='black'))
+    upsample        = kwargs.pop('upsample', False) # upsample this
+    ppp             = kwargs.pop('range', 0.5) # map values [vmin, vmin + ppp*(vmax-vmin)] to colormap grayscale [white ... black]; aka dynamic range;
+
+
+    obj, data = model['obj,data'][obj_index]
+      
+    S = obj.basis.subdivision
+    R = obj.basis.mapextent
+
+    g = obj.basis.srcdiff_grid(data)[src_index]
+
+    #set outside to max value    
+    gmax = np.amax(g)
+    g += np.array(g==0, dtype=float)*gmax
+    
+    if upsample:
+      xdim, ydim = np.shape(g)
+      R = obj.basis.mapextent
+      #print xdim, ydim
+      xvec = np.linspace(-R, R, xdim)
+      yvec = np.linspace(-R, R, ydim)
+      from scipy.interpolate import RectBivariateSpline
+      interpol = RectBivariateSpline(xvec, yvec, g)
+      
+      xnew = np.linspace(-R, R, xdim*upsample)
+      ynew = np.linspace(-R, R, ydim*upsample)
+      
+      g = interpol(xnew, ynew)            
+
+    
+    vmin = np.log10(np.amin(g[g>0]))
+    vmax = np.log10(np.amax(g[g>0]))
+    
+
+    gdat = np.log10(g + 1e-10)
+    gave = np.average(gdat)
+    kw = default_kw(R, kwargs) #, vmin=vmin, vmax=vmin+2)
+    kw['vmin'] = vmin
+    kw['vmax'] = vmin + ppp*(vmax-vmin)    # remember: arraival time: small -> brigt -> inner parts
+    kw['cmap'] = 'Greys'
+    print vmin, vmax, gave
+
+    #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
+
+    ax = pl.gca()
+    fig = pl.gcf()
+    
+    if nightMode:
+      fig.set_facecolor('black')
+      fig.patch.set_facecolor('black')
+    else:
+      pass
+    
+    pl.matshow(gdat, **kw)
+    fig.set_facecolor('black')
+      
+    if nightMode:
+      pl.xlabel('')
+      pl.ylabel('')
+      pl.axis('off')
+      pl.tight_layout() #if this doesn't work update matplotlib
+    else:
+      pl.xlabel(xlabel)
+      pl.ylabel(ylabel)
+
+
+@command
+def kappa_enclosed_plot(env, model, **kwargs):
+    obj_index       = kwargs.pop('obj_index', 0)
+    src_index       = kwargs.pop('src_index', 0)
+    err_margin      = kwargs.pop('err_margin', 1) #err_margin = 0.9 -> 90% -> values within from 5% .. 95%
+    xlabel          = kwargs.pop('xlabel', r'image radius [SpaceWarps pixels]')
+    ylabel          = kwargs.pop('ylabel', r'mean convergance [1]')
+    plot_rE         = kwargs.pop('plot_rE', True)
+    plot_rE_box     = kwargs.pop('plot_rE_box', True)
+    rscale           = kwargs.pop('rscale', 440./500*100) #default Spacewarps -> SL -> glass scaling of radius
+
+    obj, data = model['obj,data'][obj_index]
+
+    ### HELPER FUNCTION ########################################
+    def getEinsteinR(x, y):
+      poly = interp.PiecewisePolynomial(x,y[:,np.newaxis])
+      
+      def one(x):
+        return poly(x)-1
+      
+      x_min = np.min(x)
+      x_max = np.max(x)
+      x_mid = poly(x[len(x)/2])
+      
+      rE,infodict,ier,mesg = optimize.fsolve(one, x_mid, full_output=True)
+      
+      #print rE,infodict,ier,mesg
+      
+      if (ier==1 or ier==5) and x_min<rE<x_max and len(rE)==1:
+        return rE[0]
+      elif len(rE)>1:
+        for r in rE:
+          if x_min<r<x_max:
+            return r
+      else:
+        return -1
+
+
+    
+    ### DO THE CALCULATIONS ####################################
+    # maybe you want to put this stuff to another file..
+    
+    # def constants
+    n_rings = len(obj.basis.rings) # number of rings with center (=pixrad+1)
+    distance_factor = 0.428 #TODO don't hardcode this one..
+
+    # init vars
+    kappaRenc_median = np.zeros(n_rings)
+    kappaRenc_xsigmaplus = np.zeros(n_rings)
+    kappaRenc_xsigmaminus = np.zeros(n_rings)
+    
+    pixPerRing = np.zeros(n_rings)
+    pixEnc = np.zeros(n_rings)
+
+    # get pixels per ring and encolsed pixels per ring
+    #TODO this data is probably already around??
+    for i in range(n_rings):
+      pixEnc[i] = len(obj.basis.rings[i])
+      pixPerRing[i] = len(obj.basis.rings[i])
+      for j in range(i):
+        pixEnc[i] += len(obj.basis.rings[j])
+
+    # collect data
+    
+    kappaRenc_median
+
+
+    if 1:
+      for k in range(n_rings):
+        kappaRenc_k_all = np.zeros(0)
+        for m in env.models:
+          obj,ps = m['obj,data'][0]
+    
+          kappaRenc_model = ps['kappa(R)'][k]*pixPerRing[k]
+          for kk in range(k):
+            kappaRenc_model += ps['kappa(R)'][kk] * pixPerRing[kk]
+          kappaRenc_k_all = np.append(kappaRenc_k_all,kappaRenc_model)
+    
+        kappaRenc_k_all /= pixEnc[k]
+        kappaRenc_k_all *= distance_factor
+        kappaRenc_k_all = np.sort(kappaRenc_k_all)
+        
+        kappaRenc_median[k] = kappaRenc_k_all[len(kappaRenc_k_all)/2]
+        
+        if 0 < err_margin < 1:
+          p = err_margin / 2.
+          kappaRenc_xsigmaplus[k] = kappaRenc_k_all[int((0.5+p)*len(kappaRenc_k_all))]
+          kappaRenc_xsigmaminus[k] = kappaRenc_k_all[int((0.5-p)*len(kappaRenc_k_all))]
+        elif err_margin == 1:
+          kappaRenc_xsigmaplus[k] = kappaRenc_k_all[-1]
+          kappaRenc_xsigmaminus[k] = kappaRenc_k_all[0]
+        else:
+          #TODO crash gracefully
+          kappaRenc_xsigmaplus[k] = 0
+          kappaRenc_xsigmaminus[k] = 0
+    
+    else:
+      for mod in env.models:
+        for rng in range(n_rings):
+          kappaR[mod, rng]
+    
+    
+    
+    x_vals = (np.arange(n_rings)+0.5) * rscale * obj.basis.cell_size[0]  
+    
+    # calulate einstein radii
+    if plot_rE:
+      rE_mean = getEinsteinR(x_vals, kappaRenc_median)
+      rE_max = getEinsteinR(x_vals, kappaRenc_xsigmaplus)
+      rE_min = getEinsteinR(x_vals, kappaRenc_xsigmaminus)
+      if rE_mean<0 or rE_max<0 or rE_min<0:
+        plot_rE = False
+
+    
+    ### DO THE PLOTTING ########################################
+    
+    if plot_rE:
+      a_re_min = np.array([rE_min, rE_min])
+      a_re_max = np.array([rE_max, rE_max])
+      a_re_mean = np.array([rE_mean, rE_mean])
+      
+      # define some text properties      
+      mmax = np.amax(kappaRenc_xsigmaplus)
+      rE_pos = max(round(mmax*0.75), 3) # there to draw the einsteinradius text
+      t_dx = 0.0 # text offset position
+      t_dy = 0.1
+      t_props = {'ha':'left', 'va':'bottom'}       
+      
+
+      pl.plot(a_re_mean, [0,rE_pos], '--', color=(0,0.5,0))
+      pl.text(rE_mean+t_dx, rE_pos+t_dy, 'r_E = %4.2f [%4.2f .. %4.2f]'%(rE_mean, rE_min, rE_max), **t_props)
+
+      if plot_rE_box:
+        # this would allow for a colored box with gradient, see the cdict
+        cy = np.ones(rE_pos*4) # spaced in 1/4 steps, rE_pos is int!
+        cy[0]=0
+        cy[1]=0.5
+        cy[-1]=0
+        cy[-2]=0.5
+        cy = np.array([cy,cy]).transpose()
+        cdict = { 'red':   ((0,0,0),(1,0,0)),
+                  'green': ((0,0.5,0.5),(1,0.5,0.5)),
+                  'blue':  ((0,0,0),(1,0,0)),
+                  'alpha': ((0,1,1),(1,1,1))}
+        cmblue = mplcolors.LinearSegmentedColormap('DarkGreen', cdict)
+        pl.imshow(cy, interpolation='bilinear', cmap=cmblue, extent=(rE_min, rE_max, 0.0, rE_pos), alpha=0.7, aspect='auto')
+      else:
+        pl.plot(a_re_min, [0,rE_pos-0.25], ':b')
+        pl.plot(a_re_max, [0,rE_pos-0.25], ':b')
+
+    pl.plot(x_vals, kappaRenc_xsigmaplus, 'b')
+    pl.plot(x_vals, kappaRenc_xsigmaminus, 'b')
+    pl.fill_between(x_vals, kappaRenc_xsigmaplus, kappaRenc_xsigmaminus, facecolor='blue', alpha=0.5)
+    pl.plot([0,np.amax(x_vals)], [1,1], ':m')         
+    
+    pl.xlabel(xlabel)
+    pl.ylabel(ylabel)
+
+ 
+    
+    
 @command
 def deflect_plot(env, model, obj_index, which, src_index):
     obj, data = model['obj,data'][obj_index]
@@ -1077,20 +1318,31 @@ def time_delays_plot(env, **kwargs):
     src_index = kwargs.pop('src_index', 0)
     key = kwargs.pop('key', 'accepted')
 
+    arb_factor = kwargs.pop('arb_fact', 1) # some arbtritrary factor due to wrong scaling
+    #print arb_factor, type(arb_factor)
+    arb_factor = float(arb_factor)
+
     d = defaultdict(list)
     for m in models:
         obj,data = m['obj,data'][obj_index]
         t0 = data['arrival times'][src_index][0]
         for i,t in enumerate(data['arrival times'][src_index][1:]):
-            d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
+            d[i].append( arb_factor**2 * float( '%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
             t0 = t
 
-    s = product(range(1,1+len(d)), ['solid', 'dashed', 'dashdot', 'dotted'])
+#    s = product(range(1,1+len(d)), ['solid', 'dashed', 'dashdot', 'dotted'])
+    s = product(range(1,1+len(d)), [
+        ('solid', 'black'),
+        ('solid', 'blue'),
+        ('solid', 'green'),
+        ('solid', 'red'),    
+    ])
     for k,v in d.iteritems():
         #print 'td plot', k, len(v)
         #print v
-        lw,ls = s.next()
-        pl.hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
+        lw,xxx = s.next()
+        ls, color = xxx
+        pl.hist(v, bins=25, histtype='step', ls=ls, lw=lw, color=color, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
 
     #pl.xlim(xmin=0)
     pl.ylim(ymin=0)
@@ -1279,3 +1531,34 @@ def _hist(env, data_key, **kwargs):
 
     pl.xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     pl.ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))
+
+
+
+@command
+def overlay_input_points(env, model, **kwargs):
+    '''adds the input points (min, max, sad, pmass) ontop of existing plot'''
+  
+    obj_index       = kwargs.pop('obj_index', 0)
+    src_index       = kwargs.pop('src_index', 0)
+    overlay_ext_pot = kwargs.pop('overlay_ext_pot', True)
+    
+    obj, data = model['obj,data'][obj_index]
+
+    if overlay_ext_pot:
+        for epot in obj.extra_potentials:
+            if isinstance(epot, glass.exmass.PointMass):
+                #epot.r #coordinatess as complex
+                #epot.name
+                #pms.append(epot)
+                pl.plot([epot.r.real], [epot.r.imag], 'sy')
+  
+    for img in obj.sources[0].images:
+        #print img, img.parity
+
+        #['min', 'sad', 'max', 'unk'].index(parity)
+        tp = ['c', 'g', 'r', 'm'][img.parity]
+        pl.plot([img.pos.real], [img.pos.imag], 'o'+tp)
+
+    #mark origin
+    pl.plot([0], [0], 'or')
+  

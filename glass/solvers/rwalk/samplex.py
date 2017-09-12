@@ -4,9 +4,11 @@ import time
 import numpy as np
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
-import scipy.linalg.fblas
+import scipy.linalg.blas
 
-import multiprocessing.dummy as MP
+#import multiprocessing.dummy as MP
+import multiprocessing as MP
+
 from Queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
@@ -25,6 +27,16 @@ except ImportError:
     def l(x):
         print x
     Log = l
+
+
+#try:
+#    from glass.log import update_status as status
+#except ImportError:
+#    def us(*args, **kwargs):
+#        pass
+#    status = us
+from glass.log import Status
+
 
 import csamplex
 if 0:
@@ -230,7 +242,9 @@ class Samplex:
         self.redo_factor        = kw.get('redo factor', 1)
         self.redo_exp           = kw.get('redo exp', 2)
         self.twiddle            = kw.get('twiddle', 2.4)
-        self.burnin_factor = kw.get('burnin factor', 10)
+        self.burnin_factor      = kw.get('burnin factor', 10)
+        
+        #self.report             = kw.get('reporter', lambda _: None)
 
         assert ncols is not None
         self.nVars = ncols
@@ -300,6 +314,7 @@ class Samplex:
 
 
     def next(self, nsolutions=None):
+    # this does the first part of the cpu intensive tasks
 
         Log( '=' * 80 )
         Log( 'Simplex Random Walk' )
@@ -462,6 +477,14 @@ class Samplex:
             cmdq = MP.Queue()
             ackq = MP.Queue()
             thr = MP.Process(target=rwalk_burnin, args=(id, n, int(np.ceil(burnin_len/nthreads)), self, q, cmdq, ackq, newp, self.twiddle, eval.copy('A'), evec.copy('A')))
+            
+            thr.daemon = False  # RK: make non daemonic threads. Make sure to
+                                # shut them down afterwards! But this way, one
+                                # can use glass inside a celery worker (which
+                                # is a daemon. since daemonic processes are not
+                                # allowed to start daemonic processes, this has
+                                # to be non daemonic)
+            
             threads.append([thr,cmdq,ackq])
             N += n
             id += 1
@@ -505,10 +528,12 @@ class Samplex:
         #-----------------------------------------------------------------------
         # Burn-in
         #-----------------------------------------------------------------------
+        Status("computing eigenvalues", i=0, of=burnin_len)
         time_begin_burnin = time.clock()
         compute_eval_window = 2 * self.dof
         j = 0
         for i in xrange(burnin_len):
+            Status("computing eigenvalues", i=i, of=burnin_len)
             j += 1
             k,vec = q.get()
 
@@ -522,10 +547,13 @@ class Samplex:
             elif len(threads) < compute_eval_window:
                 threads[k][1].put(['CONT'])
         time_end_burnin = time.clock()
+        Status("computing eigenvalues", i=burnin_len, of=burnin_len)
 
         #-----------------------------------------------------------------------
         # Actual random walk
         #-----------------------------------------------------------------------
+        Status("generating models", i=0, of=nmodels)
+        
         time_begin_get_models = time.clock()
         adjust_threads(burnin_len, 'RWALK')
         i=0
@@ -535,9 +563,11 @@ class Samplex:
             t[1:] = vec
             i += 1
             Log( '%i models left to generate' % (nmodels-i), overwritable=True)
+            Status("generating models", i=i, of=nmodels)
             yield t
 
         time_end_get_models = time.clock()
+        Status("generating models", i=nmodels, of=nmodels)
 
         #-----------------------------------------------------------------------
         # Stop the threads and get their running times.

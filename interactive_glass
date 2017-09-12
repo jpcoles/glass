@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# use without argument to drop to an interactive ipython shell
+# with loaded glass environment
+# so you can run glass .cfg files to create state files
+# or use `loadstate()` to load a state and do some hacking
+# or run analysis scripts that involve loading states
+# 
+# the usage of command line arguments is not testes, probably doesn work
+#
+# calls `setup_glass.py`
+# inside ipython, use set_ncpu(4) to set multithreading
+#
+# HINT:
+# remember to run make if you do changes to the glass sourcecode!!!!
+#
+# RK, 2015-07-08
+
+PYTHON="ipython2"
+ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PLATDIR=`python2 -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
+GLASS="$PYTHON $ROOT/build/$PLATDIR/setup_glass.py"
+
+export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$ROOT/build/glpk_build/lib64:$LD_LIBRARY_PATH
+export PYTHONPATH=.:$PYTHONPATH
+export PYTHONPATH=$ROOT/build/python-glpk/$PLATDIR/glpk/:$PYTHONPATH
+export PYTHONPATH=$ROOT/build/$PLATDIR/glass:$PYTHONPATH
+
+export PYTHONPATH=$HOME/pynbody/build/$PLATDIR:$PYTHONPATH
+export PYTHONPATH=$HOME/pynbody/pynbody/build/$PLATDIR:$PYTHONPATH
+
+$GLASS -i $*

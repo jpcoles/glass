@@ -2,7 +2,7 @@ from __future__ import division
 from command import command
 #from cosmo import scales
 
-N = 206265
+N = 206265   # arcsec / rad  # small angle formula 
 Munit = 11.988 # Msun
 
 #def get_args(args):
@@ -18,11 +18,13 @@ def convert(type, v, *args):
     
     if 'ly to rad' == type:
         dL, nu = args; return v * nu / dL / N**2
+        
     elif 'rad to ly' == type:
         dL, nu = args; return v / nu * dL * N**2
 
     elif 'ly to arcsec' == type:
         dL, nu = args; return v * nu / dL / N
+        
     elif 'arcsec to ly' == type:
         dL, nu = args; return v / nu * dL * N
 
@@ -32,6 +34,7 @@ def convert(type, v, *args):
 
     elif 'kpc to ly' == type:
         return v * 3.26e3
+        
     elif 'ly to kpc' == type:
         return v / 3.26e3
 
@@ -53,7 +56,12 @@ def convert(type, v, *args):
         return (N**2 / 1e9) / v * age_factor
 
     elif 'H0 in km/s/Mpc to nu' == type:
-        return v * N**2 / 9.778140e+11
+        # 9.778140e+11 km Mpc^-1 yr s^-1
+        # = (km/Mpc) / (s/yr)
+        # km/mpc = 3.086e+19
+        # s/yr = 60*60*24*365
+        # 1 / s/yr * km/mpc
+        return v * N**2 / 9.778140e+11    
 
     elif 'nu to H0 in km/s/Mpc' == type:
         return v / N**2 * 9.778140e+11

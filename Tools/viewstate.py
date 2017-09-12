@@ -200,5 +200,7 @@ else:
 
 PlotFigures()
 ioff()
-show()
+#show()
+savefig('whatever.png')
+
 

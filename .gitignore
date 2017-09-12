@@ -1,0 +1,10 @@
+build/
+lib/glpk-4.47/
+lib/python-glpk-0.4.43/
+
+# compiled python files
+*.pyc
+
+# glass state and log files
+*.log
+*.state
