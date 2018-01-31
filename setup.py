@@ -6,12 +6,13 @@ from distutils.ccompiler import new_compiler
 
 compiler='clang'
 #compiler='gcc'
+#compiler='gcc-6'
 #compiler='icc'
 
 try:
     import numpy
 except ImportError:
-    print 'Could import numpy, which is necessary for compilation.'
+    print 'Could not import numpy, which is necessary for compilation.'
     sys.exit(1)
 
 libraries=[#'profiler', 'gomp'
@@ -50,8 +51,30 @@ if compiler=='gcc':
                           #'-march=core2',
                           '-O3',
                           '-mtune=native',
-                          '-Wall',
-                          '-openmp']
+                          '-openmp',
+                          '-Wall']
+    extra_link_args = ['-lgomp']
+
+if compiler=='gcc-6':
+    extra_compile_args = ['-msse3', 
+                          #'-mfpmath=sse',
+                          '-ftree-vectorize',
+                          '-ftree-vectorizer-verbose=4',
+                          #'-funsafe-math-optimizations',
+                          '-fno-omit-frame-pointer',
+                          #'-floop-optimize2',
+                          '-funroll-loops',
+                          '-fprefetch-loop-arrays',
+                          '-fstrict-aliasing',
+                          '-mpreferred-stack-boundary=4',
+                          '-std=c99',
+                          #'-I/local/ATLAS/include',
+                          #'-malign-double',
+                          #'-march=core2',
+                          '-O3',
+                          '-mtune=native',
+                          '-openmp',
+                          '-Wall']
     extra_link_args = ['-lgomp']
 
 if compiler=='icc':

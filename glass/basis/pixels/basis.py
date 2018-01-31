@@ -3,19 +3,25 @@
 #
 from __future__ import division
 import sys
+
+
+
 if __name__ == "__main__":
     import sys
-    sys.path.append('/Users/jonathan/GLASS/glass/')
+    sys.path.append('/Users/phdenzel/glass/')
+
 
 import numpy as np
-from numpy import zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, negative, array, take,   \
-                  ndindex, empty, arange, empty_like, ogrid, round, where,  \
-                  unique, round, argwhere, asarray, lexsort, angle, floor,  \
-                  conj, arctan2, atleast_2d, linspace, cumsum, sum, repeat, \
-                  zeros_like, ndenumerate, s_, isinf, where, dot, array, \
-                  add, subtract, multiply, append, ceil, ones, sort, sign, diff, \
-                  trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
-                  sin, cos, pi, matrix, diag, average, log, sqrt, mean, hypot
+from numpy import \
+    zeros, amin, amax, min, max, argmax, argmin, abs, vectorize, negative, array, take, \
+    ndindex, empty, arange, empty_like, ogrid, round, where, \
+    unique, round, argwhere, asarray, lexsort, angle, floor, \
+    conj, arctan2, atleast_2d, linspace, cumsum, sum, repeat,\
+    zeros_like, ndenumerate, s_, isinf, where, dot, array, \
+    add, subtract, multiply, append, ceil, ones, sort, sign, diff, \
+    trunc, argmin, logical_and, logical_not, nan_to_num, histogram2d, \
+    sin, cos, pi, matrix, diag, average, log, sqrt, mean, hypot
+
 from scipy.integrate import dblquad, quad, fixed_quad
 
 if 1:
@@ -25,8 +31,8 @@ if 1:
 
 from scipy.ndimage.filters import correlate
 from scipy.misc import central_diff_weights
-#from scipy.linalg import eig, eigh, norm
-#from scipy.signal import convolve2d
+# from scipy.linalg import eig, eigh, norm
+# from scipy.signal import convolve2d
 
 import scipy.ndimage._ni_support as _ni_support
 import scipy.ndimage._nd_image as _nd_image
@@ -35,7 +41,7 @@ from math import atan2, pi
 from itertools import izip
 
 from glass.environment import Environment
-#glassimport . potential
+# glassimport . potential
 import glass.shear as shear
 from glass.shear import Shear
 from . potential import poten_indef, poten2d_indef, poten, poten_dx, poten_dy, grad
@@ -49,31 +55,37 @@ from glass.log import log as Log
 
 np.set_printoptions(threshold=1000000)
 
-def neighbors(r,s, Rs):
+
+def neighbors(r, s, Rs):
     rs = abs(Rs-r)
     return argwhere((0 < rs) * (rs <= s)).ravel()
 
+
 def all_neighbors(Rs, L):
-    return [ [i, r, neighbors(r,s,Rs)] for i,[r,s] in enumerate(izip(Rs, L)) ]
+    return [[i, r, neighbors(r,s,Rs)] for i,[r,s] in enumerate(izip(Rs, L))]
+
 
 def in_pixel(r, R, size):
     p = R-r
     d = abs(p.real) + abs(p.imag)
     return d < size
-    
+
+
 def pixel_containing(r, R, sizes):
     p = R-r
     d = abs(p.real) + abs(p.imag)
     return argmin(d-sizes)
 
+
 @vectorize
 def ctrunc(c):
     return complex(trunc(c.real), trunc(c.imag))
 
+
 def _pixel_neighbors(i, r0, loc, R, size, sizes, try_hard):
     n = []
     dr = R-r0
-    for dx,dy in loc:
+    for dx, dy in loc:
         l = complex(dx,dy)
         r = dr-l*size
         d = abs(r)
@@ -84,26 +96,28 @@ def _pixel_neighbors(i, r0, loc, R, size, sizes, try_hard):
             else:
                 continue
 
-        m = w[ argmin(abs(dr)[w]) ]
+        m = w[argmin(abs(dr)[w])]
         mr = dr[m]
 
-        if [dx,dy] in [[-1,0],[1,0]]: w = w[ where(dr[w].real == mr.real) ]
-        if [dx,dy] in [[0,-1],[0,1]]: w = w[ where(dr[w].imag == mr.imag) ]
-        if [dx,dy] in [[-1,-1],[1,1],[1,-1],[-1,1]]: w = [m]
+        if [dx, dy] in [[-1, 0], [1, 0]]: w = w[where(dr[w].real == mr.real)]
+        if [dx, dy] in [[0, -1], [0, 1]]: w = w[where(dr[w].imag == mr.imag)]
+        if [dx, dy] in [[-1, -1], [1, 1], [1, -1], [-1, 1]]: w = [m]
         w = w[w != i]
-        n.extend( w )
+        n.extend(w)
 
     n = np.unique(n)
     return np.array(n)
 
+
 def pixel_neighbors(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+    return [[i, r, _pixel_neighbors(i, r, loc, R, s, sizes, try_hard)] for i, [r, s] in enumerate(izip(R, sizes))]
+
 
 def _pixel_neighbors3(i, r0, loc, R, size, sizes, try_hard):
     n = []
     dr = R-r0
     for dx,dy in loc:
-        l = complex(dx,dy)
+        l = complex(dx, dy)
         r = dr-l*size
         d = abs(r)
         w = where((abs(r.real) < 0.5*size) * (abs(r.imag) < 0.5*size))[0]
@@ -111,37 +125,40 @@ def _pixel_neighbors3(i, r0, loc, R, size, sizes, try_hard):
             if try_hard: 
                 w = array([pixel_containing(r0+l*size, R, sizes)])
         w = w[w != i]
-        n.append( np.array(np.unique(w)) )
+        n.append(np.array(np.unique(w)))
 
     return n
 
+
 def pixel_neighbors3(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors3(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
-     
+    return [[i, r, _pixel_neighbors3(i,r,loc,R,s, sizes, try_hard)]
+            for i, [r, s] in enumerate(izip(R, sizes))]
+
 
 def xy_grid(L, S=1, scale=1):
     """Return a grid with radius L (i.e. diameter=2*L+1) where each
        of the cells are subdivided into S parts. The result is scaled
        by 'scale'."""
-    gx = linspace(-L,L, (2*L+1) * S) * scale
+    gx = linspace(-L, L, (2*L+1) * S) * scale
     gy = atleast_2d(-gx).T
     return vectorize(complex)(gx, gy)
+
 
 def xy_list(L, R=0, refine=1):
     """Return a grid with radius L (i.e. diameter=2*L+1) where each
        of the cells are subdivided into S parts. The result is scaled
        by 'scale'."""
-    gx = linspace(-L,L, (2*L+1))
+    gx = linspace(-L, L, (2*L+1))
     gy = atleast_2d(-gx).T
     xy = vectorize(complex)(gx, gy).ravel()
 
     ploc = []
-    size = [] #* len(xy) #ones(len(xy))
-    rs = [] # * len(xy)
+    size = []  # * len(xy) #ones(len(xy))
+    rs = []  # * len(xy)
     rcs = []        # radial cell size
     w = []
 
-    #if R:
+    # if R:
     if R==0:
         size = ones(len(xy))
         ploc = xy
@@ -160,8 +177,8 @@ def xy_list(L, R=0, refine=1):
         t = []
         v = []
         s = []
-        #for i in argwhere(abs(xy) < R):
-        #for i,v in enumerate(abs(xy) < R):
+        # for i in argwhere(abs(xy) < R):
+        # for i,v in enumerate(abs(xy) < R):
         for i,v in enumerate(np.logical_and(abs(xy.real) < R, abs(xy.imag) < R)):
             if v:
                 for y in linspace(-(refine//2), refine//2, refine): # 'extra' parens are important 
@@ -219,8 +236,8 @@ def visual_neighbor_verification(self, nbrs):
     for N in nbrs[len(nbrs)-10:]: #[nbrs[0]]+nbrs[225:]:
         print N
         sp.clear()
-        #plot(self.ploc.real, self.ploc.imag)
-        #scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
+        # plot(self.ploc.real, self.ploc.imag)
+        # scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
 
         loc = self.ploc
         cs = self.cell_size
@@ -229,10 +246,10 @@ def visual_neighbor_verification(self, nbrs):
             sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True, facecolor='w'))
 
         i=N[0]
-        #sp.plot(loc[:i+1].real, loc[:i+1].imag, 'k-', marker='s')
+        # sp.plot(loc[:i+1].real, loc[:i+1].imag, 'k-', marker='s')
         sp.scatter(loc.real, loc.imag, s=(5*cs)**2, marker='s')
-            #sp.add_artist(Circle([r.real, r.imag], radius=1.5*s, fill=False))
-        #scatter(self.ploc.real, self.ploc.imag, s=(5*self.cell_size)**2, marker='s')
+            # sp.add_artist(Circle([r.real, r.imag], radius=1.5*s, fill=False))
+        # scatter(self.ploc.real, self.ploc.imag, s=(5*self.cell_size)**2, marker='s')
 
         sp.set_aspect('equal')
 
@@ -248,7 +265,6 @@ def visual_neighbor_verification(self, nbrs):
         raw_input()
 
 def Xestimated_Re(obj, ps, src_index):
-
     #---------------------------------------------------------------------
     # Estimate an Einstein radius. 
     # Take the inertia tensor of the pixels above kappa_crit and use the
@@ -264,16 +280,17 @@ def Xestimated_Re(obj, ps, src_index):
 
     w = kappa >= 1.0
 
-    if not w.any(): return None
+    if not w.any():
+        return None
 
     r = obj.basis.ploc[w]
     I = matrix(zeros((3,3)))
     m = kappa[w]
-    I[0,0] =  sum(m*(r.real**2 + r.imag**2))
-    I[1,1] =  sum(m*(r.imag**2))
-    I[2,2] =  sum(m*(r.real**2))
-    I[1,2] = -sum(m*(r.real * r.imag))
-    I[2,1] = I[1,2]
+    I[0, 0] = sum(m*(r.real**2+r.imag**2))
+    I[1, 1] = sum(m*(r.imag**2))
+    I[2, 2] = sum(m*(r.real**2))
+    I[1, 2] = -sum(m*(r.real*r.imag))
+    I[2, 1] = I[1, 2]
 
     V,D = eig(I)
 
@@ -290,6 +307,7 @@ def Xestimated_Re(obj, ps, src_index):
 
     return mean([Vl,Vs]), Vl, Vs, arctan2(D1[1], D1[0]) * 180/pi
 
+
 def gauss_kernel(size, sizey=None):
     """ Returns a normalized 2D gauss kernel array for convolutions """
     size = int(size)
@@ -301,18 +319,20 @@ def gauss_kernel(size, sizey=None):
     g = np.exp(-(x**2/float(size)+y**2/float(sizey)))
     return g / g.sum()
 
+
 def intersect(A,B):
     if B[0] < A[1] or B[1] > A[0] or B[2] > A[3] or B[3] < A[2]: return [0,0,0,0]
     v = [A[0],A[1], B[0],B[1]]
     h = [A[2],A[3], B[2],B[3]]
     v.sort()
     h.sort()
-    #print v,h
+    # print v,h
     b,t = np.max([v[0],v[1]]), np.min([v[2],v[3]])
     l,r = np.max([h[0],h[1]]), np.min([h[2],h[3]])
-    #print t,b,l,r
-    #print r-l, t-b
+    # print t,b,l,r
+    # print r-l, t-b
     return [t,b,l,r]
+
 
 def intersect_frac(A,B):
     t,b,l,r = intersect(A,B) 
@@ -325,20 +345,22 @@ def intersect_frac(A,B):
     h = [A[2],A[3], B[2],B[3]]
     v.sort()
     h.sort()
-    #print v,h
+    # print v,h
     b,t = np.max([v[0],v[1]]), np.min([v[2],v[3]])
     l,r = np.max([h[0],h[1]]), np.min([h[2],h[3]])
-    #print t,b,l,r
-    #print r-l, t-b
+    # print t,b,l,r
+    # print r-l, t-b
     return (np.max([r-l,0]) * np.max([t-b,0])) / areaB
 
+
 def irrhistogram2d(R,C,rbin,binsize, weights=None):
-    assert weights is not None # for now
+    assert weights is not None  # for now
     assert len(rbin) == len(binsize)
 
     h = zeros(len(rbin))
 
-    from scipy import weave
+    # from scipy import weave
+    import weave
     code="""
         int i;
         #ifdef WITH_OMP
