@@ -4,7 +4,7 @@ import time
 import numpy as np
 from numpy.random import random, normal, random_integers, seed as ran_set_seed
 from numpy.linalg import eigh, pinv, eig, norm, inv, det
-import scipy.linalg.fblas
+import scipy.linalg.blas
 
 import multiprocessing.dummy as MP
 from Queue import Empty as QueueEmpty
