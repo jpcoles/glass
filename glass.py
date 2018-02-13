@@ -35,7 +35,6 @@ def _detect_omp():
     global _omp_opts
     if _omp_opts is not None: return _omp_opts
     try:
-        # from scipy import weave
         import weave
         kw = dict( extra_compile_args = ['-O3','-fopenmp','-DWITH_OMP','-Wall','-Wno-unused-variable'], 
                    extra_link_args = ['-lgomp'], 

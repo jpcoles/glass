@@ -8,7 +8,9 @@ import sys
 
 if __name__ == "__main__":
     import sys
-    sys.path.append('/Users/phdenzel/glass/')
+    from os.path import expanduser
+    home = expanduser("~")
+    sys.path.append(os.path.join(home, 'glass'))  #TODO fix fixed path here
 
 
 import numpy as np
@@ -359,7 +361,6 @@ def irrhistogram2d(R,C,rbin,binsize, weights=None):
 
     h = zeros(len(rbin))
 
-    # from scipy import weave
     import weave
     code="""
         int i;
