@@ -1,0 +1,159 @@
+# A GLASS input file contains all the commands to describe one or more lensing
+# objects, the assumed cosmology, and any other assumptions (priors) that control
+# how the lensing mass is reconstructed. Comments can appear anywhere in the file
+# and begin with a '#' symbol.
+#
+# We will describe the format of the input file by walking through an example
+# using the lens B115.
+#
+# The first command in any input file should look something like this:
+
+glass_basis('glass.basis.pixels', solver='rwalk')
+
+# The glass_basis function instructs GLASS to use a pixelated mass map as the
+# basis of the lens reconstruction. At the moment the only available option
+# is 'glass.basis.pixels' but in the future there will be support for other
+# choices such as Bessel functions. The function also selects which kind of
+# solver to use to explore the possible solutions. Since a lens model will
+# not be unique it is most useful to explore the space of possible solutions
+# given a set of priors. The random walk 'rwalk' solver efficiently samples
+# this space.
+
+# In the output (or state) file we can store notes to ourselves or other
+# information about run using the meta function.
+
+meta(author='Jonathan Coles', notes='Just testing')
+
+# The arguments to the function are in the form of key=value pairs, where
+# the key can be any name you like.
+
+# GLASS produces a lot of output describing the run and how it was configured.
+# This information can automatically be stored in a log file
+
+setup_log('B1115.log')
+
+# The solver 'rwalk' that we chose earlier can be configured itself. Here we
+# set the initial random seed to a fixed value so that our results will
+# be reproducible over many test runs and set the model acceptance rate and
+# tolerance of the Markov Chain to some standard values.
+ 
+samplex_random_seed(0)
+samplex_acceptance(rate=0.25, tol=0.15)
+
+# Now we can begin to configure how GLASS itself behaves. Before a model can be
+# made of a lens a number of assumptions (priors) must be made to control
+# what is features are allowed in a model. There a number of default priors,
+# but to be on the safe side so that there are no surprises we will first
+# disable all priors...
+
+exclude_all_priors()
+
+# and then explicitly turn on the ones that we want. Many priors have parameters
+# that can be set later.
+
+include_prior(
+    'lens_eq', 
+    'time_delay', 
+    'profile_steepness', 
+    'J3gradient', 
+    'magnification',
+    'hubble_constant',
+    'PLsmoothness3',
+    'shared_h',
+    'external_shear'
+)
+
+# If we want to set the hubble time to a fixed value and not allow the modeler
+# to consider it a free parameter we can do so with the hubble_time function
+# For this example we set the hubble time to 13.7 Gyr. This will be a global
+# setting that must appear before we create any lensing objects.
+
+hubble_time(13.7)
+
+# To create a lens object we use the globject command and specify a name
+# which can be any string.
+
+globject('B1115+080')
+
+# The lensing galaxy for B1115 is located at a redshift of z=0.31 which 
+# we can set with the zlens function.
+
+zlens(0.31)
+
+# The pixel basis that we decided to use needs to know how many pixels to use.
+# The mass map will be roughly circular so we must tell GLASS the radius of
+# this map in pixels. A reasonable value is between 8 and 12. The exact value
+# may depend of the complexity of the problem and how well the mass needs to be
+# resolved. We will choose a value of 10.
+
+pixrad(7)
+
+# All of the priors have default values if they take parameters but for this
+# example we will explicitly set the default values.
+
+# The steepness of mass profile refers to the slope of the radially averaged
+# reconstructed mass map. This is actually the slope between radial steps.  The
+# minimum steepness can not be smaller than 0 and the maximum can be given as
+# None to indicated that the profile can be arbitrarily steep.  Other typical
+# values for the maximum might be 0.5.
+
+steepness(0,None)
+
+# The pixel to pixel variation can be controlled by a smoothing parameter.  A
+# value of 2 means that a given pixel may not have a value more than twice the
+# average of its neighbors. If the keyword include_central_pixel is False then
+# the inner most pixel (where the center of the galaxy should lie) is not
+# included in the smoothing and can take any value.
+
+smooth(2,include_central_pixel=False)
+
+# One very important parameter is the average direction of teh density
+# gradient.  In general the gradient will point towards the center of the
+# galaxy, but locally there may be some variation. A value of 45 means that the
+# local gradient is allowed to deviate for radial by up to 45 degrees.
+
+local_gradient(45)
+
+# If the lens is a double or we other suspect that the mass distribution is
+# radially symmetric we can turn this on. Here we will leave symmetry off
+# because B1115 is a quad.
+
+#symm()
+
+#maprad(1.9637)
+
+# Often a lensing galaxy does not appear in isolation and may be affected
+# by the presence of another neighboring galaxy. We can enable a shear
+# term in the direction of -45 degrees with the shear function.
+
+shear(0.01)
+
+# Now we can describe the location and time delays (if measured) of the lens.
+# First, we give the positions of the images. The coordinates should be relative
+# to the center of the lensing galaxy.
+
+A =  0.3550,  1.3220 
+B = -0.9090, -0.7140
+C = -1.0930, -0.2600
+D =  0.7170, -0.6270
+
+# The lensed source is located at z=1.722 and produces the four images. The
+# time delays between A/B, B/C, and C/D are given as 13.3 days, unmeasured,
+# and 11.7 days.
+
+source(1.722, A,'min', 
+              B,'min', 13.3,
+              C,'sad', None,
+              D,'sad', 11.7)
+
+# To actually create the models we call the model function with the number
+# of models we wish to generate.
+
+model(1000)
+
+# We can save all the results in one file that we can load later to analyse.
+
+savestate('B1115.state')
+    
+time_delays_plot()
+    
