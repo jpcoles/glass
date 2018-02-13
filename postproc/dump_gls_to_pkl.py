@@ -1,7 +1,10 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 """
-modified p sahas ensem to work from command line with args
+Skript that loads a glass state file and dumps all relevant information
+into a pure python dictorionary with numpy files and saves
+it as pickle file.
 
 Created on Wed Jul  8 12:57:52 2015
 @author: psaha, rafik
@@ -15,16 +18,10 @@ import pickle
 try: # read first parameter from command line (remember: 0 is the script file name)
     mname = sys.argv[1]
 
-except IndexError: # otherwise use hardcoded filename
-    mname = 'ASW0007k4r/012771'
-    mname = 'ASW0000h2m/007022'
-    mname = 'ASW0000h2m/gribbles'
-    mname = 'WM4H5RZXQZ'
-    #mname = 'IHRULOMX6D'
-    mname = 'WM4H5RZXQZ'
+except IndexError:
+    print "Usage:\n    python %s glassfile.gls" % sys.argv[0]
+    sys.exit("No glass file specified")
     
-
-    mname = mname + '.state'
 
 #check if the file really exists
 if not os.path.isfile(mname):
