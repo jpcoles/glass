@@ -1,3 +1,30 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This script works on a set of glass state files defined in `data.txt` and:
+
+1. downloads the corresponding state files
+
+2. derrives a bunch of data from the state file and saves them in a json
+data file. If the data file already exists, if ONLY reads the data file!
+
+3. Creates plots with the obtained data
+
+it does this using multiple cores. At least this was the initial intention..
+
+
+authors:
+- Rafael Kueng <rafi.kueng@gmx.ch>
+
+version:
+- 2015.??.??  Initial version
+- 2018.02.13  clean up and update docu
+
+"""
+
+
+
 from __future__ import ( division, absolute_import, print_function, unicode_literals )
 
 import numpy as np

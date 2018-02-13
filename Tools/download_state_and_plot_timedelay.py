@@ -1,9 +1,42 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Script downloads a set of glass state files defined as arguments and plots
+their time delay by calling glass command gls.time_delays_plot and saves the
+output in a folder
+
+useage:
+    download_state_and_plot_timedelay.py [model_nr]+
+
+
+like:
+    download_state_and_plot_timedelay.py 1001 1002 1003
+will download the statefile at url `baseurl % model_nr`
+where model_nr is 1001, 1002, 1003
+and plots for each the time_delays_plot
+
+
+authors:
+- Rafael Kueng <rafi.kueng@gmx.ch>
+
+version:
+- 2015.??.??  Initial version
+- 2018.02.13  clean up and update docu
+
+"""
+
+
 from __future__ import ( division, absolute_import, print_function, unicode_literals )
 
 #import matplotlib.pylab as pl
 import matplotlib.pyplot as pl
 import requests
 import os
+
+
+baseurl = "http://mite.physik.uzh.ch/result/%06i/state.txt"
+
 
 
 glass_basis('glass.basis.pixels', solver=None)
@@ -36,7 +69,7 @@ for nr in sl_nrs:
     print('Working on %06i'%nr)
     print('  > fetching state file ...', end='')
 
-    url = "http://mite.physik.uzh.ch/result/%06i/state.txt" % nr
+    url = baseurl % nr
     statefilename = os.path.join(statedir, '%06i.state' % nr)
     imgfilename1 = os.path.join(plotdir, '%06i_dt_plot_f1.png' % nr)
     imgfilename25 = os.path.join(plotdir, '%06i_dt_plot_f25.png' % nr)
