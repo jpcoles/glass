@@ -49,7 +49,9 @@ def style_iterator():
     else:
         return _style_iterator()
 
-def default_kw(R, kw={}):
+def default_kw(R, kwargs=None):
+    kw = {}
+    if kwargs: kw = dict(kwargs)
     kw.setdefault('extent', [-R,R,-R,R])
     kw.setdefault('interpolation', 'nearest')
     kw.setdefault('aspect', 'equal')
@@ -489,7 +491,7 @@ def arrival_plot(env, model, **kwargs):
             #kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
             pl.contour(g, lev, **kw)
 
-    for obj,data in model['obj,data'][obj_slice]:
+    for i,[obj,data] in enumerate(model['obj,data'][obj_slice]):
         if not data: continue
 
         print len(obj.sources[src_slice])
@@ -968,7 +970,7 @@ def H0inv_plot(env, **kwargs):
 
     for d,s in zip(l, _styles):
         if d:
-            #print len(d), d
+            #print len(d), d, np.ptp(d), np.sqrt(len(d))
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
             pl.hist(d, bins=np.ptp(d)//1+1, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'], **kwargs)
 
@@ -1187,6 +1189,38 @@ def shear_plot(env, **kwargs):
     if s0[0]: pl.hist(s0[0], histtype='step', **kwargs)
     if s1[0]: pl.hist(s1[0], histtype='step', **kwargs)
 
+@command
+def shear_plot2d(env, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', None)
+    src_index = kwargs.pop('src_index', None)
+    key = kwargs.pop('key', 'accepted')
+
+    obj_slice = index_to_slice(obj_index)
+    src_slice = index_to_slice(src_index)
+
+    s0 = [ [] for o in env.objects ]
+    s1 = [ [] for o in env.objects ]
+    for mi,m in enumerate(models):
+        # For H0 we only have to look at one model because the others are the same
+        for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
+            if not data.has_key('shear'): continue
+            #s0[oi].append(90-np.degrees(np.arctan2(*data['shear'])))
+            s0[oi].append(data['shear'][0])
+            s1[oi].append(data['shear'][1])
+
+            #s0,s1 = data['shear']
+            #Log( 'Model %i  Object %i  Shear %.4f %.4f' % (mi, oi, s0,s1) )
+
+    kw = kwargs.copy()
+    kw.setdefault('bins', max(11, min(15,(int(np.sqrt(max(len(s0[0]),len(s1[0])))//2)) * 2 + 1)))
+    if s0[0] and s1[0]: 
+        pl.hist2d(s0[0],s1[0], **kw)
+        pl.title(r'Shear')
+        pl.xlabel(r'$\varepsilon_1$')
+        pl.ylabel(r'$\varepsilon_2$')
+
 _chi2_xlabel = r'$\ln \chi^2$'
 @command
 def chi2_plot(env, models, model0, **kwargs):
@@ -1241,7 +1275,8 @@ def _hist(env, data_key, **kwargs):
     for d,s in zip(l, _styles):
         kw = kwargs.copy()
         if d:
-            kw.setdefault('bins', np.ptp(d)//1+1)
+            #print len(d), d, np.ptp(d), np.sqrt(len(d))
+            kw.setdefault('bins', int(np.ptp(d)//1)+1)
             kw.setdefault('histtype', 'step')
             #print len(d), d
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
@@ -1249,7 +1284,7 @@ def _hist(env, data_key, **kwargs):
                     edgecolor=s['c'] if color is None else color, 
                     zorder=s['z'], 
                     label=s['label'] if label is None else label, 
-                    **kwargs)
+                    **kw)
 
     if not_accepted or label:
         pl.legend()

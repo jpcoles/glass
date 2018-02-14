@@ -81,6 +81,22 @@ crwalk = Extension('glass.solvers.rwalk.csamplex',
              extra_compile_args=extra_compile_args,
              extra_link_args=extra_link_args)
 
+samplex = Extension('glass.solvers.samplex.csamplex',
+                     sources = ['glass/solvers/samplex/csamplex.c'],
+		     include_dirs=numpy_inc,
+             undef_macros=['DEBUG'],
+             libraries=libraries,
+             extra_compile_args=extra_compile_args,
+             extra_link_args=extra_link_args)
+
+samplexsimple = Extension('glass.solvers.samplexsimple.csamplex',
+                     sources = ['glass/solvers/samplexsimple/csamplex_omp.c'],
+		     include_dirs=numpy_inc,
+             undef_macros=['DEBUG'],
+             libraries=libraries,
+             extra_compile_args=extra_compile_args,
+             extra_link_args=extra_link_args)
+
 setup(name = 'Glass',
       author = 'Jonathan Coles',
       author_email = 'jonathan@jpcoles.com',
@@ -89,7 +105,9 @@ setup(name = 'Glass',
       package_dir = {'glass': 'glass'},
       packages = ['', 'glass', 
                   'glass.solvers', 'glass.solvers.rwalk',
+                  'glass.solvers.samplex',
+                  'glass.solvers.samplexsimple',
                   'glass.basis', 'glass.basis.pixels', 'glass.basis.bessel',
                   'glass.massmodel', 'glass.misc'],
-      ext_modules = [crwalk])
+      ext_modules = [crwalk, samplex, samplexsimple])
 

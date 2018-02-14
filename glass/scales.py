@@ -66,11 +66,11 @@ def convert(type, v, *args):
 
     elif 'Msun/ly^2 to kappa' == type:
         dL, nu = args
-        return v / Munit * dL / nu
+        return v / Munit * dL / nu #* N**4
 
     elif 'kappa to Msun/ly^2' == type:
         dL, nu = args
-        return v * Munit / dL * nu
+        return v * Munit / dL * nu #/ N**4
 
     elif 'Msun/kpc^2 to kappa' == type:
         return convert('Msun/ly^2 to kappa', v, *args) / convert('kpc to ly', 1.)**2 

@@ -4,8 +4,17 @@ glass_basis('glass.basis.pixels', solver=None)
 exclude_all_priors()
 
 import os
-import pylab as pl
-from pylab import show, figure, ion, ioff, savefig, gcf
+
+#try:
+if 1:
+     import pylab as pl
+     from pylab import show, figure, ion, ioff, savefig, gcf
+#except:
+if 0:
+    import matplotlib as mpl
+    mpl.use('Agg')
+    import matplotlib.pyplot as pl
+    from matplotlib.pyplot import figure, ion, ioff, savefig, gcf
 from math import pi, cos
 
 def escape(s):
@@ -76,9 +85,11 @@ def PlotFigures():
 #               cx,cy=0,0
 #               g.image_plot(g.meta_info['image'], R, [cx,cy])
             g.img_plot(obj_index=0)
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=0, colors='r');
-            g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=4, colors='g');
+            g.img_plot(obj_index=1)
+            g.arrival_plot(g.ensemble_average, obj_index=0, only_contours=True, clevels=50, colors='r');
+            g.arrival_plot(g.ensemble_average, obj_index=1, only_contours=True, clevels=50, colors='b');
+            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=0, colors='r');
+            #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=4, colors='g');
             if 1 or 'image' in g.meta_info:
                 R = 9/2.,2.7/2. #g.objects[0].basis.maprad
                 #cx,cy = -1.875, 0.08
@@ -92,6 +103,11 @@ def PlotFigures():
     if 1: 
         begin_plot()
         g.H0inv_plot()
+        end_plot()
+
+    if 1: 
+        begin_plot()
+        g.H0_plot()
         end_plot()
 
     if 1: 
@@ -110,7 +126,7 @@ def PlotFigures():
             g.glerrorplot('kappa(<R)', ['R', 'arcsec'])
         end_plot()
 
-    if 1:
+    if 0:
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
@@ -177,7 +193,7 @@ def PlotFigures():
     if 1:
         for g in gls:
             begin_plot()
-            g.shear_plot()
+            g.shear_plot2d()
             end_plot()
 
     if 1:
@@ -200,5 +216,12 @@ else:
 
 PlotFigures()
 ioff()
+
+savefig('viewstate.pdf')
+
 show()
+#try:
+#except:
+#    savefig('viewstate.pdf')
+
 

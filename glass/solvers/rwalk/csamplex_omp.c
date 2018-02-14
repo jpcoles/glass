@@ -22,7 +22,7 @@
 
 #include "timing.h"
 
-#define WITH_WELL 1
+#define WITH_WELL 0
 
 #if WITH_WELL
 #include "WELL44497a.h"
@@ -226,6 +226,7 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         /* Check if we are still in the simplex */
         long offs = leq_offs * eqs.cols + dir_index + 1;
         data_ptr = eqs.data + offs;
+
 
 #if 0
         for (i=eq_offs; accept && i < (eq_offs + eq_count); i++, data_ptr += eqs.cols)

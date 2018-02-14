@@ -52,7 +52,7 @@ def hires(env, r, refine=1):
     
 @command
 def smooth(env, factor=2, L=None, include_central_pixel=None):
-    if not prior_included('PLsmoothness3'): raise GLInputError("The 'PLsmoothness3' prior must be included to enable the 'smooth()' command.")
+    #if not prior_included('PLsmoothness3'): raise GLInputError("The 'PLsmoothness3' prior must be included to enable the 'smooth()' command.")
     o = env.current_object()
     #o.prior_options['smoothness'] = {}
     o.prior_options['smoothness']['factor'] = factor

@@ -1,4 +1,4 @@
-from environment import command
+from glass.command import command
 
 @command
 def samplex_random_seed(env, s):

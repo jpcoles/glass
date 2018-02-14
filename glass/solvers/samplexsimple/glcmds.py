@@ -1,23 +1,23 @@
-from environment import env, command
+from glass.command import command
 
 @command
-def samplex_random_seed(s):
-    env().model_gen_options['rngseed'] = s
+def samplex_random_seed(env,s):
+    env.model_gen_options['rngseed'] = s
 
 @command
-def samplex_objective_function(type):
+def samplex_objective_function(env,type):
     assert type in ['facet', 'random']
-    env().model_gen_options['objf choice'] = type
+    env.model_gen_options['objf choice'] = type
 
 @command
-def samplex_solution_type(type):
+def samplex_solution_type(env,type):
     assert type in ['vertex', 'interior']
-    env().model_gen_options['solution type'] = type
+    env.model_gen_options['solution type'] = type
 
 @command
-def samplex_add_noise(n=True):
-    env().model_gen_options['add noise'] = n
+def samplex_add_noise(env,n=True):
+    env.model_gen_options['add noise'] = n
 
 @command
-def samplex_stride(s=1):
-    env().model_gen_options['stride'] = s
+def samplex_stride(env,s=1):
+    env.model_gen_options['stride'] = s

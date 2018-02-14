@@ -93,7 +93,7 @@ class PixelLensModel(LensModel):
     def time_delays(self):
         D = []
         at = self['arrival times']
-        for src_index,src in enumerate(obj.sources):
+        for src_index,src in enumerate(self.obj.sources):
             d = []
             if at[src_index]:
                 t0 = at[src_index][0]

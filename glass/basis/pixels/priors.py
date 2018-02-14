@@ -155,8 +155,8 @@ def lens_eq(o, leq, eq, geq):
         for j,img in enumerate(src.images):
             rows = new_row(o, 2)
             Log( 2*indent+"Source %i,Image %i: (% 8.4f, % 8.4f)" % (i,j,img.pos.real, img.pos.imag) ) #, b.cell_size
-            rows[0,0] = img.pos.real * src.zcap
-            rows[1,0] = img.pos.imag * src.zcap
+            rows[0,0] = (img.pos.real + b.map_shift) * src.zcap
+            rows[1,0] = (img.pos.imag + b.map_shift) * src.zcap
             positions = img.pos - b.ploc
             rows[0,pix_start:pix_end] = -poten_dx(positions, b.cell_size, o.basis.maprad)
             rows[1,pix_start:pix_end] = -poten_dy(positions, b.cell_size, o.basis.maprad)
@@ -164,9 +164,6 @@ def lens_eq(o, leq, eq, geq):
             srcpos = srcpos_start + 2*i
             rows[0,srcpos:srcpos+2] = -1,  0
             rows[1,srcpos:srcpos+2] =  0, -1
-
-            rows[0,0] += b.map_shift * src.zcap
-            rows[1,0] += b.map_shift * src.zcap
 
             sm_x = np.sum(poten_dx(positions, b.cell_size, o.basis.maprad) * stellar_mass)
             sm_y = np.sum(poten_dy(positions, b.cell_size, o.basis.maprad) * stellar_mass)
@@ -213,10 +210,13 @@ def check_lens_eq(o, sol):
             positions = img.pos - b.ploc
             srcpos = srcpos_start + 2*i
 
-            r0 = img.pos.real * src.zcap
-            r1 = img.pos.imag * src.zcap
-            r0 -= sol[srcpos+0] - b.map_shift * src.zcap
-            r1 -= sol[srcpos+1] - b.map_shift * src.zcap
+            # r0 = img.pos.real * src.zcap
+            # r1 = img.pos.imag * src.zcap
+            # r0 -= sol[srcpos+0] - b.map_shift * src.zcap
+            # r1 -= sol[srcpos+1] - b.map_shift * src.zcap
+
+            r0 = (img.pos.real + b.map_shift) * src.zcap - sol[srcpos+0]
+            r1 = (img.pos.imag + b.map_shift) * src.zcap - sol[srcpos+1]
 
             sm = o.stellar_mass
 
@@ -291,6 +291,7 @@ def time_delay(o, leq, eq, geq):
             # out in basis.py.
             row[srcpos:srcpos+2]  = x0-x1, y0-y1
             row[0] += dot([x1-x0, y1-y0], shft) * src.zcap
+#           row[0] -= dot([x0-x1, y0-y1], shft)
 
             # The ln terms
             row[pix_start:pix_end] -= poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad)
@@ -406,16 +407,16 @@ def check_time_delay(o, sol):
             else:
                 # Only report an error if the sum lies outside the desired time delay range
                 l,u = delay
-                if   l is None: S -= (sol[nu] * u) if S > sol[nu]*u else S
-                elif u is None: S -= (sol[nu] * l) if S < sol[nu]*l else S
+                if   l is None: S -= sol[nu] * u
+                elif u is None: S -= sol[nu] * l
                 else:
                     S2 = S
-                    S  -= (sol[nu] * l) if S < sol[nu]*l else S
-                    S2 -= (sol[nu] * u) if S > sol[nu]*u else S2
+                    S  -= sol[nu] * l
+                    S2 -= sol[nu] * u
 
 
-            l0 = log10(abs(S))  if S  else -15
-            l1 = log10(abs(S2)) if S2 else -15
+            l0 = log10(abs(S))  if S  < 0 else -15
+            l1 = log10(abs(S2)) if S2 > 0 else -15
 
             #res += '[%i %i]' % (r0,r1)
 

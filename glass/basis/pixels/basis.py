@@ -527,6 +527,7 @@ class PixelBasis(object):
 
 
         self.map_shift = self.maprad        # [arcsec]
+#       self.map_shift = 0
         self.top_level_cell_size = self.maprad / L
         self.mapextent = self.top_level_cell_size * (2*L + 1)/2
 
@@ -1147,7 +1148,7 @@ class PixelBasis(object):
                 x = False
                 _or = None 
                 def pot_grad(args):
-                    global x
+#                   global x
                     i,theta = args
 #                   if (i%100) == 0: 
 #                       print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
@@ -1155,9 +1156,10 @@ class PixelBasis(object):
                     deflect[i] = grad(kappa,theta,ploc,cell_size)
                     s = complex(0,0)
                     for e in obj.extra_potentials:
-                        s += complex(sum(data[e.name] * e.poten_dx(theta).T),
-                                     sum(data[e.name] * e.poten_dy(theta).T))
-                        deflect[i] += s
+                        #s += complex(sum(data[e.name] * e.poten_dx(theta).T),
+                        #        sum(data[e.name] * e.poten_dy(theta).T))
+                        #deflect[i] += s
+                        deflect[i] += sum(data[e.name] * (e.poten_dx(theta) + 1j*e.poten_dy(theta)))
 #                   if obj.shear:
 #                       s1,s2 = data['shear']
 #                       s = complex(s1*shear.poten_dx(0,theta) + s2*shear.poten_dx(1,theta),

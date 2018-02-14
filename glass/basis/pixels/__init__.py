@@ -21,7 +21,7 @@ if opts.has_key('solver') and opts['solver'] is None:
 elif not opts.has_key('solver') or opts['solver'] == 'rwalk':
     from glass.solvers.rwalk.samplex import Samplex
     import glass.solvers.rwalk.glcmds 
-elif not opts.has_key('solver') and opts['solver'] == 'samplex':
+elif opts.has_key('solver') and opts['solver'] == 'samplex':
     from glass.solvers.samplex.samplex import Samplex
     import glass.solvers.samplex.glcmds 
 elif opts.has_key('solver') and opts['solver'] == 'lpsolve':

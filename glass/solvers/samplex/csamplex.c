@@ -38,7 +38,7 @@
 /* 2x overall speed up.                                                     */
 /*==========================================================================*/
 #define REORGANIZE_TABLE_MEMORY 0
-#define SET_THREAD_AFFINITY     1
+#define SET_THREAD_AFFINITY     0
 
 #define WITH_GOOGLE_PROFILER 0
 
