@@ -118,7 +118,7 @@ def _expand_array(nvars, offs, f, symm=None):
         if symm is not None: eq = symm(eq)
         new_eq = zeros(nvars+1, order='Fortran')
         new_eq[0] = eq[0]
-        new_eq[offs+1:offs+len(eq)] = eq[1:]
+        new_eq[offs:offs+len(eq)-1] = eq[1:]
         f(new_eq)
 
     return work
@@ -135,9 +135,9 @@ def init_model_generator(env, nmodels, regenerate=False):
     Log( "Number of variables (nvars) = %i" % nvars )
 
 
-    offs = 0
+    offs = 1 # Reserve an index for the constant in the constraint
     for o in objs:
-        o.basis.array_offset = 1+offs
+        o.basis.array_offset = offs
         offs += o.basis.nvar_symm
 
     # ------------- 
@@ -186,7 +186,7 @@ def init_model_generator(env, nmodels, regenerate=False):
     #---------------------------------------------------------------------------
     Log( 'Applying Priors:' )
     for o in objs:
-        offs = o.basis.array_offset - 1
+        offs = o.basis.array_offset
         Log( 'array offset %i' % offs )
         if o.symm:
             symm = lambda x: symm_fold(o,x)
