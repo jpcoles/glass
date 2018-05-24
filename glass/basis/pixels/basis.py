@@ -731,15 +731,16 @@ class PixelBasis(object):
         #---------------------------------------------------------------------
         # Setup variable offsets for the constraint arrays
         #---------------------------------------------------------------------
-        self.offs_pix    = array([0, npix], dtype='int32')
-        self.offs_srcpos = array([0, 2*len(obj.sources)], dtype='int32') + self.offs_pix[1]
-        self.H0          = 0 + self.offs_srcpos[1]
-        if obj.stellar_mass_error != 0:
-            self.offs_sm_err = self.H0 + 1
-            last = self.offs_sm_err + 1
-        else:
-            self.offs_sm_err = 0
-            last = self.H0 + 1
+        last = 0
+        last,self.H0     = last+1,last+0 # + self.offs_srcpos[1]
+
+        last,self.offs_pix = [last+npix, 
+                              last+array([0, npix], dtype='int32')]
+
+        last,self.offs_srcpos = [last+2*len(obj.sources),
+                                 last+array([0, 2*len(obj.sources)], dtype='int32')]
+
+        last,self.offs_sm_err = [last+1,last+0] if obj.stellar_mass_error != 0 else [last,0]
 
 
         #self.pix_start,    self.pix_end    = 0, npix
