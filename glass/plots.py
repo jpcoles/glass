@@ -247,9 +247,10 @@ def src_plot(env, *args, **kwargs):
         plot(models['obj,data'][obj_index], si)
     else:
         for mi,model in enumerate(models):
-            for m in model['obj,data']:
-                si = style_iterator()
-                plot(m, si, mi==hilite_model)
+            m = model['obj,data'][obj_index]
+                #            for m in model['obj,data'][obj_index]:
+            si = style_iterator()
+            plot(m, si, mi==hilite_model)
 
     pl.xlim(oxlim); pl.ylim(oylim)
 
@@ -946,7 +947,7 @@ def glerrorplot(env, ptype, xkeys, ykeys=[], **kwargs):
 
 @command
 def H0inv_plot(env, **kwargs):
-    _hist(env, '1/H0', xlabel=r'$H_0^{-1}$ (Gyr)')
+    _hist(env, '1/H0', xlabel=r'$H_0^{-1}$ (Gyr)', **kwargs)
     return
 
     models      = kwargs.pop('models', env.models)
@@ -1009,7 +1010,7 @@ def H0inv_plot(env, **kwargs):
 _H0_xlabel = r'$H_0$ (km/s/Mpc)'
 @command
 def H0_plot(env, **kwargs):
-    _hist(env, 'H0', xlabel=r'$H_0$ (km/s/Mpc)')
+    _hist(env, 'H0', xlabel=r'$H_0$ (km/s/Mpc)', **kwargs)
     return
 
     models = kwargs.pop('models', env.models)
