@@ -2079,6 +2079,7 @@ def extended_source_size(o, leq,eq,geq):
 def source_position_quadrant(o, leq,eq,geq):
     b = o.basis
     srcpos_start, srcpos_end = 1+b.offs_srcpos
+    wedge = o.prior_options.get('source_position_quadrant_angle', 90.)
 
     for i,src in enumerate(o.sources):
         if src.pos is not None: continue
@@ -2088,19 +2089,23 @@ def source_position_quadrant(o, leq,eq,geq):
 
         img = src.images[0]
 
-        t = (45 - img.angle) * (np.pi/180.)
-        c,s = np.cos(t), np.sin(t)
-        Kx = +b.map_shift*(s-c) * src.zcap
-        Ky = -b.map_shift*(s+c) * src.zcap
+        tx = (360+90 - (img.angle+wedge/2.)) * (np.pi/180.)
+        ty = (360    - (img.angle-wedge/2.)) * (np.pi/180.)
+
+        cx,sx = np.cos(tx), np.sin(tx)
+        cy,sy = np.cos(ty), np.sin(ty)
+        Kx = -b.map_shift*(cx-sx) * src.zcap
+        Ky = -b.map_shift*(sy+cy) * src.zcap
 
         row = new_row(o,2)
-        row[0, [0,x,y]] = Kx, c, -s; geq(row[0])
-        row[1, [0,x,y]] = Ky, s,  c; geq(row[1])
+        row[0, [0,x,y]] = Kx, cx, -sx; geq(row[0])
+        row[1, [0,x,y]] = Ky, sy,  cy; geq(row[1])
 
 @object_prior_check(source_position_quadrant)
 def check_source_position_quadrant(o, sol):
     b    = o.basis
     offs = 0 #b.array_offset
+    wedge = o.prior_options.get('source_position_quadrant_angle', 90)
 
     pix_start,    pix_end    = offs+b.offs_pix
     srcpos_start, srcpos_end = offs+b.offs_srcpos
@@ -2113,17 +2118,19 @@ def check_source_position_quadrant(o, sol):
 
         img = src.images[0]
 
-        t = (45 - img.angle) * (np.pi/180.)
-        c,s = np.cos(t), np.sin(t)
-
         x = sol[srcpos+0]/src.zcap - b.map_shift
         y = sol[srcpos+1]/src.zcap - b.map_shift
 
-        sx = c*x + s*y
-        sy = s*x + c*y
+        tx = (360+90 - (img.angle+wedge/2.)) * (np.pi/180.)
+        ty = (360    - (img.angle-wedge/2.)) * (np.pi/180.)
+        cx,sx = np.cos(tx), np.sin(tx)
+        cy,sy = np.cos(ty), np.sin(ty)
 
-        if sx < 0 or sy < 0:
-            Log( "Source position contrained by quadrant is outside quadrant! Source is at (%f,%f). In rotated frame this is (%f,%f), which is outside of upper left quadrant." % (x,y,sx,sy) )
+        nx = cx*x + sx*y
+        ny = sy*x + cy*y
+
+        if nx < 0 or ny < 0:
+            Log( "Source position contrained by quadrant is outside quadrant! Source is at (%f,%f). In rotated frame this is (%f,%f), which is outside of upper left quadrant." % (x,y,nx,ny) )
 
 @default_prior
 @object_prior
