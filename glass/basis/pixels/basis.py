@@ -522,12 +522,13 @@ class PixelBasis(object):
 #               self.mapextent = self.top_level_cell_size * (2*L + 1)/2
             #self.maprad = rmax + amax([(rmin * max_zcap)/2, 2*(2*rmax/(2*L+1))])
 
-            self.top_level_cell_size = rmax / (L - 4)
+            self.top_level_cell_size = (rmax + (rmax-rmin)*1.2) / (L - 2)
+            self.top_level_cell_size = (rmax                  ) / (L - 1)
             self.maprad = self.top_level_cell_size * L
 
 
         self.map_shift = self.maprad        # [arcsec]
-#       self.map_shift = 0
+        #self.map_shift = 0
         self.top_level_cell_size = self.maprad / L
         self.mapextent = self.top_level_cell_size * (2*L + 1)/2
 
@@ -641,6 +642,10 @@ class PixelBasis(object):
         # Now make lists of all the pixels on a given ring
         #---------------------------------------------------------------------
         self.rings = [ argwhere(rkeys == i).ravel() for i in unique(rkeys) ]
+        self.pixel_to_ring = np.zeros(npix)
+        for ri,r in enumerate(self.rings):
+            for p in r:
+                self.pixel_to_ring[p] = ri
 
         self.oppose = [ argwhere(self.int_ploc == -l).ravel() for l in self.int_ploc ]
 
