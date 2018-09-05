@@ -571,8 +571,8 @@ def J1parity(o, leq, eq, geq):
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
-    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+    pix_start,    pix_end    = 1+b.offs_pix
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
     #shear_start,  shear_end  = 1+b.shear_start,  1+b.shear_end
     #ptmass_start, ptmass_end = 1+b.ptmass_start, 1+b.ptmass_end
 
@@ -619,8 +619,8 @@ def L1parity(o, leq, eq, geq):
 
     MINIMUM, SADDLE, MAXIMUM = 0,1,2
 
-    pix_start,    pix_end    = 1+b.pix_start,    1+b.pix_end
-    srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
+    pix_start,    pix_end    = 1+b.offs_pix
+    srcpos_start, srcpos_end = 1+b.offs_srcpos
 
 #   print '*' * 80
 #   print 'TURNED OFF PARITY MAXIMUM CONDITION'
@@ -1306,6 +1306,81 @@ def J3gradient(o, leq, eq, geq):
 
     for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
         if i == o.basis.central_pixel: continue
+
+#       for j,n in enumerate(o.basis.image_nbrs):
+#           #for nn in n[2]:
+#           if i == n:
+#               print 'F', j,i, n
+#               #break
+#       else:
+        if 1:
+            n,e,s,w = o.basis.nbrs3[i][2]
+
+            px = r.real
+            py = r.imag
+
+            def wght(x):
+                _wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2) if len(x) else 0
+                #_wght = lambda x: 1.0 / len(x) if len(x) else 0
+                return _wght(x)
+
+            for i in ([1,-1] if sn != 0 else [1]):
+
+                x =   cs*px - i*sn*py
+                y = i*sn*px +   cs*py
+
+                row = new_row(o)
+
+                row[pix_start + w] =  wght(w) * x
+                row[pix_start + e] = -wght(e) * x
+                row[pix_start + s] =  wght(s) * y
+                row[pix_start + n] = -wght(n) * y
+                geq(row)
+                c += 1
+
+    Log( 2*indent + "gradient eqs = %i" % c )
+    Log( 2*indent + "sn=%g" % sn )
+
+#@default_prior
+@object_prior
+def J4gradient(o, leq, eq, geq):
+
+    opts = o.prior_options.get('J4gradient', None)
+
+    if not opts:
+        opts = {}
+        #Log( 'J2Gradient NOT ACTIVE' )
+        #return
+
+    #Lmin = np.sqrt(2)*o.basis.top_level_cell_size
+    #Lmin = 1.1*o.basis.top_level_cell_size
+
+    theta = opts.get('theta', 45)
+    theta_min = opts.get('theta_min', 45)
+
+    #XXX assert (L >= Lmin), 'size=%f < %f is too small' % (L, Lmin)
+
+    Log( indent + "J4Gradient (theta=%.2f  theta_min=%.2f)" % (theta, theta_min) )
+
+    pix_start, pix_end = 1+o.basis.offs_pix
+
+    c = 0
+
+    nrings = len(o.basis.rings)-1
+    dtheta = (theta-theta_min) / nrings if nrings > 0 else 0
+
+    rs = [ abs(img.pos) for src in o.sources for img in src.images if img.parity_name != 'max']
+    rmin, rmax = amin(rs), amax(rs)
+
+    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+        if i == o.basis.central_pixel: continue
+
+        nr = o.basis.pixel_to_ring[i]
+
+        t = theta - (nrings-nr)*dtheta
+        print i,nr,dtheta,t
+        phi = radians(90-t)
+        cs,sn = cos(phi), sin(phi)
 
 #       for j,n in enumerate(o.basis.image_nbrs):
 #           #for nn in n[2]:
@@ -2126,7 +2201,7 @@ def check_source_position_quadrant(o, sol):
         cx,sx = np.cos(tx), np.sin(tx)
         cy,sy = np.cos(ty), np.sin(ty)
 
-        nx = cx*x + sx*y
+        nx = cx*x - sx*y
         ny = sy*x + cy*y
 
         if nx < 0 or ny < 0:
