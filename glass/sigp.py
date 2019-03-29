@@ -1,8 +1,8 @@
-from __future__ import division
+
 import numpy as np
 from numpy import logspace, sin, log10, amin, amax
 from scipy.integrate.quadrature import simps as integrator
-from spherical_deproject import cumsolve, sigpsolve, sigpsingle, dlnrhodlnr, masstot, abelsolve
+from .spherical_deproject import cumsolve, sigpsolve, sigpsingle, dlnrhodlnr, masstot, abelsolve
 from glass.scales import convert
 from glass.log import log as Log
 from glass.environment import DArray

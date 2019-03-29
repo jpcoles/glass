@@ -1,4 +1,4 @@
-from __future__ import division
+
 import sys
 import numpy
 import gc
@@ -17,7 +17,7 @@ try:
     from log import log as Log
 except ImportError:
     def l(x):
-        print x
+        print(x)
     Log = l
 
 import csamplex
@@ -44,7 +44,7 @@ class SamplexSolution:
         self.vertex = None
 
 class Samplex:
-    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
+    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = list(range(5))
     SML = 1e-5
     EPS = 1e-14
 
@@ -130,7 +130,7 @@ class Samplex:
         # Tag the first element because we shouldn't be using it.
         #self.lhv = [numpy.nan]  # numpy on MacOSX doesn't like this
         self.lhv = [999999]
-        self.rhv = range(self.nVars+1)
+        self.rhv = list(range(self.nVars+1))
 
         self.geq_count = 0
         self.leq_count = 0
@@ -187,7 +187,7 @@ class Samplex:
             import numpy as np
             import pylab as pl
             m = np.empty((len(self.eq_list), len(self.eq_list[0][1])))
-            print m.shape
+            print(m.shape)
             for i,e in enumerate(self.eq_list):
                 f,a = e
                 m[i] = a
@@ -300,7 +300,7 @@ class Samplex:
                 if p is not None: 
                     break
                 
-                print 'SAME VERTEX!'
+                print('SAME VERTEX!')
                 assert 0
 
             #print 'sol', p
@@ -334,9 +334,9 @@ class Samplex:
         s.vertex[self.lhv[1:]] = self.data[1:self.nLeft+1,0]
         s.vertex[0] = self.data[0,0]
 
-        print 'Testing solution is negative...'
+        print('Testing solution is negative...')
         assert all(s.vertex[1:] >= 0), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
-        print 'Nope.'
+        print('Nope.')
 
         #assert all(s.vertex[1:] >= -self.SML), ("Negative vertex coordinate!", s.vertex[s.vertex < 0])
         #s.vertex[0] = self.data[0,0]
@@ -377,17 +377,17 @@ class Samplex:
         sum( self.data[self.lhv < 0, :self.nRight+1], axis=0, out=self.data[0,:self.nRight+1] )
 
         self.data[0,:self.nRight+1] *= -1
-        print 'Auxiliary obj fn', self.data[0]
+        print('Auxiliary obj fn', self.data[0])
         return
 
 
         #print self.data
         #print self.lhv
         #print self.rhv
-        for r in xrange(self.nRight+1):
+        for r in range(self.nRight+1):
             col = self.data[:,r]
             col[0] = 0
-            for k in xrange(1,self.nLeft+1):
+            for k in range(1,self.nLeft+1):
                 if self.lhv[k] < 0:
                     col[0] -= col[k]
 
@@ -455,7 +455,7 @@ class Samplex:
         assert not isinf(smallest_scale)
         assert smallest_scale > 0.99, smallest_scale
 
-        print dist
+        print(dist)
 
         k = smallest_scale * (1.0-r)
 
@@ -501,8 +501,8 @@ class Samplex:
         scale = iv[a] / dist[a]
 
         smallest_scale = amin(scale) 
-        print 'interior point: smallest scale is %.15e' % smallest_scale
-        print 'interior point: r is %.15e' % r
+        print('interior point: smallest scale is %.15e' % smallest_scale)
+        print('interior point: r is %.15e' % r)
         #smallest_scale = min(smallest_scale, min(scale[dist > self.SML]))
 
         assert not isinf(smallest_scale)
@@ -518,12 +518,12 @@ class Samplex:
         spanvars = slice(1,self.nVars+self.nSlack+1)
         q = sol.vertex[spanvars] + k * (self.moca[spanvars]-sol.vertex[spanvars])
         if any(q < 0):
-            print '!! k is ', k
-            print '!!', self.moca[q < 0]
-            print '!!', where(q < 0)
-            print 
-            print '!!', sol.vertex[q < 0]
-            print '!!', self.moca[q < 0]
+            print('!! k is ', k)
+            print('!!', self.moca[q < 0])
+            print('!!', where(q < 0))
+            print() 
+            print('!!', sol.vertex[q < 0])
+            print('!!', self.moca[q < 0])
             #print '!!', self.moca
             assert 0
 

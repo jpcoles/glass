@@ -1,5 +1,5 @@
 import sys
-from command import command
+from .command import command
 
 log_files = [[sys.stdout, False]]
 

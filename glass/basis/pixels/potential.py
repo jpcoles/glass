@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 from numpy import arctan, log, vectorize, array, trunc
 from math import pi, sin, cos

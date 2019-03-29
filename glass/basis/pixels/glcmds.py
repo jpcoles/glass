@@ -1,11 +1,11 @@
-from __future__ import division
+
 from glass.command import command
 #from solvers.samplex.samplex import Samplex
 #from solvers.samplexsimple.samplex import Samplex
 #from solvers.lpsolve.samplex import Samplex
 import numpy as np
-from itertools import izip
-from basis import PixelBasis as basis_class
+
+from .basis import PixelBasis as basis_class
 from glass.scales import convert
 from glass.exceptions import GLInputError
 from glass.utils import dist_range
@@ -146,13 +146,13 @@ def savestate_PixeLens(env, fname):
     obj0 = env.objects[0]
     pr = obj0.basis.pixrad
     w = pr*2 + 1
-    pmap = obj0.basis._to_grid(range(1,len(obj0.basis.pmap)+1))
+    pmap = obj0.basis._to_grid(list(range(1,len(obj0.basis.pmap)+1)))
 
     with open(fname, 'w') as f:
-        print >>f, '#BEGIN INPUT'
+        print('#BEGIN INPUT', file=f)
 
         for obj in env.objects:
-            print >>f, '''\
+            print('''\
 object %(objname)s
 pixrad %(pixrad)i
 maprad %(maprad)f
@@ -168,32 +168,32 @@ cosm %(om).2f %(ol).2f''' % { \
             'g': convert('nu to H0^-1 in Gyr', env.nu[0]),
             'om':env.omega_matter, 
             'ol':env.omega_lambda,
-             }
+             }, file=f)
 
             for src in obj0.sources:
-                print >>f, 'multi %i %.2f' % (len(src.images), src.z)
+                print('multi %i %.2f' % (len(src.images), src.z), file=f)
                 for img in src.images:
-                    print >>f, '% 12.12e % 12.12e %i' % (img.pos.real, img.pos.imag, img.parity+1)
+                    print('% 12.12e % 12.12e %i' % (img.pos.real, img.pos.imag, img.parity+1), file=f)
 
         #print >>f, env.input_file
-        print >>f, '#END INPUT'
+        print('#END INPUT', file=f)
 
-        print >>f, '#BEGIN PMAP'
-        print >>f, '%i %i' % (pr,pr)
+        print('#BEGIN PMAP', file=f)
+        print('%i %i' % (pr,pr), file=f)
         for i in range(w):
             for j in range(w):
-                print >>f, '%3i' % pmap[i,j], 
-            print >>f
-        print >>f, '#END PMAP'
+                print('%3i' % pmap[i,j], end=' ', file=f) 
+            print(file=f)
+        print('#END PMAP', file=f)
 
-        print >>f, '#BEGIN ENSEM'
+        print('#BEGIN ENSEM', file=f)
         for m in env.models:
-            print >>f, '#BEGIN MODEL'
+            print('#BEGIN MODEL', file=f)
             for d in m['sol'][1:]:
-                print >>f, '%.15g' % d
-            print >>f, '#END MODEL'
+                print('%.15g' % d, file=f)
+            print('#END MODEL', file=f)
 
-        print >>f, '#END ENSEM'
+        print('#END ENSEM', file=f)
 
 
 @command
@@ -201,8 +201,8 @@ def savestate_misc(env, fname):
     with open(fname, 'w') as f:
         for m in env.models:
             for d in m['sol'][1:]:
-                print >>f, '%.15g' % d,
-            print >>f
+                print('%.15g' % d, end=' ', file=f)
+            print(file=f)
 
 @command
 def leier_grid(env, fname, size, **kwargs):
@@ -268,7 +268,7 @@ def shape_chi(env, models, model0, frac='1sigma'):
     for m in models:
         nT,dT = 0,0
         nP,dP = 0,0
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             rs = [ abs(img.pos) for src in obj.sources for img in src.images]

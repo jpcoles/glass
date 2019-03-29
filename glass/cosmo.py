@@ -1,4 +1,4 @@
-from __future__ import division
+
 from math import sin,sinh, sqrt
 from numpy import abs
 from scipy.integrate import quadrature, quad

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-PYTHON="python"
+PYTHON="python3"
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PLATDIR=`$PYTHON -c "import distutils.util, sys; print 'lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3])"`
+PLATDIR=`$PYTHON -c "import distutils.util, sys; print('lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3]))"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
 
 export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$LD_LIBRARY_PATH

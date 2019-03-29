@@ -8,10 +8,10 @@
        the mass model which is then interpolated/integrated over. 
 '''
 
-from __future__ import division
+
 from numpy import loadtxt
 from numpy import interp
-from numfuncs import numsurf, numden
+from .numfuncs import numsurf, numden
 from scipy.misc.common import derivative
 
 class _DataFileMassModel:

@@ -1,7 +1,7 @@
 #
 # Coordinates should be located at the centers of pixels
 #
-from __future__ import division
+
 import sys
 if __name__ == "__main__":
     import sys
@@ -20,7 +20,7 @@ from scipy.integrate import dblquad, quad, fixed_quad
 
 if 1:
     import pylab as pl
-    from pylab import plot, show, matshow, figure, contour, over, scatter, subplot, draw, ion, ioff
+    from pylab import plot, show, matshow, figure, contour, scatter, subplot, draw, ion, ioff
     from matplotlib.patches import Circle, Rectangle
 
 from scipy.ndimage.filters import correlate
@@ -32,7 +32,7 @@ import scipy.ndimage._ni_support as _ni_support
 import scipy.ndimage._nd_image as _nd_image
 
 from math import atan2, pi
-from itertools import izip
+
 
 from glass.environment import Environment
 #glassimport . potential
@@ -54,7 +54,7 @@ def neighbors(r,s, Rs):
     return argwhere((0 < rs) * (rs <= s)).ravel()
 
 def all_neighbors(Rs, L):
-    return [ [i, r, neighbors(r,s,Rs)] for i,[r,s] in enumerate(izip(Rs, L)) ]
+    return [ [i, r, neighbors(r,s,Rs)] for i,[r,s] in enumerate(zip(Rs, L)) ]
 
 def in_pixel(r, R, size):
     p = R-r
@@ -97,7 +97,7 @@ def _pixel_neighbors(i, r0, loc, R, size, sizes, try_hard):
     return np.array(n)
 
 def pixel_neighbors(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+    return [ [i, r, _pixel_neighbors(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(zip(R, sizes)) ]
 
 def _pixel_neighbors3(i, r0, loc, R, size, sizes, try_hard):
     n = []
@@ -116,7 +116,7 @@ def _pixel_neighbors3(i, r0, loc, R, size, sizes, try_hard):
     return n
 
 def pixel_neighbors3(loc, R, sizes, try_hard=True):
-    return [ [i, r, _pixel_neighbors3(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(izip(R, sizes)) ]
+    return [ [i, r, _pixel_neighbors3(i,r,loc,R,s, sizes, try_hard)] for i,[r,s] in enumerate(zip(R, sizes)) ]
      
 
 def xy_grid(L, S=1, scale=1):
@@ -186,8 +186,8 @@ def xy_list(L, R=0, refine=1):
     #rs   += [ r for r in xrange(R, L+1) ]
     #rcs  += [ 1 for r in xrange(R, L+1) ]
 
-    rs   += [ r for r in xrange(R, L+1) ]
-    rcs  += [ 1 for r in xrange(R, L+1) ]
+    rs   += [ r for r in range(R, L+1) ]
+    rcs  += [ 1 for r in range(R, L+1) ]
    # w    += [ refine**2 for r in xrange(R, L+1) ]
     #size += [ 1 for r in xrange(R, L+1) ]
     
@@ -205,7 +205,7 @@ def fast_correlate(input, weights, output = None, mode = 'reflect', cval = 0.0, 
 def memoize(func):
     def f(self, data, *args, **kwargs):
         #print func.__name__, data.has_key(func.__name__), data.keys()
-        if not data.has_key(func.__name__): 
+        if func.__name__ not in data: 
             data[func.__name__] = func(self, data, *args, **kwargs)
         return data[func.__name__]
 
@@ -217,7 +217,7 @@ def visual_neighbor_verification(self, nbrs):
     f=figure(figsize=(8,8))
     sp=f.add_subplot(111)
     for N in nbrs[len(nbrs)-10:]: #[nbrs[0]]+nbrs[225:]:
-        print N
+        print(N)
         sp.clear()
         #plot(self.ploc.real, self.ploc.imag)
         #scatter(self.ploc.real, self.ploc.imag, s=(5)**2, marker='s')
@@ -225,7 +225,7 @@ def visual_neighbor_verification(self, nbrs):
         loc = self.ploc
         cs = self.cell_size
 
-        for r,s in izip(loc, cs):
+        for r,s in zip(loc, cs):
             sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=True, facecolor='w'))
 
         i=N[0]
@@ -245,7 +245,7 @@ def visual_neighbor_verification(self, nbrs):
 #           A.append(a)
 
         draw()
-        raw_input()
+        input()
 
 def Xestimated_Re(obj, ps, src_index):
 
@@ -375,7 +375,7 @@ def irrhistogram2d(R,C,rbin,binsize, weights=None):
 def extra_kappa(obj, e):
     K = []
 
-    for l,s in izip(obj.basis.ploc, obj.basis.cell_size):
+    for l,s in zip(obj.basis.ploc, obj.basis.cell_size):
         k = dblquad(lambda y,x: e.kappa(complex(x,y)),
                     l.real-s/2., l.real+s/2., lambda x: l.imag-s/2., lambda x: l.imag+s/2.)[0]
         k /= s**2
@@ -460,7 +460,7 @@ class PixelBasis(object):
             #ctrunc = lambda c: complex(int(c.real), int(c.imag))
             rs = [ img.pos for src in obj.sources for img in src.images]
             #rs = [ ctrunc(img.pos/self.cell_size) for src in obj.sources for img in src.images]
-            print rs
+            print(rs)
             #print self.int_ploc
             w = [i for i,p in enumerate(self.int_ploc) for r in rs if r == p]
             w = [pixel_containing(r,self.ploc,self.cell_size) for r in rs]
@@ -666,7 +666,7 @@ class PixelBasis(object):
             for i,r in enumerate(self.rings):
                 plot(self.int_ploc[r].real, self.int_ploc[r].imag)
                 #scatter(self.ploc[r].real, self.ploc[r].imag, s=(5*cell_size)**2, marker='s', c=pylab.cm.jet(i*20))
-            for r,s in izip(self.int_ploc, self.int_cell_size):
+            for r,s in zip(self.int_ploc, self.int_cell_size):
                 sp.add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
             sp.set_aspect('equal')
             sp.set_xlim(-(L+0.5), L+0.5)
@@ -678,7 +678,7 @@ class PixelBasis(object):
             sp=f.add_subplot(111, aspect='equal')
             xmin,xmax = np.inf, -np.inf
             ymin,ymax = np.inf, -np.inf
-            for r,s in izip(self.int_ploc, self.int_cell_size):
+            for r,s in zip(self.int_ploc, self.int_cell_size):
                 x,y = r.real-s/2, r.imag-s/2
                 xmin,xmax = np.min([xmin,x]), np.max([xmax,x+s])
                 ymin,ymax = np.min([ymin,y]), np.max([ymax,y+s])
@@ -705,7 +705,7 @@ class PixelBasis(object):
             for i,r in enumerate(self.rings):
                 plot(self.ploc[r].real, self.ploc[r].imag)
                 w0 = 1 / (1 + (abs(abs(self.ploc[r]) - self.rs[i])))
-                print i, len(r), w0
+                print(i, len(r), w0)
                 for R,w,s in zip(self.ploc[r], w0, self.cell_size[r]):
                     #sp.add_artist(Rectangle([R.real-s/2, R.imag-s/2], s,s, fill=False))
                     sp.add_artist(Rectangle([R.real-s/2, R.imag-s/2], s,s, fill=True, facecolor=pl.cm.gray(w**10)))
@@ -802,7 +802,7 @@ class PixelBasis(object):
             Log( '    srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
 
         Log( '    H0         % 5i'       % (self.H0) )
-        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+        for e,[start,end] in zip(obj.extra_potentials, self.extra_potentials_array_offsets):
             Log( '    %-10s % 5i  % 5i' % (e.name, start, end) )
 
 #       xy    = self.refined_xy_grid({})
@@ -826,14 +826,14 @@ class PixelBasis(object):
         ps = PixelLensModel(obj,sol)
 
         ps['src']    = [complex(*(sol[i:i+2] / obj.sources[j].zcap - self.map_shift))
-                        for j,i in enumerate(xrange(self.offs_srcpos[0], self.offs_srcpos[1],2))]
+                        for j,i in enumerate(range(self.offs_srcpos[0], self.offs_srcpos[1],2))]
         ps['src'] = array(ps['src'])
         ps['sm_error_factor'] = sol[self.offs_sm_err] if self.offs_sm_err != 0 else 1
         ps['kappa DM']  = sol[ slice(*self.offs_pix) ]
 
         #ps['kappa']  = ps['kappa DM'] + ps['kappa star']
 
-        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+        for e,[start,end] in zip(obj.extra_potentials, self.extra_potentials_array_offsets):
             ps[e.name] = sol[ start : end ] - e.shift
  
         ps['nu']     = sol[self.H0]
@@ -941,8 +941,8 @@ class PixelBasis(object):
             return self._simple_to_grid(a, refinement)
 
     def from_grid(self, a):
-        print self.insideL
-        print self.pmap
+        print(self.insideL)
+        print(self.pmap)
         return a.ravel()[self.insideL].take(self.pmap)
 
     def mass_grid(self, data):
@@ -1135,7 +1135,7 @@ class PixelBasis(object):
         return K
 
     def srcdiff(self, data, src_index):
-        if not data.has_key('srcdiff'):
+        if 'srcdiff' not in data:
             obj = self.myobject
 
             kappa   = data['kappa']
@@ -1151,7 +1151,7 @@ class PixelBasis(object):
 #           cell_size = self.top_level_cell_size / self.subdivision
 
 
-            if not data.has_key('deflect'):
+            if 'deflect' not in data:
                 x = False
                 _or = None 
                 def pot_grad(args):
@@ -1178,12 +1178,12 @@ class PixelBasis(object):
                 for i,theta in enumerate(ploc):
                     pot_grad((i,theta))
                     if i%100 == 0: 
-                        print 'Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)),;sys.stdout.flush(),
+                        print('Calculating srcdiff: % 5i/%5i\r' % (i+1, len(ploc)), end=' ');sys.stdout.flush(),
                         x = True
                         #print 'Calculating srcdiff: % 6i/%6i\r' % (i+1, len(ploc)), ' '*40,;sys.stdout.flush() 
 
                 if x: 
-                    print ' '*40, '\r',
+                    print(' '*40, '\r', end=' ')
 
                 data['deflect'] = deflect
     
@@ -1191,14 +1191,13 @@ class PixelBasis(object):
                 
                 deflect = data['deflect']
 
-            data['srcdiff'] = map(lambda s: abs(s[0] - ploc + deflect / s[1].zcap),
-                                  izip(data['src'], obj.sources))
+            data['srcdiff'] = [abs(s[0] - ploc + deflect / s[1].zcap) for s in zip(data['src'], obj.sources)]
 
         return data['srcdiff'][src_index]
 
     #@memoize
     def deflect_grid(self, data, which, src_index):
-        if not data.has_key('deflect'):
+        if 'deflect' not in data:
             self.srcdiff(data, src_index)
 
         if which == 'x':
@@ -1230,14 +1229,14 @@ class PixelBasis(object):
         #grid *= grid_cell_size**2
 
         pg = zeros(len(self.ploc))
-        for idx,[l,cell_size] in enumerate(izip(self.ploc, self.cell_size)):
+        for idx,[l,cell_size] in enumerate(zip(self.ploc, self.cell_size)):
             x,y = l.real, l.imag
             rt = y + 0.5*cell_size
             rb = y - 0.5*cell_size
             cl = x - 0.5*cell_size
             cr = x + 0.5*cell_size
-            for i in xrange(2*J+1):
-                for j in xrange(2*J+1):
+            for i in range(2*J+1):
+                for j in range(2*J+1):
                     it = (J-i+0.5) * grid_cell_size
                     ib = (J-i-0.5) * grid_cell_size
                     jl = (j-J-0.5) * grid_cell_size
@@ -1275,14 +1274,14 @@ class PixelBasis(object):
         #grid *= grid_cell_size**2
 
         pg = zeros((2*L+1, 2*L+1))
-        for y in xrange(2*L+1):
-            for x in xrange(2*L+1):
+        for y in range(2*L+1):
+            for x in range(2*L+1):
                 rt = (L-y+0.5) * cell_size
                 rb = (L-y-0.5) * cell_size
                 cl = (x-L-0.5) * cell_size
                 cr = (x-L+0.5) * cell_size
-                for i in xrange(2*J+1):
-                    for j in xrange(2*J+1):
+                for i in range(2*J+1):
+                    for j in range(2*J+1):
                         it = (J-i+0.5) * grid_cell_size
                         ib = (J-i-0.5) * grid_cell_size
                         jl = (j-J-0.5) * grid_cell_size
@@ -1420,7 +1419,7 @@ class PixelBasis(object):
         ps['src'] = [ complex(*s) for s in src ]
         ps['sm_error_factor'] = 0
         ps['nu'] = convert('H0^-1 in Gyr to nu', H0inv)
-        for e,[start,end] in izip(obj.extra_potentials, self.extra_potentials_array_offsets):
+        for e,[start,end] in zip(obj.extra_potentials, self.extra_potentials_array_offsets):
             if isinstance(e, Shear): 
                 assert 0, 'Shear not supported from reconstructed mass (at the moment).'
                 # I'm not supporting this because the shear command only takes a scaling
@@ -1493,7 +1492,7 @@ if __name__ == "__main__":
     pb.L = 10
     pb.cell_size = 1
     lnr = pb._lnr()
-    print lnr.shape
+    print(lnr.shape)
     contour(lnr)
     show()
 

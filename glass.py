@@ -1,4 +1,4 @@
-from __future__ import division, with_statement, absolute_import
+
 import sys, getopt, os, traceback
 
 from glass.environment import env, Environment
@@ -15,7 +15,7 @@ def _detect_cpus():
     import subprocess
     # Linux, Unix and MacOS:
     if hasattr(os, "sysconf"):
-        if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):
+        if "SC_NPROCESSORS_ONLN" in os.sysconf_names:
             # Linux & Unix:
             ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
             if isinstance(ncpus, int) and ncpus > 0:
@@ -24,7 +24,7 @@ def _detect_cpus():
             #return int(os.popen2("sysctl -n hw.ncpu")[1].read())
             return int(subprocess.Popen("sysctl -n hw.ncpu",shell=True,stdout=subprocess.PIPE).communicate()[0])
     # Windows:
-    if os.environ.has_key("NUMBER_OF_PROCESSORS"):
+    if "NUMBER_OF_PROCESSORS" in os.environ:
         ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
         if ncpus > 0:
             return ncpus
@@ -48,26 +48,26 @@ def _detect_omp():
 def Ximport_functions(pkg):
     f = __import__(pkg, globals(), locals())
     #print f.__dict__
-    print f
+    print(f)
     g = globals()
-    for name,func in f.__dict__.iteritems():
+    for name,func in f.__dict__.items():
         if name.startswith('glcmd__'):
-            print '*' * 80
-            print name
+            print('*' * 80)
+            print(name)
             g[name.split('glcmd__')[1]] = func
 
 @command('Load a glass basis set')
 def glass_basis(env, name, **kwargs):
     env.basis_options = kwargs
     f = __import__(name, globals(), locals())
-    for name,[f,g,help_text] in Commands.glass_command_list.iteritems():
-        if __builtins__.__dict__.has_key(name):
-            print 'WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name])
+    for name,[f,g,help_text] in Commands.glass_command_list.items():
+        if name in __builtins__.__dict__:
+            print('WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name]))
         __builtins__.__dict__[name] = g
 
 
 def help():
-    print >>sys.stderr, "Usage: glass.py <input>"
+    print("Usage: glass.py <input>", file=sys.stderr)
     sys.exit(2)
 
 if __name__ == "__main__":
@@ -111,15 +111,15 @@ if __name__ == "__main__":
 
 
     try:
-        execfile(arglist[0]) #, globals(), globals())
+        exec(compile(open(arglist[0], "rb").read(), arglist[0], 'exec')) #, globals(), globals())
     except GLInputError as e:
-        tb = traceback.extract_tb(sys.exc_traceback, 2)[1]
+        tb = traceback.extract_tb(sys.exc_info()[2], 2)[1]
         #traceback.print_tb(sys.exc_traceback, 2)
-        print >>sys.stderr, "Input error on line %i of file '%s':" % (tb[1], tb[0])
-        print >>sys.stderr, "> %s" % tb[3]
-        print >>sys.stderr
-        print >>sys.stderr, e
-        print >>sys.stderr
+        print("Input error on line %i of file '%s':" % (tb[1], tb[0]), file=sys.stderr)
+        print("> %s" % tb[3], file=sys.stderr)
+        print(file=sys.stderr)
+        print(e, file=sys.stderr)
+        print(file=sys.stderr)
 
 
     try:
@@ -137,9 +137,9 @@ if __name__ == "__main__":
         fname = 'glass-crash.%i' % os.getpid()
         savestate(fname)
         traceback.print_exc(file=sys.stderr)
-        print >>sys.stderr
-        print >>sys.stderr, "********************************************************************************"
-        print >>sys.stderr, "* GLASS EXCEPTION CAUGHT. State automatically saved to %s." % fname
-        print >>sys.stderr, "********************************************************************************"
-        print >>sys.stderr
+        print(file=sys.stderr)
+        print("********************************************************************************", file=sys.stderr)
+        print("* GLASS EXCEPTION CAUGHT. State automatically saved to %s." % fname, file=sys.stderr)
+        print("********************************************************************************", file=sys.stderr)
+        print(file=sys.stderr)
 

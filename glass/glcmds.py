@@ -1,8 +1,8 @@
-from __future__ import division, with_statement, absolute_import
+
 import time
 import numpy as np
 from numpy import arctan2, savez, load, array, pi
-from itertools import izip, count, repeat
+from itertools import count, repeat
 
 import glass.cosmo
 from  glass.report import report
@@ -50,7 +50,7 @@ def external_mass(env, mass_obj, mass_range=None):
     if mass_range is None:
         min, max = None, None
     else:
-        if isinstance(mass_range, (int, long, float)):
+        if isinstance(mass_range, (int, float)):
             min = max = mass_range
         else:
             min, max = mass_range
@@ -89,7 +89,7 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     src = Source(env, zsrc, o.z, kwargs.get('zcap', None))
 
-    if kwargs.has_key('position') and kwargs['position'] is not None:
+    if 'position' in kwargs and kwargs['position'] is not None:
         if not prior_included('source_position'): raise GLInputError("The 'source_position' prior must be included when using the position keyword.")
         src.pos = complex(kwargs['position'][0], kwargs['position'][1])
         if len(kwargs['position']) == 3:
@@ -105,7 +105,7 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
         src.add_image(image0)
 
         prev = image0
-        for i in xrange(0, len(imgs), 3):
+        for i in range(0, len(imgs), 3):
             img,parity,time_delay = imgs[i:i+3]
             if time_delay == 0: raise GLInputError('Cannot set a time delay of 0. Use None instead.')
             if prev.parity_name == 'sad' and parity == 'max':
@@ -196,7 +196,7 @@ def savestate(env, fname):
     #env.post_filter_funcs = []
 
     import numpy as np
-    with open(fname, 'w') as f:
+    with open(fname, 'wb') as f:
         savez(f, env)
 
     #env.post_process_funcs = ppf
@@ -227,7 +227,7 @@ def post_filter(env, f, *args, **kwargs):
 
 def _filter(models):
     for m in models: m['accepted'] = False           # Reject all
-    models = filter(_filter_one, izip(models, count(), repeat(len(models))))      # Run each filter, keeping those that survive
+    models = list(filter(_filter_one, zip(models, count(), repeat(len(models)))))      # Run each filter, keeping those that survive
     #models = filter(parallel_map(_filter, models, threads=10))                 # Run each filter, keeping those that survive
     for m,_,_ in models: m['accepted'] = True            # Those that make it to the end are accepted
     return models
@@ -355,7 +355,7 @@ def XXXreprocess(state_file):
 def ensemble_mass_rms(env, models, model0):
     total_rms2 = 0
     for m in models:
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             mass0 = data0['kappa'] * convert('kappa to Msun/arcsec^2', 1, obj0.dL, data0['nu'])
@@ -385,7 +385,7 @@ def kappa_chi2(env, models, model0, frac='1sigma'):
     ns, ds = [], []
     for m in models:
         n,d = 0,0
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
@@ -431,7 +431,7 @@ def kappa_profile_chi2(env, models, model0, frac='1sigma'):
     ns, ds = [], []
     for m in models:
         n,d = 0,0
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             rs = [ abs(img.pos) for src in obj.sources for img in src.images]
@@ -480,7 +480,7 @@ def time_delay_chi2(env, models, model0):
     n_chi2 = 0
     d_chi2 = 0
     for m in models:
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             v0 = np.array([ td for tds in data0['time delays'] for td in tds ])

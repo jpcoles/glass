@@ -10,9 +10,9 @@
     - pars[3] = intpnts (for deprojection)
 '''
 
-from __future__ import division
+
 from numpy import exp
-from numfuncs import numden
+from .numfuncs import numden
 
 #-----------------------------------------------------------------------------
 # Functions

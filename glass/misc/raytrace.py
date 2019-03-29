@@ -1,4 +1,4 @@
-from __future__ import division
+
 import sys
 import numpy as np
 
@@ -15,7 +15,7 @@ from scipy.misc import central_diff_weights
 from scipy.optimize import fsolve, fmin
 
 from glass.scales import convert
-from itertools import izip
+
 from glass.log import log as Log
 
 fig = None
@@ -107,7 +107,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
     #---------------------------------------------------------------------------
 
     initial_guess.append(src)
-    if verbose: print 'Initial guesses', initial_guess
+    if verbose: print('Initial guesses', initial_guess)
 
     def lenseq(theta0):
         theta = complex(*theta0)
@@ -131,7 +131,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         #x = fmin(lenseq, [img.real,img.imag], full_output=False, disp=False, xtol=1e-10, ftol=1e-10)
 
         if not ier: 
-            print mesg
+            print(mesg)
             continue
 
         r = complex(*x)
@@ -219,10 +219,10 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
         ys = [r.imag for r,tau in imgs0]
         pl.scatter(xs,ys, color='g')
         pl.draw()
-        print '*'*80
-        print 'PRESS ANY KEY TO CONTINUE'
-        print '*'*80
-        raw_input()
+        print('*'*80)
+        print('PRESS ANY KEY TO CONTINUE')
+        print('*'*80)
+        input()
 
 
     #---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ def raytrace(model, nimgs=None, ipeps=None, speps=None, initial_guess=None, verb
 
         parity = ['sad', 'sad', 'max', 'min'][(detA > 0)*2 + (trA > 0)]
 
-        print mu
+        print(mu)
         imgs.append(img + [ [mu, A], parity ])
 
     #Mavg = average(map(lambda x: (x[3] != 'max') * x[2][3], imgs))
@@ -315,16 +315,16 @@ def check_model_magnifications(model, **kw_orig):
         obj_imgs = raytrace([obj,ps,src_index],**kw)
         Mobj = np.sum( [ abs(mu) for _,_,[mu,_],p in obj_imgs if p != 'max' ])
 
-        print abs(Mrt-Mobj) / Mobj
+        print(abs(Mrt-Mobj) / Mobj)
 
         bad = abs(Mrt-Mobj) / Mobj > 0.05
 
         if bad:
-            print src_index
-            print 'Rejected:', abs(Mrt-Mobj), Mobj
-            for r,t,[mu,_],p in rt_imgs: print r,t,mu,p
-            print '-----'
-            for r,t,[mu,_],p in obj_imgs: print r,t,mu,p
+            print(src_index)
+            print('Rejected:', abs(Mrt-Mobj), Mobj)
+            for r,t,[mu,_],p in rt_imgs: print(r,t,mu,p)
+            print('-----')
+            for r,t,[mu,_],p in obj_imgs: print(r,t,mu,p)
             del kw['initial_guess']
             #kw['viz'] = True
             #obj_imgs = raytrace([obj,ps,src_index],**kw)
@@ -358,7 +358,7 @@ def raytraceX(obj, ps, sys_index, nimgs=None, eps=None):
 
     imgs = []
     offs = []
-    print 'searching...'
+    print('searching...')
     for i in argsort(dravel):
 
         if nimgs == len(imgs): break
@@ -431,14 +431,14 @@ def write_glass_code(model, obj_index, src_index, seq, simple=False):
         else:
             return "%s, '%s', %.15f" % (a[0], a[1][1], a[1][2])
         
-    print "\n".join(map(img2str, zip(letters, obs)))
-    print ("source(%0.2f, " % obj.sources[src_index].z) + ', '.join(map(img2str2, zip(letters, obs))) + ")"
+    print("\n".join(map(img2str, list(zip(letters, obs)))))
+    print(("source(%0.2f, " % obj.sources[src_index].z) + ', '.join(map(img2str2, list(zip(letters, obs)))) + ")")
 
     return
 
 def write_code(model, obj_index, src_index, seq, simple=False):
     code = gen_code(model, obj_index, src_index, seq, simple=False)
-    print "[" + ",\n ".join(code) + "]"
+    print("[" + ",\n ".join(code) + "]")
 
 def gen_code(model, obj_index, src_index, seq, simple=False):
 
@@ -462,7 +462,7 @@ def gen_code(model, obj_index, src_index, seq, simple=False):
         else:
             return "['%s', (% 9.15f,% 9.15f), '%s', %.4f]" % (a[0],a[1][0].real,a[1][0].imag, a[1][1], a[1][2])
         
-    return map(img2str, zip(letters, obs))
+    return list(map(img2str, list(zip(letters, obs))))
         
     imglist = ["['%s', (% 9.5f,% 9.5f), '%s']" % (letters[0], seq[0][0].real, seq[0][0].imag,seq[0][3])]
     prev = seq[0][1]
@@ -471,8 +471,8 @@ def gen_code(model, obj_index, src_index, seq, simple=False):
         imglist.append(img2str(img,t0,l,parity))
         prev = t
 
-    print "%.2f, [%.4f, %.4f]," % (obj.sources[src_index].z, ps['src'][src_index].real, ps['src'][src_index].imag)
-    print "[" + ",\n ".join(imglist) + "]"
+    print("%.2f, [%.4f, %.4f]," % (obj.sources[src_index].z, ps['src'][src_index].real, ps['src'][src_index].imag))
+    print("[" + ",\n ".join(imglist) + "]")
 
     #---------------------------------------------------------------------------
     # Old stuff.
@@ -488,7 +488,7 @@ def gen_code(model, obj_index, src_index, seq, simple=False):
             sys.stdout.write("source(%.2f,A,'min'" % obj.sources[src_index].z)
             prev = seq[0][1]
             for [img,t],l in zip(seq[1:], letters[1:]):
-                print '@', t-prev, ps['1/H0'], obj.basis.top_level_cell_size**2
+                print('@', t-prev, ps['1/H0'], obj.basis.top_level_cell_size**2)
                 t0 = (t-prev) * ps['1/H0'] * obj.scales['time'] # / obj.basis.top_level_cell_size**2
                 #t0 = time_to_physical(obj, t-prev) * ps['1/H0'] / obj.basis.top_level_cell_size**2
                 if -1e-4 < t0 < 1e-4:

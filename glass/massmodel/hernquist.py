@@ -11,9 +11,9 @@
     - pars[4] = intpnts (for projection)
 '''
 
-from __future__ import division
+
 from numpy import pi
-from numfuncs import numsurf
+from .numfuncs import numsurf
 
 #-----------------------------------------------------------------------------
 # Functions

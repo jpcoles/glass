@@ -24,5 +24,5 @@ for f in files:
     beta = 0
     aperture = 400
 
-    print sigpsingle(data['R'],data['sigp'],light,lpars,aperture,integrator)
+    print(sigpsingle(data['R'],data['sigp'],light,lpars,aperture,integrator))
 

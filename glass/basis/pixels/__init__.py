@@ -1,7 +1,7 @@
-from __future__ import division
-from itertools import izip
+
+
 from numpy import mean, zeros, argwhere
-from priors import include_prior, exclude_prior, \
+from .priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
 from glass.log import log as Log
 from glass.environment import env, Environment
@@ -13,24 +13,25 @@ from glass.solvers.error import GlassSolverError
 from . import glcmds
 from . import funcs
 from . import priors
-from funcs import default_post_process
+from .funcs import default_post_process
+from functools import reduce
 
 opts = env().basis_options
-if opts.has_key('solver') and opts['solver'] is None:
+if 'solver' in opts and opts['solver'] is None:
     pass
-elif not opts.has_key('solver') or opts['solver'] == 'rwalk':
+elif 'solver' not in opts or opts['solver'] == 'rwalk':
     from glass.solvers.rwalk.samplex import Samplex
     import glass.solvers.rwalk.glcmds 
-elif opts.has_key('solver') and opts['solver'] == 'samplex':
+elif 'solver' in opts and opts['solver'] == 'samplex':
     from glass.solvers.samplex.samplex import Samplex
     import glass.solvers.samplex.glcmds 
-elif opts.has_key('solver') and opts['solver'] == 'lpsolve':
+elif 'solver' in opts and opts['solver'] == 'lpsolve':
     from glass.solvers.lpsolve.samplex import Samplex
     import glass.solvers.lpsolve.glcmds 
-elif opts.has_key('solver') and opts['solver'] == 'samplexsimple':
+elif 'solver' in opts and opts['solver'] == 'samplexsimple':
     from glass.solvers.samplexsimple.samplex import Samplex
     import glass.solvers.samplexsimple.glcmds 
-elif opts.has_key('solver') and opts['solver'] == 'samplexsimple2':
+elif 'solver' in opts and opts['solver'] == 'samplexsimple2':
     from glass.solvers.samplexsimple.samplex2 import Samplex
     import glass.solvers.samplexsimple.glcmds 
 else:
@@ -158,25 +159,25 @@ def init_model_generator(env, nmodels, regenerate=False):
     priors = def_priors
 
     if exc_priors:
-        priors = filter(lambda x: x not in exc_priors, priors)
+        priors = [x for x in priors if x not in exc_priors]
 
     if inc_priors:
-        priors += filter(lambda x: x not in priors, inc_priors)
+        priors += [x for x in inc_priors if x not in priors]
 
 
     Log( 'Priors:' )
     for p in all_priors:
         Log( '%10s %s' % ('[EXCLUDED]' if p not in priors else '', p.f.__name__) )
 
-    lp = filter(lambda x: x.where == 'object_prior',   priors)
-    gp = filter(lambda x: x.where == 'ensemble_prior', priors)
+    lp = [x for x in priors if x.where == 'object_prior']
+    gp = [x for x in priors if x.where == 'ensemble_prior']
 
     #---------------------------------------------------------------------------
     # Initialize our model generator, the simplex.
     #---------------------------------------------------------------------------
     opts = env.model_gen_options
     opts['ncols'] = nvars
-    if not opts.has_key('nthreads'): opts['nthreads'] = Environment.global_opts['ncpus']
+    if 'nthreads' not in opts: opts['nthreads'] = Environment.global_opts['ncpus']
 
     #mg = env.model_gen = env.model_gen_factory(env.model_gen_options)
     mg = env.model_gen = Samplex(**env.model_gen_options)
@@ -233,11 +234,11 @@ def _model_dict(objs, sol):
     if type(objs) != type([]):
         objs = [objs]
 
-    print objs
-    print sol
+    print(objs)
+    print(sol)
     return {'sol':      sol,
-            'obj,data': zip(objs, map(lambda x: solution_to_dict(x, sol), objs)),
-            'obj,sol':  zip(objs, map(lambda x: obj_solution(x, sol), objs)),
+            'obj,data': list(zip(objs, [solution_to_dict(x, sol) for x in objs])),
+            'obj,sol':  list(zip(objs, [obj_solution(x, sol) for x in objs])),
             'tagged':   False}
 
 @command
@@ -246,8 +247,8 @@ def package_solution(env, sol, objs, **kwargs):
     fn_object_sol  = kwargs.get('fn_object_sol',  lambda x: obj_solution(x, sol) if sol is not None else None)
     
     return {'sol':  sol,
-            'obj,data': zip(objs, map(fn_package_sol, objs)),
-            'obj,sol':  zip(objs, map(fn_object_sol,  objs)),
+            'obj,data': list(zip(objs, list(map(fn_package_sol, objs)))),
+            'obj,sol':  list(zip(objs, list(map(fn_object_sol,  objs)))),
             'tagged':  False}
 
 @command
@@ -429,7 +430,7 @@ def _particle_model(obj, X,Y,M, src, H0inv):
 def change_source(env, src, invalidate=True):
     for m in env.models:
         assert len(src) == len(m['obj,data'])
-        for [obj,data],s in izip(m['obj,data'], src):
+        for [obj,data],s in zip(m['obj,data'], src):
             #if not isinstance(s, complex):
                 #raise ValueError('The new source position must be given as a complex number or tuple')
             data['src'] = s
@@ -437,7 +438,7 @@ def change_source(env, src, invalidate=True):
     if invalidate:
         for m in env.models:
             for n in ['srcdiff', 'srcdiff_grid', 'arrival_grid', 'arrival_contour_levels', 'time_delays']:
-                if m['obj,data'][0][1].has_key(n):
+                if n in m['obj,data'][0][1]:
                     del m['obj,data'][0][1][n]
 
 

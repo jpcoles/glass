@@ -1,6 +1,6 @@
 import textwrap
 
-class GLInputError(StandardError):
+class GLInputError(Exception):
     def __init__(self, msg):
         #msg = textwrap.fill(msg, 80)
-        StandardError.__init__(self, msg)
+        Exception.__init__(self, msg)

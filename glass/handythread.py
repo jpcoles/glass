@@ -2,7 +2,8 @@ import sys
 import time
 import threading
 import operator
-from itertools import izip, count
+from itertools import count
+from functools import reduce
 
 def foreach(f,l,threads=3,return_=False):
     """
@@ -15,7 +16,7 @@ def foreach(f,l,threads=3,return_=False):
         if return_:
             n = 0
             d = {}
-            i = izip(count(),l.__iter__())
+            i = zip(count(),l.__iter__())
         else:
             i = l.__iter__()
 
@@ -27,7 +28,7 @@ def foreach(f,l,threads=3,return_=False):
                     try:
                         if exceptions:
                             return
-                        v = i.next()
+                        v = next(i)
                     finally:
                         iteratorlock.release()
                 except StopIteration:
@@ -46,16 +47,16 @@ def foreach(f,l,threads=3,return_=False):
                     finally:
                         iteratorlock.release()
         
-        threadlist = [threading.Thread(target=runall) for j in xrange(threads)]
+        threadlist = [threading.Thread(target=runall) for j in range(threads)]
         for t in threadlist:
             t.start()
         for t in threadlist:
             t.join()
         if exceptions:
             a, b, c = exceptions[0]
-            raise a, b, c
+            raise a(b).with_traceback(c)
         if return_:
-            r = d.items()
+            r = list(d.items())
             r.sort()
             return [v for (n,v) in r]
     else:
@@ -75,25 +76,25 @@ def parallel_map2(f,l,threads=3):
         d = {}
 
         def runall(id, work):
-            d[id] = map(f, work)
+            d[id] = list(map(f, work))
         
-        threadlist = [threading.Thread(target=runall, args=(j, l[j*size:(j+1)*size])) for j in xrange(threads)]
+        threadlist = [threading.Thread(target=runall, args=(j, l[j*size:(j+1)*size])) for j in range(threads)]
         for t in threadlist: t.start()
         for t in threadlist: t.join()
 
-        return reduce(operator.add, d.itervalues())
+        return reduce(operator.add, iter(d.values()))
     else:
-        return map(f,l)
+        return list(map(f,l))
 
 if __name__=='__main__':
     def f(x):
-        print x
+        print(x)
         time.sleep(0.5)
-    foreach(f,range(10))
+    foreach(f,list(range(10)))
     def g(x):
         time.sleep(0.5)
-        print x
-        raise ValueError, x
+        print(x)
+        raise ValueError(x)
         time.sleep(0.5)
-    foreach(g,range(10))
+    foreach(g,list(range(10)))
 

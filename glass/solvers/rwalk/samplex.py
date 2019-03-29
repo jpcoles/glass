@@ -1,4 +1,4 @@
-from __future__ import division
+
 import sys
 import time
 import numpy as np
@@ -10,7 +10,7 @@ except:
     from scipy.linalg import _fblas as fblas
 
 import multiprocessing as MP
-from Queue import Empty as QueueEmpty
+from queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
 
@@ -26,12 +26,13 @@ try:
     from glass.log import log as Log
 except ImportError:
     def l(x):
-        print x
+        print(x)
     Log = l
 
-import csamplex
+from . import csamplex
+
 if 0:
-    import glpklpsolve as lpsolve55
+    from . import glpklpsolve as lpsolve55
     import lpsolve55 as lpsolve55
     from lpsolve55 import lpsolve, EQ,GE,LE
     from lpsolve55 import NORMAL, DETAILED, FULL, IMPORTANT
@@ -39,12 +40,12 @@ if 0:
     from lpsolve55 import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
     from lpsolve55 import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 else:
-    import glpklpsolve as lpsolve55
-    from glpklpsolve import lpsolve, EQ,GE,LE
-    from glpklpsolve import NORMAL, DETAILED, FULL, IMPORTANT
+    from . import glpklpsolve as lpsolve55
+    from .glpklpsolve import lpsolve, EQ,GE,LE
+    from .glpklpsolve import NORMAL, DETAILED, FULL, IMPORTANT
 
-    from glpklpsolve import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
-    from glpklpsolve import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
+    from .glpklpsolve import NOMEMORY, OPTIMAL, SUBOPTIMAL, INFEASIBLE
+    from .glpklpsolve import UNBOUNDED, DEGENERATE, NUMFAILURE, USERABORT, TIMEOUT, PRESOLVED
 
 np.set_printoptions(linewidth=10000000, precision=20, threshold=2000)
 
@@ -130,7 +131,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
                 elif cmd[0] == 'RWALK':
                     done = True
                 else:
-                    print 'Unknown cmd:', cmd
+                    print('Unknown cmd:', cmd)
         except QueueEmpty:
             pass
 
@@ -236,7 +237,7 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec,seed):
 
     offs = ' '*36
     state = ''
-    for i in xrange(nmodels):
+    for i in range(nmodels):
 
         accepted = 0
         rejected = 0
@@ -262,7 +263,7 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec,seed):
         q.put([id,vec.copy('A'),'RWALK'])
 
 class Samplex:
-    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
+    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = list(range(5))
     SML = 1e-5
     EPS = 1e-14
 
@@ -334,7 +335,7 @@ class Samplex:
         if 0:
             import pylab as pl
             m = np.empty((len(self.eq_list), len(self.eq_list[0][1])))
-            print m.shape
+            print(m.shape)
             for i,e in enumerate(self.eq_list):
                 f,a = e
                 m[i] = a
@@ -391,7 +392,7 @@ class Samplex:
         self.eqs = np.zeros((self.eqn_count+dim,dim+1), order='C', dtype=np.float64)
         for i,[c,e] in enumerate(self.eq_list):
             self.eqs[i,:] = e
-        for i in xrange(dim):
+        for i in range(dim):
             self.eqs[self.eqn_count+i,1+i] = 1
 
         self.dist_eqs = np.zeros((self.eqn_count-self.eq_count,dim+1), order='C', dtype=np.float64)

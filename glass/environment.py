@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy, os, subprocess
 from numpy import arctan2, pi, linspace, atleast_2d, abs, ndarray, asarray
 from collections import defaultdict 
@@ -192,7 +192,7 @@ class DArray(ndarray):
         self.symbol = p[2]
 
     def __getitem__(self, i):
-        if isinstance(i, basestring):
+        if isinstance(i, str):
             scale_factor = self.units[i][0]
             return self * scale_factor
         if i is None: return self

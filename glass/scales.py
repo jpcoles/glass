@@ -1,5 +1,5 @@
-from __future__ import division
-from command import command
+
+from .command import command
 #from cosmo import scales
 
 N = 206265
@@ -197,7 +197,7 @@ if __name__ == '__main__':
         d -= r
         assert fabs(d) <= tol, 'Equality test failed.'
 
-    print 'Testing', __file__
+    print('Testing', __file__)
     eq(convert('days to years', 10), 0.027378507871321012, 1e-6)
     eq(convert('years to days', convert('days to years', 10)), 10, 1e-6)
 

@@ -2,7 +2,7 @@
 import sys
 from numpy import array, radians, linspace
 from pylab import show, scatter, figure, plot, xlim, ylim
-from samplex import Samplex
+from .samplex import Samplex
 from math import cos, sin, pi
 
 
@@ -25,7 +25,7 @@ def poly0(s):
     ys = []
     ls = linspace(0, 360, nPnts+1)
     for d in ls:
-        print "!!!!!", d
+        print("!!!!!", d)
         p.append([rad * cos(d * pi / 180.) + x,
                   rad * sin(d * pi / 180.) + y,
                   0, 0])
@@ -35,8 +35,8 @@ def poly0(s):
         xs.append(p[-1][0])
         ys.append(p[-1][1])
 
-    print xs
-    print ys 
+    print(xs)
+    print(ys) 
 
     plot(xs[:-1], ys[:-1])
 
@@ -47,19 +47,19 @@ def poly0(s):
 
         #if i==4: rise /= 2
 
-        print rise, run
+        print(rise, run)
 
         if   (abs(run) < 1e-13): p[i][2] = None
         else:                    p[i][2] = rise / run
 
         if p[i][2] is None:
-            print "HERE"
+            print("HERE")
             s.geq(array([-p[i][0], 1, 0]))
         else:
             p[i][3] = p[i][1] - p[i][2] * p[i][0]
 
 
-            print "????? %.20e %.20e %.20e %.20e %i %.20e" % (rise, run, p[i+1][1], p[i][1], i, ls[i])
+            print("????? %.20e %.20e %.20e %.20e %i %.20e" % (rise, run, p[i+1][1], p[i][1], i, ls[i]))
             #print "  ??? %.20
 
             m = p[i][2]
@@ -88,10 +88,10 @@ def fromFile(s, filename):
     fp = open(filename, 'r')
     for line in fp:
         line = line.split()
-        print line
-        if   line[0] == "eq":  s.eq(array(map(float, line[2:])))
-        elif line[0] == "leq": s.leq(array(map(float, line[2:])))
-        elif line[0] == "geq": s.geq(array(map(float, line[2:])))
+        print(line)
+        if   line[0] == "eq":  s.eq(array(list(map(float, line[2:]))))
+        elif line[0] == "leq": s.leq(array(list(map(float, line[2:]))))
+        elif line[0] == "geq": s.geq(array(list(map(float, line[2:]))))
 
 def run(fs):
     for f in fs:
@@ -100,7 +100,7 @@ def run(fs):
         s = Samplex()
         f(s)
         s.start()
-        print s.data
+        print(s.data)
 
         xs = []
         ys = []

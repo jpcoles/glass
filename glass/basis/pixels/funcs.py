@@ -1,11 +1,11 @@
-from __future__ import division
+
 from glass.scales import convert
 import numpy as np
 from numpy import cumsum, mean, array, where, pi, dot, abs
 from glass.environment import DArray
 from . potential import poten, poten_dx, poten_dy
 import glass.shear as shear
-from itertools import izip
+
 
 def estimated_Rlens(obj, ps, src_index):
 

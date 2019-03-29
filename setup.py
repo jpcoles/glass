@@ -11,7 +11,7 @@ compiler='clang'
 try:
     import numpy
 except ImportError:
-    print 'Could import numpy, which is necessary for compilation.'
+    print('Could import numpy, which is necessary for compilation.')
     sys.exit(1)
 
 libraries=[#'profiler', 'gomp'

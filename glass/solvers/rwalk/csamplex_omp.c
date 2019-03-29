@@ -69,9 +69,20 @@ static PyMethodDef csamplex_methods[] =
     {NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initcsamplex()
+static struct PyModuleDef cModPyDem =
 {
-    (void)Py_InitModule("csamplex", csamplex_methods);
+    PyModuleDef_HEAD_INIT,
+    "csamplex", /* name of module */
+    "",         /* module documentation, may be NULL */
+    -1,         /* size of per-interpreter state of the module, or -1 if the module keeps state in global variables. */
+    csamplex_methods
+};
+
+
+PyMODINIT_FUNC PyInit_csamplex()
+{
+    Py_Initialize();
+    return PyModule_Create(&cModPyDem);
 }
 
 double ggl(double *ds)
@@ -95,7 +106,7 @@ PyObject *set_rwalk_seed(PyObject *self, PyObject *args)
     if (args == Py_None)
         seed = time(NULL);
     else
-        seed = PyInt_AsLong(args);
+        seed = PyLong_AsLong(args);
  
 #if WITH_WELL
     unsigned int init[1391];
@@ -159,13 +170,13 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "OOOOOOdll", &self, &po_eqs, &po_vec, &po_eval, &po_S, &po_S0, &twiddle, &accepted, &rejected))
         return NULL;
 
-          long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
-    const long dim = PyInt_AsLong(PyObject_GetAttrString(self, "dim"));
-    const long dof = PyInt_AsLong(PyObject_GetAttrString(self, "dof"));
+          long redo = PyLong_AsLong(PyObject_GetAttrString(self, "redo"));
+    const long dim  = PyLong_AsLong(PyObject_GetAttrString(self, "dim"));
+    const long dof  = PyLong_AsLong(PyObject_GetAttrString(self, "dof"));
 
-    const long  eq_count = PyInt_AsLong(PyObject_GetAttrString(self, "eq_count"));
-    const long geq_count = PyInt_AsLong(PyObject_GetAttrString(self, "geq_count"));
-    const long leq_count = PyInt_AsLong(PyObject_GetAttrString(self, "leq_count"));
+    const long  eq_count = PyLong_AsLong(PyObject_GetAttrString(self, "eq_count"));
+    const long geq_count = PyLong_AsLong(PyObject_GetAttrString(self, "geq_count"));
+    const long leq_count = PyLong_AsLong(PyObject_GetAttrString(self, "leq_count"));
 
     dble_t * restrict vec  = (dble_t * restrict)PyArray_DATA(po_vec), 
            * restrict eval = (dble_t * restrict)PyArray_DATA(po_eval),
@@ -297,7 +308,7 @@ reject:
     free(dir_indices);
 
     return Py_BuildValue("llf", accepted, rejected, redo_etime-redo_stime);
-    return PyInt_FromLong(0);
+    return PyLong_FromLong(0);
 }
 
 double distance_to_plane(int dir, long dir_index, 
@@ -366,13 +377,13 @@ PyObject *samplex_refine_center(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "OOOOOO", &self, &po_eqs, &po_vec, &po_eval, &po_S, &po_steps))
         return NULL;
 
-          long redo = PyInt_AsLong(PyObject_GetAttrString(self, "redo"));
-    const long dim = PyInt_AsLong(PyObject_GetAttrString(self, "dim"));
-    const long dof = PyInt_AsLong(PyObject_GetAttrString(self, "dof"));
+          long redo = PyLong_AsLong(PyObject_GetAttrString(self, "redo"));
+    const long dim  = PyLong_AsLong(PyObject_GetAttrString(self, "dim"));
+    const long dof  = PyLong_AsLong(PyObject_GetAttrString(self, "dof"));
 
-    const long  eq_count = PyInt_AsLong(PyObject_GetAttrString(self, "eq_count"));
-    const long geq_count = PyInt_AsLong(PyObject_GetAttrString(self, "geq_count"));
-    const long leq_count = PyInt_AsLong(PyObject_GetAttrString(self, "leq_count"));
+    const long  eq_count = PyLong_AsLong(PyObject_GetAttrString(self, "eq_count"));
+    const long geq_count = PyLong_AsLong(PyObject_GetAttrString(self, "geq_count"));
+    const long leq_count = PyLong_AsLong(PyObject_GetAttrString(self, "leq_count"));
 
     dble_t * restrict vec   = (dble_t * restrict)PyArray_DATA(po_vec), 
            * restrict eval  = (dble_t * restrict)PyArray_DATA(po_eval),
@@ -431,6 +442,6 @@ PyObject *samplex_refine_center(PyObject *self, PyObject *args)
     }
     redo_etime = CPUTIME;
 
-    return PyInt_FromLong(0);
+    return PyLong_FromLong(0);
 }
 

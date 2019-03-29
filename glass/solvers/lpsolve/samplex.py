@@ -1,4 +1,4 @@
-from __future__ import division
+
 from numpy import isfortran, asfortranarray, sign, logical_and, any, amin
 from numpy import set_printoptions
 from numpy import zeros, array, all, log, empty
@@ -128,7 +128,7 @@ class Samplex:
                   TIMEOUT:           'TIMEOUT',
                   PRESOLVED:         'PRESOLVED'}[res]
 
-        print 'solve result %s (%i)' % (restxt, res)
+        print('solve result %s (%i)' % (restxt, res))
 
         if res != OPTIMAL: return
 
@@ -156,7 +156,7 @@ class Samplex:
                     if p is not None: 
                         break
                     
-                    print 'SAME VERTEX!'
+                    print('SAME VERTEX!')
 
                 yield p
         else:
@@ -206,12 +206,12 @@ class Samplex:
             objv = lpsolve('get_objective', self.lp)
 
             if self.objf_choice == 'facet' and abs(objv) > 1e-6:
-                print 'BAD VARIABLE', objv
+                print('BAD VARIABLE', objv)
                 del self.ineqs[r]
             else:
                 break
 
-        print 'Solution after %i steps.' % lpsolve('get_total_iter', self.lp)
+        print('Solution after %i steps.' % lpsolve('get_total_iter', self.lp))
 
 
     def package_solution(self):

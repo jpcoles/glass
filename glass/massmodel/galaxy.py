@@ -17,9 +17,9 @@
     - pars[9] = intpnts (for projection)
 '''
 
-from __future__ import division
+
 from numpy import pi, abs, sqrt, log
-from numfuncs import numsurf
+from .numfuncs import numsurf
 
 #-----------------------------------------------------------------------------
 # Functions

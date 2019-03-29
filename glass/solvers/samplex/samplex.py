@@ -1,4 +1,4 @@
-from __future__ import division
+
 import sys
 import numpy
 import gc
@@ -42,7 +42,7 @@ class SamplexSolution:
         self.loc = None # The n-dimenional coordinates
 
 class Samplex:
-    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = range(5)
+    INFEASIBLE, FEASIBLE, NOPIVOT, FOUND_PIVOT, UNBOUNDED = list(range(5))
     SML = 1e-6
     EPS = 1e-14
 
@@ -127,7 +127,7 @@ class Samplex:
         # Tag the first element because we shouldn't be using it.
         #self.lhv = [numpy.nan]  # numpy on MacOSX doesn't like this
         self.lhv = [999999]
-        self.rhv = range(self.nVars+1)
+        self.rhv = list(range(self.nVars+1))
 
         self.geq_count = 0
         self.leq_count = 0
@@ -301,18 +301,18 @@ class Samplex:
                     self.next_solution_trail()
                     self.curr_sol = self.package_solution()                
 
-                    print self.sol_type
+                    print(self.sol_type)
                     if self.sol_type == 'vertex':
-                        print 'SADFDSAF'
+                        print('SADFDSAF')
                         p = self.curr_sol.loc[:self.nVars+1].copy()
                     elif self.sol_type == 'interior':
-                        print '!@#!@#'
+                        print('!@#!@#')
                         p = self.interior_point()
 
                     if p is not None: 
                         break
                     
-                    print 'SAME VERTEX!'
+                    print('SAME VERTEX!')
 
 #           q = self.data.copy()
 #           q = q[q != 0]
@@ -372,7 +372,7 @@ class Samplex:
                 self.iteration += 1
 
             if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
-                print 'BAD VARIABLE', abs(self.data[0,0])
+                print('BAD VARIABLE', abs(self.data[0,0]))
                 self.forbidden_variables.append(r)
             else:
                 break
@@ -398,7 +398,7 @@ class Samplex:
                 self.iteration += 1
 
             if self.objf_choice == 'facet' and abs(self.data[0,0]) > 1e-8:
-                print 'BAD VARIABLE', abs(self.data[0,0])
+                print('BAD VARIABLE', abs(self.data[0,0]))
                 self.forbidden_variables.append(r)
             else:
                 break
@@ -475,14 +475,14 @@ class Samplex:
             #print self.nVars, self.nSlack, self.nRight
             #print self.rhv[logical_and(self.nVars < self.rhv, self.rhv <= self.nVars+self.nSlack)]
             #print range(1+self.nVars, 1+self.nVars+self.nSlack)
-            print sv
+            print(sv)
             #assert len(sv) <= self.nSlack, '%i %i' % (len(sv), self.nSlack)
             r = sv[random_integers(len(sv))-1]
-            print r
+            print(r)
             #r = argwhere(self.rhv == r).flatten()[0]
             #print r
 
-            print 'SSS', r
+            print('SSS', r)
 
             self.obj = zeros(1+self.nVars+self.nSlack)
             #self.obj[0] = self.data[self.lhv==r,0]
@@ -517,13 +517,13 @@ class Samplex:
             return
         elif 1:
             #print "obj", obj
-            for r in xrange(self.nRight+1):
+            for r in range(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
                 #print '@', obj[n], n
                 col[0] = obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
                 #col[0] = obj[n] if 0 <= n <= self.nVars else 0
-                for k in xrange(1, self.nLeft+1):
+                for k in range(1, self.nLeft+1):
                     n = self.lhv[k]
                     #print obj[n]
                     if 0 <= n <= self.nVars+self.nSlack:
@@ -539,43 +539,43 @@ class Samplex:
             obj_vs = obj[ns]
             #obj_vs = obj[self.lhv[ks]]
             #assert not any(obj_vs)
-            for r in xrange(self.nRight+1):
+            for r in range(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
                 col[0] = dot(col[ks], obj_vs)
                 col[0] += obj[n] if 0 <= n <= self.nVars+self.nSlack else 0
                 #col[0] += obj[n] if 0 <= n <= self.nVars else 0
 
-            print '!' * 80
-            print self.data[0,0]
+            print('!' * 80)
+            print(self.data[0,0])
 
         elif 0:
             assert self.lhv.size == self.nLeft+1
             ks     = logical_and(0 < self.lhv, self.lhv <= self.nVars)
             obj_vs = obj[self.lhv[ks]]
-            print '*', obj_vs
-            for r in xrange(self.nRight+1):
+            print('*', obj_vs)
+            for r in range(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
                 col[0] = sum(col[ks] * obj_vs)
                 col[0] += obj[n] if 0 <= n <= self.nVars else 0
 
-            print '!' * 80
-            print self.data[0,:]
+            print('!' * 80)
+            print(self.data[0,:])
         else:
             #print "obj", obj
-            print '*'*20, self.nRight+1
-            for r in xrange(self.nRight+1):
+            print('*'*20, self.nRight+1)
+            for r in range(self.nRight+1):
                 col = self.data[:,r]
                 n   = self.rhv[r]
                 col[0] = obj[n] if 0 <= n <= self.nVars else 0
-                for k in xrange(1, self.nLeft+1):
+                for k in range(1, self.nLeft+1):
                     n = self.lhv[k]
                     if 0 <= n <= self.nVars:
                         col[0] += col[k] * obj[n]
 
-            print '!' * 80
-            print self.data[0,0]
+            print('!' * 80)
+            print(self.data[0,0])
         # XXX
         #self.data[0,0] = 1
         # XXX
@@ -619,10 +619,10 @@ class Samplex:
         #print self.data
         #print self.lhv
         #print self.rhv
-        for r in xrange(self.nRight+1):
+        for r in range(self.nRight+1):
             col = self.data[:,r]
             col[0] = 0
-            for k in xrange(1,self.nLeft+1):
+            for k in range(1,self.nLeft+1):
                 if self.lhv[k] < 0:
                     col[0] -= col[k]
 
@@ -709,12 +709,12 @@ class Samplex:
         q = sol.loc[vars] + k * (lip.loc[vars]-sol.loc[vars])
         w = q < 0
         if any(w):
-            print '!! k,r,smallest_scale are ', k, r, smallest_scale
-            print '!!', lip.loc[w]
-            print '!!', argwhere(w)
-            print 
-            print '!!', sol.loc[w]
-            print '!!', q[w]
+            print('!! k,r,smallest_scale are ', k, r, smallest_scale)
+            print('!!', lip.loc[w])
+            print('!!', argwhere(w))
+            print() 
+            print('!!', sol.loc[w])
+            print('!!', q[w])
             assert 0
 
         k = smallest_scale 

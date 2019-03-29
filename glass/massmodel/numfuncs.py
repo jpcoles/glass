@@ -9,7 +9,7 @@
      - numden (num calc. the density given an input surface density)
 '''
 
-from __future__ import division
+
 from numpy import linspace, empty
 from numpy import pi
 from numpy import cos
@@ -24,7 +24,7 @@ def numsurf(r,mm,intpnts):
     cth = cos(theta)
     cth2 = cth**2
     surf = empty(len(r), 'double')
-    for i in xrange(len(r)):
+    for i in range(len(r)):
         q = r[i]/cth
         y = mm.den(q)
         surf[i] = 2*r[i]*_integrator(y/cth2,theta)
@@ -36,7 +36,7 @@ def numden(r,mm,intpnts):
     theta = linspace(0,pi/2-1e-6,num=intpnts)
     cth = cos(theta)
     rho = empty(len(r), 'double')
-    for i in xrange(len(r)):
+    for i in range(len(r)):
         y = mm.dsurf(r[i]/cth)
         rho[i] = (-1/pi)*_integrator(y/cth,theta)
     return rho

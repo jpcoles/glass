@@ -46,7 +46,7 @@
        mean dispersion value rms averaged over some aperture
      - aperture must be passed with the same units as rin'''
 
-from __future__ import division
+
 import sys
 from numpy import loadtxt, argmin
 from numpy import interp
@@ -213,7 +213,7 @@ def gRr(r,beta,lower):
 def sphericalcumulate(r,array,integrator,intpnts):
     '''Calculate the spherical cumulative "mass" of an array'''
     out = zeros(len(r),'double')
-    for i in xrange(1,len(r)):
+    for i in range(1,len(r)):
         rint = linspace(0,r[i],num=intpnts)
         arrayint = interp(rint,r,array)
         out[i] = integrator(4*pi*rint**2*arrayint,rint)
@@ -247,7 +247,7 @@ def abelsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
     theta = linspace(0,pi/2-1e-6,num=intpnts)
     cth = cos(theta)
     rhoout = empty(len(r), 'double')
-    for i in xrange(len(r)):
+    for i in range(len(r)):
         y = dSigdR(imagemin,imagemax,alphalim,
                    R,sigma,massp,r[i]/cth)/cth
         rhoout[i] = (-1/pi)*integrator(y,theta)
@@ -281,7 +281,7 @@ def cumsolve(r,imagemin,imagemax,integrator,intpnts,alphalim,R,sigma,massp):
     cth = cos(theta)
     sth = sin(theta)
     massout = empty(len(r), 'double')
-    for i in xrange(len(r)):
+    for i in range(len(r)):
         y = sigmaint(imagemin,imagemax,alphalim,R,sigma,massp,r[i]/cth)*\
             (1/cth**2-sth/cth**3*arctan(cth/sth))        
         massout[i] = -4*r[i]**2*integrator(y,theta)
@@ -358,7 +358,7 @@ def sigpsolve(r,rho,mass,R,sigma,massp,integrator,intpnts,alphalim,Gsp,
     cth2 = cth**2
     sth = sin(theta)
 
-    for i in xrange(len(r)):
+    for i in range(len(r)):
         lower = r[i]
         rint = lower/cth
         rhostar = light.den(rint)
@@ -420,7 +420,7 @@ def drhonfw(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax,r):
 
     rs = findrs(c,delta,z,omegam,omegal,h,alp,bet,renc,Mrenc,rmin,rmax)
 
-    print 'rs found:', rs, c, alp, bet
+    print('rs found:', rs, c, alp, bet)
 
     rho = (r/rs)**(-alp)*(1+r/rs)**(alp-bet)
 
@@ -458,7 +458,7 @@ if __name__ == "__main__":
         alphalim = 3
 
         #Light distribution parameters + vel anisotropy: 
-        import massmodel.hernquist
+        from . import massmodel.hernquist
         lpars = [1,15,1,intpnts]
         light = massmodel.hernquist.Hernquist(lpars)
         beta = 0
@@ -482,7 +482,7 @@ if __name__ == "__main__":
 
         #Light distribution parameters + vel anisotropy: 
         arctokpc = 7.71687843482
-        import massmodel.datafile 
+        from . import massmodel.datafile 
         lpars = [0,arctokpc,1,1,intpnts]
         light = massmodel.datafile.DataFileModel(None,datadir+'jj_circular.dat',lpars)
         beta = 0
@@ -498,15 +498,15 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------
     # Read in the surface density and mass profiles
     #-------------------------------------------------------------------------
-    print 'Reading data from:', surffile
+    print('Reading data from:', surffile)
     f1 = loadtxt(surffile,
                  dtype = {'names': ('R', 'sigma'),
                           'formats': ('f8', 'f8')})
-    print len(f1), 'lines successfully read from surffile...'
+    print(len(f1), 'lines successfully read from surffile...')
     f2 = loadtxt(massfile,
                  dtype = {'names': ('R', 'mass'),
                           'formats': ('f8', 'f8')})
-    print len(f2), 'lines successfully read from massfile...'
+    print(len(f2), 'lines successfully read from massfile...')
 
     if testsuite == 0:
         # Interpolate mass file to surface density file. This bit is *only* for
@@ -522,8 +522,8 @@ if __name__ == "__main__":
     if not interpnts: interpnts = len(f1['R'])*2
     r = logspace(log10(amin(f1['R'])/10),log10(amax(f1['R'])*10),
                  num=interpnts)
-    print 'Using sample points in r:', interpnts
-    print 'Over the range:', amin(f1['R'])/10, amax(f1['R'])*10
+    print('Using sample points in r:', interpnts)
+    print('Over the range:', amin(f1['R'])/10, amax(f1['R'])*10)
 
     # This package contains two different abel solving routines.  abelsolve()
     # calculates rho(r) first and then integrates to get M(r). This involves
@@ -558,10 +558,10 @@ if __name__ == "__main__":
     sigpsinga = sigpsingle(r,sigpa,light,aperture,integrator)
     sigpsing = sigpsingle(r,sigp,light,aperture,integrator)
 
-    print 'Final rms mean projected vel. dispersion [abelsolve()]:',\
-          sigpsinga
-    print 'Final rms mean projected vel. dispersion [cumsolve()]:',\
-          sigpsing
+    print('Final rms mean projected vel. dispersion [abelsolve()]:',\
+          sigpsinga)
+    print('Final rms mean projected vel. dispersion [cumsolve()]:',\
+          sigpsing)
 
     #-------------------------------------------------------------------------
     # Plot the results: Surface density profile
@@ -629,7 +629,7 @@ if __name__ == "__main__":
     renc = 1000
     t = argmin(abs(r-imagemax))
     Mrenc = mass[t]
-    print 'NFW overlay parameters:', renc, Mrenc
+    print('NFW overlay parameters:', renc, Mrenc)
 
     figure()
     semilogx(r,drhoa,label='Python result from abelsolve()')
@@ -638,8 +638,8 @@ if __name__ == "__main__":
     plot([imagemin,imagemin],[amin(drho),amax(drho)])
 
     # Plot NFW overlay:
-    for i in xrange(len(alp)):
-        for j in xrange(len(c)):
+    for i in range(len(alp)):
+        for j in range(len(c)):
             labelstr = 'alpha=%f, c=%f' % (alp[i],c[j])
             drhoover = drhonfw(c[j],delta,z,omegam,omegal,h,
                                alp[i],bet,renc,Mrenc,5*amin(r),amax(rinterp),

@@ -11,11 +11,11 @@ class Commands:
         return self._env
 
     def __str__(self):
-        return '\n'.join([n for n in glass_command_list.items()])
+        return '\n'.join([n for n in list(glass_command_list.items())])
 
 def command(*args):
 
-    if isinstance(args[0], basestring):
+    if isinstance(args[0], str):
         help_text = args[0]
         def h(f):
             def g(*args, **kwargs):

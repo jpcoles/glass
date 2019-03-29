@@ -1,10 +1,10 @@
-from __future__ import division
+
 if __name__ != '__main__':
     from glass.environment import env
     from glass.command import command
     from glass.shear import Shear
     from glass.exmass import ExternalMass
-    from itertools import izip
+    
     from glass.log import log as Log
     from glass.scales import convert
     from . basis import neighbors, irrhistogram2d
@@ -100,8 +100,8 @@ def find_stellar_mass(o):
         return o.stellar_mass
     assert o.stellar_mass == 0
 
-    s = o.prior_options.has_key('minkappa Leier grid') \
-      + o.prior_options.has_key('min_kappa_particles')
+    s = ('minkappa Leier grid' in o.prior_options) \
+      + ('min_kappa_particles' in o.prior_options)
 
     assert s <= 1, 'Only one stellar mass source is allowed.'
 
@@ -175,7 +175,7 @@ def lens_eq(o, leq, eq, geq):
                 rows[0,0] -= sm_x
                 rows[1,0] -= sm_y
 
-            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+            for e,[start,end] in zip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
                 end += 1
 
@@ -226,7 +226,7 @@ def check_lens_eq(o, sol):
             r0 -= sum((sm + sol[pix_start:pix_end]) * poten_dx(positions, b.cell_size, o.basis.maprad))
             r1 -= sum((sm + sol[pix_start:pix_end]) * poten_dy(positions, b.cell_size, o.basis.maprad))
 
-            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+            for e,[start,end] in zip(o.extra_potentials, b.extra_potentials_array_offsets):
                 r0 -= np.sum((sol[start:end] - e.shift) * e.poten_dx(img.pos))
                 r1 -= np.sum((sol[start:end] - e.shift) * e.poten_dy(img.pos))
 
@@ -305,7 +305,7 @@ def time_delay(o, leq, eq, geq):
             row[0] -= sum(sm * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
             row[0] += sum(sm * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
 
-            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+            for e,[start,end] in zip(o.extra_potentials, b.extra_potentials_array_offsets):
                 start += 1
                 end += 1
 
@@ -393,7 +393,7 @@ def check_time_delay(o, sol):
             S -= sum((sm + sol[pix_start:pix_end]) * poten(img1.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
             S += sum((sm + sol[pix_start:pix_end]) * poten(img0.pos - o.basis.ploc, b.cell_size, o.basis.maprad))
 
-            for e,[start,end] in izip(o.extra_potentials, b.extra_potentials_array_offsets):
+            for e,[start,end] in zip(o.extra_potentials, b.extra_potentials_array_offsets):
                 p0 = e.poten(img0.pos)
                 p1 = e.poten(img1.pos)
                 coeff  = p1-p0
@@ -416,7 +416,7 @@ def check_time_delay(o, sol):
 
 
             l0 = log10(abs(S))  if S  < 0 else -15
-            l1 = log10(abs(S2)) if S2 > 0 else -15
+            l1 = log10(abs(S2)) if S2 is not None and S2 > 0 else -15
 
             #res += '[%i %i]' % (r0,r1)
 
@@ -433,7 +433,7 @@ def check_time_delay(o, sol):
     if report:
         msg = "POSSIBLE NUMERICAL ERROR:\nCheck Time Delay (' ':-15  '.':-14  '-':-13  '*':-12) %s" % report
         Log(msg)
-        print msg
+        print(msg)
 
 #@object_prior
 def JPC1time_delay(o, leq, eq, geq):
@@ -718,14 +718,14 @@ def magnification(o, leq, eq, geq):
             for i,r in enumerate(rows):
                 r[0] += np.sum(r[pix_start:pix_end] * stellar_mass)
 
-            for e,[start,end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+            for e,[start,end] in zip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
                 start += 1
                 end += 1
 
                 if not hasattr(e, 'maginv'): continue
 
                 minv = e.maginv(img.pos, img.angle)
-                for offs,[xy,xx,yy] in izip(xrange(start, end), minv):
+                for offs,[xy,xx,yy] in zip(range(start, end), minv):
                     if parity == MINIMUM: 
                         coeffs[0] = -k1*xx + yy
                         coeffs[1] = -k2*yy + xx
@@ -773,7 +773,7 @@ def annular_density(o, leq, eq, geq):
     pix_start, pix_end = 1+o.basis.offs_pix
 
     if theta is not None and theta != 0:
-        for r in xrange(o.basis.inner_image_ring, o.basis.outer_image_ring):
+        for r in range(o.basis.inner_image_ring, o.basis.outer_image_ring):
             row = new_row(o)
             row[pix_start + o.basis.rings[r]] = -1
             row[0] = theta * len(o.basis.rings[r])
@@ -788,9 +788,9 @@ def external_shear(o, leq, eq, geq):
     if v is not None:
         v = o.prior_options['shear']['strength']
 
-        for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+        for e,[start, end] in zip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
             if not isinstance(e, Shear): continue
-            for s in xrange(1+start, 1+end):
+            for s in range(1+start, 1+end):
                 row = new_row(o)
                 row[ [0,s] ] = v - e.shift, 1
                 geq(row)
@@ -819,11 +819,11 @@ def external_mass(o, leq, eq, geq):
 
     #assert v < shear.shift
 
-    for e,[start, end] in izip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
+    for e,[start, end] in zip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
         if not (hasattr(e.__class__, '__bases__') and ExternalMass in e.__class__.__bases__): continue
         min,max = o.prior_options['external mass'][e]
-        print indent + 'External mass %s  %g-%g' % (e.name, min, max)
-        for s in xrange(1+start, 1+end):
+        print(indent + 'External mass %s  %g-%g' % (e.name, min, max))
+        for s in range(1+start, 1+end):
             if min == max and min is not None:
                 row = new_row(o)
                 row[ [0,s] ] = min, -1
@@ -885,7 +885,7 @@ def profile_steepness2(o, leq, eq, geq):
     #---------------------------------------------------------------------------
     # Now the rest of the rings.
     #---------------------------------------------------------------------------
-    for l in xrange(0,nrings-1):
+    for l in range(0,nrings-1):
         r0 = o.basis.rings[l]
 
         r0 = o.basis.rings[0]
@@ -930,7 +930,7 @@ def profile_steepness(o, leq, eq, geq):
 
     c = 0
 
-    for l,[r0,r1] in enumerate(izip(o.basis.rings[:-1], o.basis.rings[1:])):
+    for l,[r0,r1] in enumerate(zip(o.basis.rings[:-1], o.basis.rings[1:])):
 
         if 1:
         #if not o.basis.hires_levels \
@@ -994,7 +994,7 @@ def profile_steepnessXXX(o, leq, eq, geq):
 
     c = 0
 
-    for l,[r0,r1,r2] in enumerate(izip(o.basis.rings[:-1], o.basis.rings[1:], o.basis.rings[2:])):
+    for l,[r0,r1,r2] in enumerate(zip(o.basis.rings[:-1], o.basis.rings[1:], o.basis.rings[2:])):
 
         if not o.basis.hires_levels \
         or (o.basis.hires_levels and l < (o.basis.hiresR*o.basis.hires_levels - o.basis.hires_levels//2)):
@@ -1059,7 +1059,7 @@ def PLprofile_steepness(o, leq, eq, geq):
     #---------------------------------------------------------------------------
     # Now the rest of the rings.
     #---------------------------------------------------------------------------
-    for l in xrange(1,nrings-1):
+    for l in range(1,nrings-1):
         r0 = o.basis.rings[l]
         r1 = o.basis.rings[l+1]
 
@@ -1210,7 +1210,7 @@ def J2gradient(o, leq, eq, geq):
     cs = cos(theta)
     sn = sin(theta)
     c = 0
-    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+    for i,[ri,r] in enumerate(zip(o.basis.int_ploc, o.basis.ploc)):
         #if i in o.basis.rings[-2]: break
         if i == o.basis.central_pixel: continue
 
@@ -1304,7 +1304,7 @@ def J3gradient(o, leq, eq, geq):
     rs = [ abs(img.pos) for src in o.sources for img in src.images if img.parity_name != 'max']
     rmin, rmax = amin(rs), amax(rs)
 
-    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+    for i,[ri,r] in enumerate(zip(o.basis.int_ploc, o.basis.ploc)):
         if i == o.basis.central_pixel: continue
 
 #       for j,n in enumerate(o.basis.image_nbrs):
@@ -1372,13 +1372,13 @@ def J4gradient(o, leq, eq, geq):
     rs = [ abs(img.pos) for src in o.sources for img in src.images if img.parity_name != 'max']
     rmin, rmax = amin(rs), amax(rs)
 
-    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+    for i,[ri,r] in enumerate(zip(o.basis.int_ploc, o.basis.ploc)):
         if i == o.basis.central_pixel: continue
 
         nr = o.basis.pixel_to_ring[i]
 
         t = theta - (nrings-nr)*dtheta
-        print i,nr,dtheta,t
+        print(i,nr,dtheta,t)
         phi = radians(90-t)
         cs,sn = cos(phi), sin(phi)
 
@@ -1423,7 +1423,7 @@ def central_pixel_as_maximum(o, leq, eq, geq):
     Log( "Central pixel as maximum %i" % cp )
 
     pix_start, pix_end = 1 + o.basis.offs_pix
-    for i in xrange(pix_start, pix_end):
+    for i in range(pix_start, pix_end):
         if i == cp: continue
         row = new_row(o)
         row[ [cp,i] ] = 1, -1
@@ -1754,7 +1754,7 @@ def smoothness(o, leq, eq, geq):
     Log( indent + "Smoothness factor decreases with radius" )
 
     c=0
-    for i,[ri,r] in enumerate(izip(o.basis.int_ploc, o.basis.ploc)):
+    for i,[ri,r] in enumerate(zip(o.basis.int_ploc, o.basis.ploc)):
         if not include_central_pixel and i == o.basis.central_pixel: continue
 
         nbrs = neighbors(r,L, o.basis.ploc)
@@ -1774,7 +1774,7 @@ def smoothness(o, leq, eq, geq):
 def shared_h(objs, nvars, leq, eq, geq):
     """This requires that all objects have the same hubble constant."""
     on = False
-    for o1,o2 in izip(objs[:-1], objs[1:]):
+    for o1,o2 in zip(objs[:-1], objs[1:]):
         offs1 = o1.basis.array_offset
         offs2 = o2.basis.array_offset
         row = zeros(1+nvars)
@@ -1793,7 +1793,7 @@ def shared_h(objs, nvars, leq, eq, geq):
 def max_kappa(o, leq, eq, geq):
     Log( "Maximum Kappa" )
     pix_start, pix_end    = 1+o.basis.offs_pix
-    for i in xrange(pix_start, pix_end):
+    for i in range(pix_start, pix_end):
         row = new_row(o)
         row[ [0,i] ] = -6, 1
         leq(row)
@@ -1812,7 +1812,7 @@ def min_kappa(o, leq, eq, geq):
     v = g['kappa']
 
     pix_start, pix_end    = 1+o.basis.offs_pix
-    for i in xrange(pix_start, pix_end):
+    for i in range(pix_start, pix_end):
         row = new_row(o)
         row[ [0,i] ] = -v, 1
         geq(row)
@@ -1871,7 +1871,7 @@ def min_kappa_particles(o, leq, eq, geq):
         assert 0
 
     pix_start, pix_end = 1+o.basis.offs_pix
-    for i,j in enumerate(xrange(pix_start, pix_end)):
+    for i,j in enumerate(range(pix_start, pix_end)):
         row = new_row(o)
         row[ [0,j] ] = -h[i], 1
         geq(row)
@@ -1897,7 +1897,7 @@ def Xmin_kappa_grid(o, leq, eq, geq):
 
     nu = 1+o.basis.H0
 
-    for i,j in enumerate(xrange(pix_start, pix_end)):
+    for i,j in enumerate(range(pix_start, pix_end)):
         row = new_row(o)
         row[ [nu,j] ] = -a[i], 1
         #row[ [0,j] ] = -a[i], 1
@@ -1911,7 +1911,7 @@ def min_kappa_model(o, leq, eq, geq):
 
     a = o.basis.min_kappa_model
 
-    for i,j in enumerate(xrange(pix_start, pix_end)):
+    for i,j in enumerate(range(pix_start, pix_end)):
         row = new_row(o)
         row[ [0,j] ] = -a[i], 1
         geq(row)
@@ -1988,7 +1988,7 @@ def max_kappa(o, leq, eq, geq):
 
     pix_start, pix_end = 1+o.basis.offs_pix
 
-    for i,j in enumerate(xrange(pix_start, pix_end)):
+    for i,j in enumerate(range(pix_start, pix_end)):
         row = new_row(o)
         row[ [0,j] ] = 100, -1
         leq(row)
@@ -2124,7 +2124,7 @@ def min_kappa_leier_grid(o, leq, eq, geq):
     load_leier_grid(o, fname, grid_size, units, H0inv, scale)
 
     pix_start, pix_end = 1+o.basis.offs_pix
-    for i,j in enumerate(xrange(pix_start, pix_end)):
+    for i,j in enumerate(range(pix_start, pix_end)):
         row = new_row(o)
         row[ [0,j] ] = -o.stellar_mass[i], 1
         geq(row)
@@ -2136,7 +2136,7 @@ def extended_source_size(o, leq,eq,geq):
     b = o.basis
     srcpos_start, srcpos_end = 1+b.srcpos_start, 1+b.srcpos_end
 
-    for i1 in xrange(len(o.sources[:-1])):
+    for i1 in range(len(o.sources[:-1])):
         i2 = i1 + 1
         x1 = srcpos_start + 2*i1 + 0
         x2 = srcpos_start + 2*i2 + 0
@@ -2223,9 +2223,9 @@ def source_position(o, leq,eq,geq):
         sy = src.pos.imag
         tol = src.pos_tol
 
-        print x,y
+        print(x,y)
 
-        print tol
+        print(tol)
         if tol != 0:
             lb = src.zcap * (b.map_shift + sx - tol)
             ub = src.zcap * (b.map_shift + sx + tol)
@@ -2233,7 +2233,7 @@ def source_position(o, leq,eq,geq):
             row[0, [0,x]] = lb, -1; leq(row[0])
             row[1, [0,x]] = ub, -1; geq(row[1])
 
-            print lb, ub
+            print(lb, ub)
 
             lb = src.zcap * (b.map_shift + sy - tol)
             ub = src.zcap * (b.map_shift + sy + tol)
@@ -2241,7 +2241,7 @@ def source_position(o, leq,eq,geq):
             row[0, [0,y]] = lb, -1; leq(row[0])
             row[1, [0,y]] = ub, -1; geq(row[1])
 
-            print lb, ub
+            print(lb, ub)
         else:
             row = new_row(o,2)
             row[0, [0,x]] = sx, -1; eq(row[0])
@@ -2255,7 +2255,7 @@ def link_sources(o, leq,eq,geq):
 
     w = o.prior_options['link sources']
 
-    for sources, tol in w.values():
+    for sources, tol in list(w.values()):
         xs, ys = [], []
         for src in sources:
             xs.append(srcpos_start + 2*src.index + 0)
@@ -2288,7 +2288,7 @@ def check_link_sources(o, sol):
 
     w = o.prior_options['link sources']
 
-    for sources, tol in w.values():
+    for sources, tol in list(w.values()):
         xs, ys = [], []
         for src in sources:
             xs.append(srcpos_start + 2*src.index + 0)

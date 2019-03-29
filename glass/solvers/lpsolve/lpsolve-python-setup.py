@@ -3,7 +3,7 @@ from os import getenv
 import sys
 import os
 p = sys.prefix
-print p
+print(p)
 NUMPYPATH = '.'
 #/Library/Frameworks/Python.framework/Versions/2.6/lib/python2.6/site-packages/numpy
 if os.path.isdir(p + '/include/numpy'):
@@ -16,7 +16,7 @@ elif os.path.isdir(p + '/lib/python2.6/site-packages/numpy/core/include/numpy'):
   NUMPYPATH = p + '/lib/python2.6/site-packages/numpy/core/include'
 else:
   NUMPY = 'NONUMPY'
-print 'numpy: ' + NUMPY
+print('numpy: ' + NUMPY)
 windir = getenv('windir')
 if windir == None:
   WIN32 = 'NOWIN32'

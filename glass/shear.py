@@ -1,4 +1,4 @@
-from __future__ import division
+
 from numpy import array, vectorize
 from math import pi, cos, sin
 

@@ -102,7 +102,7 @@ def lpsolve(f, *args):
 
     if f == 'get_variables':
         lp = args[0]
-        return [[ g.glp_get_col_prim(lp, i+1) for i in xrange(g.glp_get_num_cols(lp)) ]]
+        return [[ g.glp_get_col_prim(lp, i+1) for i in range(g.glp_get_num_cols(lp)) ]]
 
     if f == 'get_Norig_columns':
         return g.glp_get_num_cols(args[0])

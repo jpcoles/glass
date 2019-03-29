@@ -4,9 +4,9 @@
    #------------------------------------------------------------------------
 '''
 
-from __future__ import division
-from numfuncs import *
-from datafile import *
+
+from .numfuncs import *
+from .datafile import *
 
 
 

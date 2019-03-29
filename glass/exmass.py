@@ -1,4 +1,4 @@
-from __future__ import division
+
 from numpy import array, log, abs, pi, cos, sin
 
 class ExternalMass:

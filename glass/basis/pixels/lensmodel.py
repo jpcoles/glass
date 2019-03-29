@@ -7,7 +7,7 @@ from . funcs import estimated_Rlens, arrival_time
 def memoize(func):
     def f(self, *args, **kwargs):
         #print func.__name__, data.has_key(func.__name__), data.keys()
-        if not self.d.has_key(func.__name__): 
+        if func.__name__ not in self.d: 
             self.d[func.__name__] = func(self, *args, **kwargs)
         return self.d[func.__name__]
     return f

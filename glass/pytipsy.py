@@ -14,7 +14,7 @@ import numpy as np
 import gzip
 import mmap
 
-from environment import command
+from .environment import command
 
 @command
 def load_tipsy(filename, fmt='auto', memmap=True, which='gds', merge=None):
@@ -243,7 +243,7 @@ def com(t):
     if t.d.size: l.append(findmin(t.d))
     if t.s.size: l.append(findmin(t.s))
 
-    p, pot_min_i, phi = l[ np.argmin(map(lambda x: x[2], l)) ]
+    p, pot_min_i, phi = l[ np.argmin([x[2] for x in l]) ]
 
     rc = p[pot_min_i].r
 
@@ -251,7 +251,7 @@ def com(t):
     t.d.r -= rc
     t.s.r -= rc
 
-    print rc, pot_min_i, phi
+    print(rc, pot_min_i, phi)
 
 
 
@@ -271,8 +271,8 @@ if __name__ == '__main__':
 
     #com(t)
     #print t.p.size, t.hdr.nBodies, t.p.dtype
-    print np.sum(t.d.r[::100]**2, 1)
-    print t
+    print(np.sum(t.d.r[::100]**2, 1))
+    print(t)
 
     #print 'Radial distances (DM)'
     #print d.r[0:10,0]**2

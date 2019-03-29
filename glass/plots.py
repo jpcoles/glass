@@ -1,4 +1,4 @@
-from __future__ import division
+
 from glass.environment import env, Environment
 
 if Environment.global_opts['withgfx']:
@@ -19,7 +19,7 @@ from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle, Ellipse
 from matplotlib.lines import Line2D
 from collections import defaultdict
-from itertools import count, izip, product
+from itertools import count, product
 
 #from glass.environment import env
 from glass.command import command
@@ -47,7 +47,7 @@ def system_color(i): return _system_colors[i%len(_system_colors)]
 def source_color(i): return _source_colors[i%len(_source_colors)]
 
 def _style_iterator(colors='gbrcm'):
-    _linestyles = [k for k,v, in mpll.lineStyles.iteritems() if not v.endswith('nothing')]
+    _linestyles = [k for k,v, in mpll.lineStyles.items() if not v.endswith('nothing')]
     _linestyles.sort()
     for lw in count(1):
         for ls in _linestyles:
@@ -121,7 +121,7 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     rmax = 0
     si = style_iterator()
     for i,src in enumerate(obj.sources):
-        lw,ls,c = si.next()
+        lw,ls,c = next(si)
 
         if src_index:
             if i not in np.atleast_1d(src_index): continue
@@ -170,8 +170,8 @@ def external_mass_plot(env, obj_index=0, with_maximum=True, color=None, with_gui
     #obj,_ = model['obj,data'][obj_index]
     #obj,_ = model['obj,data'][obj_index]
     si = style_iterator()
-    for i in xrange(obj_index+1):
-        lw,ls,c = si.next()
+    for i in range(obj_index+1):
+        lw,ls,c = next(si)
     obj = env.objects[obj_index]
 
     #print obj.external_masses
@@ -220,7 +220,7 @@ def Re_plot(env, *args, **kwargs):
 
     for m in models:
         obj,data = m['obj,data'][obj_index]
-        print data.keys()
+        print(list(data.keys()))
         if not data['Re']: continue
         Re, a,b, theta = data['Re']
         #pl.gca().add_artist(Circle((rl.real,rl.imag), 0.1, fill=False, lw=2, color='r'))
@@ -252,7 +252,7 @@ def src_plot(env, *args, **kwargs):
             if src_index is not None and i != src_index: continue
             xs.append(data['src'][i].real)
             ys.append(data['src'][i].imag)
-            lw,ls,c = si.next()
+            lw,ls,c = next(si)
             cs.append(c) #system_color(i))
         if hilite:
             pl.over(scatter,xs, ys, s=80, c=hilite_color, zorder=2000, marker='x', alpha=1.0, **kwargs)
@@ -291,7 +291,7 @@ def src_hist(**kwargs):
             if mi == hilite_model: hilite += r
     pl.hist(d, histtype='step', log=False)
     for i,r in enumerate(hilite):
-        print r
+        print(r)
         pl.axvline(r, c=system_color(i), ls='-', zorder=-2, alpha=0.5)
 
     pl.xlabel(xlabel)
@@ -420,10 +420,10 @@ def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_
     kw['vmax'] =  2
 
     if not only_contours:
-        print '!!!!!!', grid.shape
+        print('!!!!!!', grid.shape)
         if which == 'x': grid = np.diff(grid, axis=1)
         if which == 'y': grid = np.diff(grid, axis=0)
-        print '!!!!!!', grid.shape
+        print('!!!!!!', grid.shape)
         pl.matshow(grid, **kw)
         if with_colorbar: 
             glspl.colorbar()
@@ -513,9 +513,9 @@ def arrival_plot(env, model, **kwargs):
     for i,[obj,data] in enumerate(model['obj,data'][obj_slice]):
         if not data: continue
 
-        print len(obj.sources[src_slice])
+        print(len(obj.sources[src_slice]))
         lev = obj.basis.arrival_contour_levels(data)
-        print len(lev)
+        print(len(lev))
         arrival_grid = obj.basis.arrival_grid(data)
         for i,src in enumerate(obj.sources[src_slice]):
 
@@ -640,7 +640,7 @@ def deriv(env, model, obj_index, src_index, m, axis, R):
 
 @command
 def inout_plot(env, model, obj_index, src_index):
-    print "inout"
+    print("inout")
     obj,ps = model['obj,data'][obj_index]
     R = obj.basis.mapextent
     arrival = obj.basis.arrival_grid(ps)[src_index]
@@ -659,8 +659,8 @@ def _data_plot(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
 
-    if isinstance(X, basestring): X = [X,None]
-    if isinstance(Y, basestring): Y = [Y,None]
+    if isinstance(X, str): X = [X,None]
+    if isinstance(Y, str): Y = [Y,None]
 
     x_prop, x_units = X
     y_prop, y_units = Y
@@ -694,7 +694,7 @@ def _data_plot(models, X,Y, **kwargs):
     ymin, ymax = np.inf, -np.inf
 
     objplot = defaultdict(dict)
-    for mi in xrange(0,upto,every):
+    for mi in range(0,upto,every):
         m = models[mi]
 
         si = m.get('accepted', 2)
@@ -743,7 +743,7 @@ def _data_plot(models, X,Y, **kwargs):
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
     for i,tag in enumerate(['rejected', 'accepted', '']):
-        for k,v in objplot.iteritems():
+        for k,v in objplot.items():
             if tag not in v: break
 
             ys = np.array(v[tag]['ys'])
@@ -761,8 +761,8 @@ def _data_plot(models, X,Y, **kwargs):
     pl.xscale(xscale)
 
     si = style_iterator()
-    for k,v in imgs.iteritems():
-        lw,ls,c = si.next()
+    for k,v in imgs.items():
+        lw,ls,c = next(si)
         for img_pos in v:
             pl.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
 
@@ -793,8 +793,8 @@ def _data_error_plot(models, X,Y, **kwargs):
     with_legend = False
     use = [0,0,0]
 
-    if isinstance(X, basestring): X = [X,None]
-    if isinstance(Y, basestring): Y = [Y,None]
+    if isinstance(X, str): X = [X,None]
+    if isinstance(Y, str): Y = [Y,None]
 
     x_prop, x_units = X
     y_prop, y_units = Y
@@ -829,7 +829,7 @@ def _data_error_plot(models, X,Y, **kwargs):
     ymin, ymax = np.inf, -np.inf
 
     objplot = defaultdict(dict)
-    for mi in xrange(0,upto,every):
+    for mi in range(0,upto,every):
         m = models[mi]
 
         si = m.get('accepted', 2)
@@ -879,7 +879,7 @@ def _data_error_plot(models, X,Y, **kwargs):
             #ymin, ymax = min(ymin, amin(data[Y])), max(ymax, amax(data[Y]))
 
     for i,tag in enumerate(['rejected', 'accepted', '']):
-        for k,v in objplot.iteritems():
+        for k,v in objplot.items():
             if tag not in v: break
             #if not v.has_key('%s:count'%tag): break
 
@@ -928,8 +928,8 @@ def _data_error_plot(models, X,Y, **kwargs):
     pl.yscale(yscale)
 
     si = style_iterator()
-    for k,v in imgs.iteritems():
-        lw,ls,c = si.next()
+    for k,v in imgs.items():
+        lw,ls,c = next(si)
         for img_pos in v:
             pl.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
 
@@ -1106,11 +1106,11 @@ def time_delays_plot(env, **kwargs):
             d[i].append( float('%0.6f'%convert('arcsec^2 to days', t-t0, obj.dL, obj.z, data['nu'])) )
             t0 = t
 
-    s = product(range(1,1+len(d)), ['solid', 'dashed', 'dashdot', 'dotted'])
-    for k,v in d.iteritems():
+    s = product(list(range(1,1+len(d))), ['solid', 'dashed', 'dashdot', 'dotted'])
+    for k,v in d.items():
         #print 'td plot', k, len(v)
         #print v
-        lw,ls = s.next()
+        lw,ls = next(s)
         pl.hist(v, bins=25, histtype='step', color='k', ls=ls, lw=lw, label='%s - %s' % (str(k+1),str(k+2)), **kwargs)
 
     #pl.xlim(xmin=0)
@@ -1197,7 +1197,7 @@ def shear_H0_plot(env, **kwargs):
     for mi,m in enumerate(models):
         # For H0 we only have to look at one model because the others are the same
         for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
-            if not data.has_key('shear'): continue
+            if 'shear' not in data: continue
             s0.append([data['shear'][0], data['H0']])
             s1.append([data['shear'][1], data['H0']])
 
@@ -1223,7 +1223,7 @@ def shear_plot(env, **kwargs):
     for mi,m in enumerate(models):
         # For H0 we only have to look at one model because the others are the same
         for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
-            if not data.has_key('shear'): continue
+            if 'shear' not in data: continue
             #s0[oi].append(90-np.degrees(np.arctan2(*data['shear'])))
             s0[oi].append(data['shear'][0])
             s1[oi].append(data['shear'][1])
@@ -1250,7 +1250,7 @@ def shear_plot2d(env, **kwargs):
     for mi,m in enumerate(models):
         # For H0 we only have to look at one model because the others are the same
         for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
-            if not data.has_key('shear'): continue
+            if 'shear' not in data: continue
             #s0[oi].append(90-np.degrees(np.arctan2(*data['shear'])))
             s0[oi].append(data['shear'][0])
             s1[oi].append(data['shear'][1])
@@ -1274,7 +1274,7 @@ def chi2_plot(env, models, model0, **kwargs):
     d_chi2 = 0
     for m in models:
         total_chi2 = 0
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             mass0 = data0['kappa'] * convert('kappa to Msun/arcsec^2', 1, obj0.dL, data0['nu'])
@@ -1306,7 +1306,7 @@ def _hist(env, data_key, **kwargs):
     l = [[], [], []]
     for m in models:
         obj, data = m['obj,data'][obj_index] # For H0 we only have to look at one model because the others are the same
-        if data.has_key(data_key):
+        if data_key in data:
             l[m.get(key,2)].append(data[data_key])
         #print 'nu', data['nu']
         #l[2].append(data['kappa'][1])

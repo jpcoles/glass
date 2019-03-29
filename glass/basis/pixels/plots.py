@@ -5,7 +5,7 @@ import mpl_toolkits.mplot3d as p3
 from matplotlib.patches import Circle, Rectangle
 
 from matplotlib.lines import Line2D
-from itertools import izip
+
 from numpy import logical_and, logical_not, where
 from pylab import gca, gcf
 
@@ -48,8 +48,8 @@ def kappa_plot3d(env, model, obj_index=0, with_contours=False, only_contours=Fal
     X, Y = np.meshgrid(X, Y)
     Z = obj.basis.kappa_grid(data)
 
-    print Z.shape
-    print (2*L+1) * S
+    print(Z.shape)
+    print((2*L+1) * S)
 
     ax = p3.Axes3D(gcf(), rect=gca().get_position())
     #ax.plot_wireframe(X,Y,Z, rstride=1, cstride=1, cmap=cm.terrain)
@@ -73,8 +73,8 @@ def srcdiff_plot3d(env, model, obj_index=0, src_index=0, with_contours=False, on
     X, Y = np.meshgrid(X, Y)
     Z = obj.basis.srcdiff_grid(data)[src_index]
 
-    print Z.shape
-    print (2*L+1) * S
+    print(Z.shape)
+    print((2*L+1) * S)
 
     ax = p3.Axes3D(gcf(), rect=gca().get_position())
     ax.plot_wireframe(X,Y,Z, rstride=1, cstride=1) #, cmap=cm.terrain)
@@ -383,7 +383,7 @@ _chi2_xlabel = r'$\ln \chi^2$'
 def radial_chi2_plot(env, models, model0):
     rchi2 = None
     for m in models:
-        for m1,m2 in izip(m['obj,data'], model0['obj,data']):
+        for m1,m2 in zip(m['obj,data'], model0['obj,data']):
             obj,data = m1
             obj0,data0 = m2
             if rchi2 is None:
@@ -514,7 +514,7 @@ def pixel_grid_plot(env, **kwargs):
     cs = obj.basis.cell_size
 
     rmax = 0
-    for r,s in izip(loc, cs):
+    for r,s in zip(loc, cs):
         pl.gca().add_artist(Rectangle([r.real-s/2, r.imag-s/2], s,s, fill=False))
         rmax = np.amax([np.abs(r), rmax])
 
