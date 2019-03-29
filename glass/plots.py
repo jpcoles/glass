@@ -1,9 +1,19 @@
 from __future__ import division
-import pylab as pl
-import numpy as np
+from glass.environment import env, Environment
+
+if Environment.global_opts['withgfx']:
+    import pylab as pl
+else:
+    import matplotlib as mpl
+    mpl.use('PDF')
+    import matplotlib.pyplot as pl
+    from matplotlib.pyplot import figure, ion, ioff, savefig, gcf
+
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.lines as mpll
+
+import numpy as np
 from matplotlib import rc
 from matplotlib.ticker import LogLocator
 from matplotlib.patches import Circle, Ellipse
@@ -11,7 +21,7 @@ from matplotlib.lines import Line2D
 from collections import defaultdict
 from itertools import count, izip, product
 
-from glass.environment import env
+#from glass.environment import env
 from glass.command import command
 from glass.log import log as Log
 from glass.scales import convert
@@ -21,9 +31,10 @@ from glass.utils import dist_range
 from scipy.ndimage.filters import correlate1d
 from scipy.misc import central_diff_weights
 
-rc('text', usetex=True)
-#rc('text', dvipnghack=True)
-rc('font',**{'family':'serif','serif':['Computer Modern Roman']})
+if 0:
+    rc('text', usetex=True)
+    #rc('text', dvipnghack=True)
+    rc('font',**{'family':'serif','serif':['Computer Modern Roman']})
 
 _styles = [{'label':r'rejected', 'c':'r', 'ls':'-', 'z':-1, 'line':Line2D([],[],c='r',ls='-')},
            {'label':r'accepted', 'c':'b', 'ls':'-', 'z': 0, 'line':Line2D([],[],c='b',ls='-')},
@@ -97,6 +108,7 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
     src_index = kwargs.pop('src_index', None)
     tight     = kwargs.pop('tight', False)
     with_guide = kwargs.pop('with_guide', False)
+    label_parity = kwargs.pop('label_parity', False)
     color = kwargs.pop('color', None)
     with_maximum = kwargs.pop('with_maximum', True)
 
@@ -130,7 +142,8 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
                 cs.append(color)
 
         if xs and ys:
-            pl.over(pl.scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
+            #pl.over(pl.scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
+            pl.scatter(xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
             if with_guide or tight:
                 a = pl.gca()
                 for x,y in zip(xs,ys):
@@ -138,6 +151,11 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
                     rmax = np.amax([r,rmax])
                     if with_guide:
                         a.add_artist(Circle((0,0),r, fill=False,color='lightgrey'))
+
+            if label_parity:
+                for img in src.images:
+                    if not with_maximum and img.parity_name == 'max': continue
+                    pl.text(img.pos.real, img.pos.imag, img.parity_name)
 
     pl.xlim(oxlim); pl.ylim(oylim)
 
@@ -1162,6 +1180,32 @@ def chisq_plot(env, **kwargs):
 
     pl.xlabel(_chisq_xlabel)
     pl.ylabel(r'Count')
+
+@command
+def shear_H0_plot(env, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', None)
+    src_index = kwargs.pop('src_index', None)
+    key = kwargs.pop('key', 'accepted')
+
+    obj_slice = index_to_slice(obj_index)
+    src_slice = index_to_slice(src_index)
+
+    s0 = [ ]
+    s1 = [ ]
+    for mi,m in enumerate(models):
+        # For H0 we only have to look at one model because the others are the same
+        for oi, [obj,data] in enumerate(m['obj,data'][obj_slice]):
+            if not data.has_key('shear'): continue
+            s0.append([data['shear'][0], data['H0']])
+            s1.append([data['shear'][1], data['H0']])
+
+    s0 = np.array(s0).T if len(s0) else None
+    s1 = np.array(s1).T if len(s1) else None
+
+    if s0 is not None: pl.scatter(s0[1], s0[0], marker='.') #**kwargs)
+    if s1 is not None: pl.scatter(s1[1], s1[0], marker='.') #**kwargs)
 
 @command
 def shear_plot(env, **kwargs):

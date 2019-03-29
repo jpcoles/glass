@@ -326,6 +326,9 @@ def generate_models(env, objs, n, *args, **kwargs):
                 for sol in mg.next(n):
                     ps = package_solution(sol, objs)
                     check_model(objs, ps)
+#                   for o,data in ps['obj,data']:
+#                       if data['H0'] <= 80: break
+#                   else:
                     yield ps
             except GlassSolverError as e:
                 Log( '!' * 80)

@@ -207,19 +207,37 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
     long dir_index;
     double stddev = twiddle/sqrt(dof);
 
+    long *dir_indices = (long *)malloc(dim * sizeof(long));
+    long max_good_dim=0;
+    for (j=0; j < dim; j++)
+    {
+        if (fabs(eval[j]) >= 1e-14)
+        {
+            dir_indices[max_good_dim++] = j;
+        }
+    }
+
     redo_stime = CPUTIME;
     for (walk_step = 0; walk_step < redo; walk_step++)
     {
         /* Choose a random eigen direction */
-        do
-        {
-            dir_index = U01() * dim;
-        } while (fabs(eval[dir_index]) < 1e-14);
+//      do
+//      {
+//          dir_index = U01() * dim;
+//      } while (fabs(eval[dir_index]) < 1e-14);
+
+         dir_index = dir_indices[ (long)(U01() * max_good_dim) ];
 
         if (!(walk_step & 1))
+        {
             normal(stddev, 0, &r, &r1);
+            //r  = (U01()-0.5) * (6*stddev);
+            //r1 = (U01()-0.5) * (6*stddev);
+        }
         else
+        {
             r = r1;
+        }
 
         step = r * eval[dir_index];
 
@@ -240,13 +258,22 @@ PyObject *samplex_rwalk(PyObject *self, PyObject *args)
         for (i=leq_offs; i < (leq_offs + leq_count); i++, data_ptr += eqs.cols)
         {
             S0[i] = S[i] + (step * *data_ptr);
-            if (S0[i] > 0) goto reject;
         }
+
 
         //for (i=geq_offs; accept && i < (geq_offs + geq_count); i++, data_ptr += eqs.cols)
         for (i=geq_offs; i < eqs.rows; i++, data_ptr += eqs.cols)
         {
             S0[i] = S[i] + (step * *data_ptr);
+        }
+
+        data_ptr = eqs.data + offs;
+        for (i=leq_offs; i < (leq_offs + leq_count); i++, data_ptr += eqs.cols)
+        {
+            if (S0[i] > 0) goto reject;
+        }
+        for (i=geq_offs; i < eqs.rows; i++, data_ptr += eqs.cols)
+        {
             if (S0[i] < 0) goto reject;
         }
 
@@ -266,6 +293,8 @@ reject:
     //fprintf(stderr, "%40sTOTAL TOOK %fs\n", " ", redo_etime-redo_stime);
 
     //Py_END_ALLOW_THREADS
+
+    free(dir_indices);
 
     return Py_BuildValue("llf", accepted, rejected, redo_etime-redo_stime);
     return PyInt_FromLong(0);

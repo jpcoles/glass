@@ -524,6 +524,7 @@ class PixelBasis(object):
 
             self.top_level_cell_size = (rmax + (rmax-rmin)*1.2) / (L - 2)
             self.top_level_cell_size = (rmax                  ) / (L - 1)
+            self.top_level_cell_size = (rmin                  ) / 4
             self.maprad = self.top_level_cell_size * L
 
 

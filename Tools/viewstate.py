@@ -6,13 +6,13 @@ exclude_all_priors()
 import os
 
 #try:
-if 1:
+if 0:
      import pylab as pl
      from pylab import show, figure, ion, ioff, savefig, gcf
 #except:
-if 0:
+if 1:
     import matplotlib as mpl
-    mpl.use('Agg')
+    mpl.use('PDF')
     import matplotlib.pyplot as pl
     from matplotlib.pyplot import figure, ion, ioff, savefig, gcf
 from math import pi, cos
@@ -84,20 +84,20 @@ def PlotFigures():
 #               #cx,cy = -1.875, 0.08
 #               cx,cy=0,0
 #               g.image_plot(g.meta_info['image'], R, [cx,cy])
-            g.img_plot(obj_index=0)
-            g.img_plot(obj_index=1)
+            g.img_plot(obj_index=0, tight=True, with_guide=True, label_parity=True)
+            #g.img_plot(obj_index=1)
             g.arrival_plot(g.ensemble_average, obj_index=0, only_contours=True, clevels=50, colors='r');
-            g.arrival_plot(g.ensemble_average, obj_index=1, only_contours=True, clevels=50, colors='b');
+            #g.arrival_plot(g.ensemble_average, obj_index=1, only_contours=True, clevels=50, colors='b');
             #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=0, colors='r');
             #g.arrival_plot(g.ensemble_average, only_contours=True, clevels=50, src_index=4, colors='g');
-            if 1 or 'image' in g.meta_info:
+            if 0 or 'image' in g.meta_info:
                 R = 9/2.,2.7/2. #g.objects[0].basis.maprad
                 #cx,cy = -1.875, 0.08
                 cx,cy=-0.21,0
                 #g.image_plot('brighter_red2_7_rot.png', R, center=[cx,cy])
             #g.src_plot(obj_index=0)
             #g.src_plot(g.ensemble_average, obj_index=0)
-            g.external_mass_plot(0)
+#           g.external_mass_plot(0)
         end_plot()
 
     if 1: 
@@ -196,6 +196,12 @@ def PlotFigures():
             g.shear_plot2d()
             end_plot()
 
+    if 0:
+        for g in gls:
+            begin_plot()
+            g.shear_H0_plot()
+            end_plot()
+
     if 1:
         for g in gls:
             begin_plot()
@@ -217,9 +223,16 @@ else:
 PlotFigures()
 ioff()
 
-savefig('viewstate.pdf')
+if len(gls) == 1:
+    savefig('%s-viewstate.pdf' % os.path.splitext(os.path.split(opts[1])[1])[0])
+else:
+    savefig('viewstate.pdf')
 
-show()
+try:
+    show()
+except:
+    print "Couldn't display. No graphics enabled?"
+
 #try:
 #except:
 #    savefig('viewstate.pdf')

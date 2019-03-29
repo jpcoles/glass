@@ -96,8 +96,8 @@ if __name__ == "__main__":
             Environment.global_opts['withgfx'] = False
 
 
-    if Environment.global_opts['withgfx']:
-        import glass.plots 
+#    if Environment.global_opts['withgfx']:
+    import glass.plots 
 
     import glass.glcmds
     import glass.scales
