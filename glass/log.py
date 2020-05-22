@@ -1,5 +1,6 @@
 import sys
 from .command import command
+from glass.environment import Environment
 
 log_files = [[sys.stdout, False]]
 
@@ -25,3 +26,7 @@ def log(*args, **kwargs):
         f.write(s)
         f.flush()
         fo[1] = overwritable
+
+def dlog(level, *args, **kwargs):
+    if Environment.global_opts['debug level'] >= level and args:
+        log('debug%i: %s' % (level,args[0]), *args[1:], **kwargs)

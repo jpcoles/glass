@@ -384,7 +384,7 @@ class Samplex:
         accept_rate     = self.accept_rate
         accept_rate_tol = self.accept_rate_tol
 
-        store = np.zeros((dim, 1+burnin_len), order='Fortran', dtype=np.float64)
+        store = np.zeros((dim, 1+burnin_len), order='F', dtype=np.float64)
         newp = np.zeros(dim, order='C', dtype=np.float64)
         eval  = np.zeros(dim, order='C', dtype=np.float64)
         evec  = np.zeros((dim,dim), order='F', dtype=np.float64)
@@ -593,7 +593,7 @@ class Samplex:
         while i < nmodels:
             k,vec,phase = q.get()
             if phase != 'RWALK': continue
-            t = np.zeros(dim+1, order='Fortran', dtype=np.float64)
+            t = np.zeros(dim+1, order='F', dtype=np.float64)
             t[1:] = vec
             i += 1
             Log( '%i models left to generate' % (nmodels-i), overwritable=True)

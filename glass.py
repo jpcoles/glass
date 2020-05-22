@@ -78,10 +78,11 @@ if __name__ == "__main__":
     Environment.global_opts['ncpus'] = 1
     Environment.global_opts['omp_opts'] = _detect_omp()
     Environment.global_opts['withgfx'] = True
+    Environment.global_opts['debug level'] = 0
 
     Commands.set_env(Environment())
 
-    optlist, arglist = getopt.getopt(sys.argv[1:], 't:h', ['nw'])
+    optlist, arglist = getopt.getopt(sys.argv[1:], 't:h', ['nw', 'debug'])
 
     for opt in optlist:
         if   opt[0] == '-h':
@@ -91,9 +92,16 @@ if __name__ == "__main__":
             assert ncpus > 0
             #Commands.get_env().ncpus = ncpus
             Environment.global_opts['ncpus'] = ncpus
+            if ncpus > 1:
+                print('*** It is currently recommended NOT to create multiple processes with -t. ***')
+                print('*** Consider setting OMP_NUM_THREADS for better performance.              ***')
         elif opt[0] == '--nw':
             #Commands.get_env().withgfx = False
             Environment.global_opts['withgfx'] = False
+        elif opt[0] == '--debug':
+            dbglvl = int(opt[1])
+            assert dbglvl > 0
+            Environment.global_opts['debug level'] = dbglvl
 
 
 #    if Environment.global_opts['withgfx']:
@@ -103,12 +111,12 @@ if __name__ == "__main__":
     import glass.scales
     #import pytipsy 
 
+
     with open(arglist[0], 'r') as f:
         Commands.get_env().input_file = f.read()
 
     Environment.global_opts['argv'] = arglist
     #Commands.get_env().argv = arglist
-
 
     try:
         exec(compile(open(arglist[0], "rb").read(), arglist[0], 'exec')) #, globals(), globals())

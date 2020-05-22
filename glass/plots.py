@@ -811,6 +811,7 @@ def _data_error_plot(models, X,Y, **kwargs):
     xlabel          = kwargs.pop('xlabel', None)
     ylabel          = kwargs.pop('ylabel', None)
     sigma           = kwargs.pop('sigma', '1sigma')
+    ax              = kwargs.pop('axis', pl.gca())
 
     kwargs.setdefault('color', 'k')
     kwargs.setdefault('marker', '.')
@@ -918,20 +919,20 @@ def _data_error_plot(models, X,Y, **kwargs):
             ret_list.append([xs,avg,errm,errp])
             yerr = (errm,errp) if not np.all(errm == errp) else None
             if tag == 'rejected':
-                pl.errorbar(xs, avg, yerr=yerr, c=_styles[0]['c'], zorder=_styles[0]['z'])
+                ax.errorbar(xs, avg, yerr=yerr, c=_styles[0]['c'], zorder=_styles[0]['z'])
             else:
-                pl.errorbar(xs, avg, yerr=yerr, **kwargs)
+                ax.errorbar(xs, avg, yerr=yerr, **kwargs)
 
 #   return
 
-    pl.xscale(xscale)
-    pl.yscale(yscale)
+    ax.set_xscale(xscale)
+    ax.set_yscale(yscale)
 
     si = style_iterator()
     for k,v in imgs.items():
         lw,ls,c = next(si)
         for img_pos in v:
-            pl.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
+            ax.axvline(img_pos, c=c, ls=ls, lw=lw, zorder=-2, alpha=0.5)
 
 #   if use[0] or use[1]:
 #       lines  = [s['line']  for s,u in zip(_styles, use) if u]
@@ -941,12 +942,12 @@ def _data_error_plot(models, X,Y, **kwargs):
     if use[0]:
         lines  = [ _styles[0]['line'] ]
         labels = [ _styles[0]['label'] ]
-        pl.legend(lines, labels)
+        ax.legend(lines, labels)
 
     #axis('scaled')
-    if xlabel: pl.xlabel(xlabel)
-    if ylabel: pl.ylabel(ylabel)
-    pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    if xlabel: ax.set_xlabel(xlabel)
+    if ylabel: ax.set_ylabel(ylabel)
+    #pl.xlim(xmin=pl.xlim()[0] - 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     #pl.ylim(0, ymax)
 
     return ret_list
@@ -1301,6 +1302,9 @@ def _hist(env, data_key, **kwargs):
     ylabel      = kwargs.pop('ylabel', r'Count')
     sigma       = kwargs.pop('sigma', '1sigma')
     mark_sigma  = kwargs.pop('mark_sigma', True)
+    ax          = kwargs.pop('axis', pl.gca())
+
+    #print('_hist:', 'no. models: ', len(models))
 
     # select a list to append to based on the 'accepted' property.
     l = [[], [], []]
@@ -1321,18 +1325,30 @@ def _hist(env, data_key, **kwargs):
         kw = kwargs.copy()
         if d:
             #print len(d), d, np.ptp(d), np.sqrt(len(d))
-            kw.setdefault('bins', int(np.ptp(d)//1)+1)
+            #kw.setdefault('bins', int(np.ptp(d)//1)+1)
+            kw.setdefault('bins', 'auto')
             kw.setdefault('histtype', 'step')
             #print len(d), d
             #pl.hist(d, bins=20, histtype='step', edgecolor=s['c'], zorder=s['z'], label=s['label'])
-            pl.hist(d, 
-                    edgecolor=s['c'] if color is None else color, 
-                    zorder=s['z'], 
-                    label=s['label'] if label is None else label, 
-                    **kw)
+            if kw['histtype'] == 'line':
+                kw_hist = {}
+                kw_hist['bins'] = kw.pop('bins')
+                kw.pop('histtype')
+                ys,xs = np.histogram(d, **kw_hist)
+                ax.plot(xs[:-1],ys, 
+                        #color=s['c'] if color is None else color, 
+                        zorder=s['z'], 
+                        label=s['label'] if label is None else label, 
+                        **kw)
+            else:
+                ax.hist(d, 
+                        edgecolor=s['c'] if color is None else color, 
+                        zorder=s['z'], 
+                        label=s['label'] if label is None else label, 
+                        **kw)
 
     if not_accepted or label:
-        pl.legend()
+        ax.legend()
 
     if mark_sigma:
         if accepted or notag:
@@ -1343,9 +1359,9 @@ def _hist(env, data_key, **kwargs):
 
             m,u,l = dist_range(h, sigma=sigma)
 
-            pl.axvline(m, c='r', ls='-', zorder = 2)
-            pl.axvline(u, c='g', ls='-', zorder = 2)
-            pl.axvline(l, c='g', ls='-', zorder = 2)
+            ax.axvline(m, c='r', ls='-', zorder = 2)
+            ax.axvline(u, c='g', ls='-', zorder = 2)
+            ax.axvline(l, c='g', ls='-', zorder = 2)
 
             Log( '%s: %f %f %f' % (data_key, m, u, l) )
             Log( '%s: %f +/- %f %f' % (data_key, m, (u-m), (m-l)) )
@@ -1354,8 +1370,8 @@ def _hist(env, data_key, **kwargs):
 
     #pl.axvline(72, c='k', ls=':', zorder = 2)
 
-    pl.xlabel(xlabel)
-    pl.ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
-    pl.xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
-    pl.ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))
+    #ax.set_xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
+    #ax.set_ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))

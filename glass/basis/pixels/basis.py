@@ -45,7 +45,7 @@ from glass.handythread import parallel_map2, parallel_map
 from . potential import poten_dxdx, poten_dydy, maginv, poten_dxdy
 from . lensmodel import PixelLensModel
 
-from glass.log import log as Log
+from glass.log import log as Log, dlog as DLog
 
 np.set_printoptions(threshold=1000000)
 
@@ -403,6 +403,7 @@ class PixelBasis(object):
         self.myobject = None
 
         self.pixrad    = None       # [pixels]
+        self.pixsize   = None       # [arcsec]  # User parameter that will define cell_size if set
         self.maprad    = None       # [arcsec]
         self.cell_size = None       # [arcsec]
         
@@ -434,21 +435,21 @@ class PixelBasis(object):
 
     def __getattr__(self, name):
         if name == 'nbrs':
-            Log( 'Finding neighbors...' )
+            DLog( 1, 'Finding neighbors...' )
             #super(PixelBasis, self).__setattr__('nbrs',  all_neighbors(self.int_ploc,            1.5 * self.int_cell_size))
             super(PixelBasis, self).__setattr__('nbrs', 
                 pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0], [1,1], [-1,1], [1,-1], [-1,-1] ], 
                                 self.int_ploc, self.int_cell_size, try_hard=True))
             return self.nbrs
         elif name == 'nbrs2':
-            Log( 'Finding neighbors 2...' )
+            DLog( 1, 'Finding neighbors 2...' )
             super(PixelBasis, self).__setattr__('nbrs2', 
                 pixel_neighbors([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=True))
 
             #super(PixelBasis, self).__setattr__('nbrs2', all_neighbors(self.int_ploc, self.grad_rmax * self.int_cell_size))
             return self.nbrs2
         elif name == 'nbrs3':
-            Log( 'Finding neighbors 3...' )
+            DLog( 1, 'Finding neighbors 3...' )
             super(PixelBasis, self).__setattr__('nbrs3', 
                 pixel_neighbors3([ [0,1], [1,0], [0,-1], [-1,0] ], self.int_ploc, self.int_cell_size, try_hard=False))
 
@@ -483,13 +484,9 @@ class PixelBasis(object):
         rs = [ abs(img.pos) for src in obj.sources for img in src.images if img.parity_name != 'max']
         max_zcap = amax([src.zcap for src in obj.sources])
 
-        Log( '=' * 80 )
-        Log( 'PIXEL BASIS for %s' % obj.name )
-        Log( '=' * 80 )
-
         if rs:
             rmin, rmax = amin(rs), amax(rs)
-            Log( "rmin=%s rmax=%s L=%s" % (rmin, rmax, L) )
+            DLog( 1, "rmin=%s rmax=%s L=%s" % (rmin, rmax, L) )
         else:
             assert obj.maprad is not None, 'If no images are given, then maprad must be specified.'
             rmin, rmax = 0, obj.maprad
@@ -525,13 +522,29 @@ class PixelBasis(object):
             self.top_level_cell_size = (rmax + (rmax-rmin)*1.2) / (L - 2)
             self.top_level_cell_size = (rmax                  ) / (L - 1)
             self.top_level_cell_size = (rmin                  ) / 4
-            self.maprad = self.top_level_cell_size * L
+            self.maprad = self.top_level_cell_size * (L-1.0)
+            #self.top_level_cell_size = self.maprad / L
+            self.mapextent = self.top_level_cell_size * (L - 0.5)
+        else:
+            if self.pixsize is not None:
+                pr = int(ceil(self.maprad / self.pixsize)) + 1
+                assert (self.pixrad is None or pr == self.pixrad), 'pixrad is incompatible with maprad and pixsize settings'
+                self.pixrad = pr
+                L = self.pixrad
+                # If pixsize has been set, then that will take precedence over maprad.
+                # Here we simply ensure that at least maprad is covered although the 
+                # maprad we adopt now could be larger.
+                self.maprad = (L-1.0) * self.pixsize
+
+                self.top_level_cell_size = self.pixsize
+                self.mapextent = self.top_level_cell_size * (L - 0.5)
+            else:
+                self.top_level_cell_size = self.maprad / (L-1.0)
+                self.mapextent = self.top_level_cell_size * (L - 0.5)
 
 
         self.map_shift = self.maprad        # [arcsec]
         #self.map_shift = 0
-        self.top_level_cell_size = self.maprad / L
-        self.mapextent = self.top_level_cell_size * (2*L + 1)/2
 
         if self.hires_levels is not None:
             self.subdivision = self.hires_levels
@@ -548,8 +561,10 @@ class PixelBasis(object):
         #print  self.rs
 
         mags = abs(self.xy)
-        insideL  = self.insideL  = argwhere(mags <  (2*L+1)/2).T[0]
-        outsideL = self.outsideL = argwhere(mags >= (2*L+1)/2).T[0]
+        #insideL  = self.insideL  = argwhere(mags <  ((2*L+1)//2)).T[0]
+        #outsideL = self.outsideL = argwhere(mags >= ((2*L+1)//2)).T[0]
+        insideL  = self.insideL  = argwhere(mags <  L).T[0]
+        outsideL = self.outsideL = argwhere(mags >= L).T[0]
         self.int_ploc      = self.xy[insideL]
         self.int_cell_size = self.int_cell_size[insideL]
 
@@ -771,39 +786,34 @@ class PixelBasis(object):
             self.symmetric = True
             self.nvar_symm -= (npix-1) // 2
 
-        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', Environment.H0inv_ref)
-        Log( 'Pixel basis' )
-        Log( '    Pixel radius         = %i'  % self.pixrad )
-        Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
-        Log( '    Map Extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
-        Log( '    top_level_cell_size  = %.4f [arcsec]'  % self.top_level_cell_size )
-        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref))
-        Log( '    Map Extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
-        Log( '    top_level_cell       = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
-        Log( '    Number of rings      = %i'    % len(self.rings) )
-        Log( '    Number of pixels     = %i'    % npix )
-        Log( '    Number of variables  = %i'    % self.nvar )
-        Log( '    Central pixel offset = %i'    % self.central_pixel )
-        Log( 'Offsets        % 5s  % 5s' % ('Start', 'End') )
-        Log( '    pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
-#       if self.shear_start == self.shear_end:
-#           Log( '    shear           %s' % 'None')
-#       else:
-#           Log( '    shear      % 5i  % 5i' % (self.shear_start,  self.shear_end) )
+    def report(self):
 
-#       if self.ptmass_start == self.ptmass_end:
-#           Log( '    ptmass          %s' % 'None')
-#       else:
-#           Log( '    ptmass     % 5i  % 5i' % (self.ptmass_start, self.ptmass_end) )
+        obj = self.myobject
+
+        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', Environment.H0inv_ref)
+        Log( 'Pixel basis for %s' % obj.name)
+        Log( '    Pixel map radius     = %-6i [pixels]'  % self.pixrad )
+        Log( '    Pixel size           = %.4f [arcsec]'  % self.top_level_cell_size )
+        Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
+        Log( '    Map extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
+        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref))
+        Log( '    Map extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
+        Log( '    Pixel size           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
+        Log( '    Number of rings      = %i'    % len(self.rings) )
+        Log( '    Number of pixels     = %i'    % len(self.int_ploc) )
+        Log( '    Number of variables  = %i'    % self.nvar )
+        Log( '    Central pixel at     = pix %i'% self.central_pixel )
+        Log( '    Offsets        % 5s  % 5s' % ('Start', 'End') )
+        Log( '        H0         % 5i'       % (self.H0) )
+        Log( '        pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
 
         if self.offs_srcpos[0] == self.offs_srcpos[1]:
-            Log( '    srcpos          %s' % 'None')
+            Log( '        srcpos          %s' % 'None')
         else:
-            Log( '    srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
+            Log( '        srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
 
-        Log( '    H0         % 5i'       % (self.H0) )
         for e,[start,end] in zip(obj.extra_potentials, self.extra_potentials_array_offsets):
-            Log( '    %-10s % 5i  % 5i' % (e.name, start, end) )
+            Log( '        %-10s % 5i  % 5i' % (e.name, start, end) )
 
 #       xy    = self.refined_xy_grid({})
 

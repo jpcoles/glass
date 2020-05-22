@@ -35,6 +35,10 @@ def pixrad(env, r):
     env.current_object().basis.pixrad = r
 
 @command
+def pixsize(env, r):
+    env.current_object().basis.pixsize = r
+
+@command
 def priors(env, *ps):
     env.current_object().basis.prior_list = ps
 

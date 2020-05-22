@@ -1,7 +1,7 @@
 
 import time
 import numpy as np
-from numpy import arctan2, savez, load, array, pi
+from numpy import arctan2, pi
 from itertools import count, repeat
 
 import glass.cosmo
@@ -152,22 +152,22 @@ def symm(env, v=True):
 def universe_age(env, *args):
     """Set age of the Universe in Gyr"""
     if len(env.objects) != 0: raise GLInputError('universe_age() must be used before any objects are created.')
-    nu       = convert('age in Gyr to nu', array(args), glass.cosmo.age_factor(env))
-    env.nu = array([nu[-1], nu[0]])
+    nu       = convert('age in Gyr to nu', np.array(args), glass.cosmo.age_factor(env))
+    env.nu = np.array([nu[-1], nu[0]])
 
 @command
 def hubble_time(env, *args):
     """Set H0^-1 (or a range) in Gyr"""
     #print env, args
     if len(env.objects) != 0: raise GLInputError('hubble_time() must be used before any objects are created.')
-    nu       = convert('H0^-1 in Gyr to nu', array(args))
-    env.nu = array([nu[-1], nu[0]])
+    nu       = convert('H0^-1 in Gyr to nu', np.array(args))
+    env.nu = np.array([nu[-1], nu[0]])
 
 @command
 def hubble_constant(env, *args):
     """Set H0 (or a range) in km/s/Mpc"""
     if len(env.objects) != 0: raise GLInputError('hubble_constant() must be used before any objects are created.')
-    env.nu      = convert('H0 in km/s/Mpc to nu', array(args))
+    env.nu      = convert('H0 in km/s/Mpc to nu', np.array(args))
 
 @command
 def maprad(env, r,units='arcsec'):
@@ -197,7 +197,7 @@ def savestate(env, fname):
 
     import numpy as np
     with open(fname, 'wb') as f:
-        savez(f, env)
+        np.savez(f, env)
 
     #env.post_process_funcs = ppf
     #env.post_filter_funcs = pff
@@ -208,7 +208,7 @@ def loadstate(env, fname, setenv=True):
     setenv is False the environment will not be replaced. Return the loaded
     environment.  
     """
-    x = load(fname)['arr_0'].item()
+    x = np.load(fname, allow_pickle=True)['arr_0'].item()
     for o in x.objects:
         for i,s in enumerate(o.sources):
             if not hasattr(s,'index'):
@@ -248,14 +248,16 @@ def apply_filters(env):
 @command
 def model(env, nmodels=None, *args, **kwargs):
 
-    Log( '=' * 80 )
-    Log('GLASS version 0.1  %s' % time.asctime())
-    Log( '=' * 80 )
-
     for o in env.objects:
         o.init()
 
     report(env)
+
+    Log( '=' * 80 )
+    Log( 'OBJECT BASIS REPORT' )
+    Log( '=' * 80 )
+    for o in env.objects:
+        o.basis.report()
 
     #init_model_generator(nmodels)
 
@@ -409,7 +411,7 @@ def kappa_chi2(env, models, model0, frac='1sigma'):
 
         #n_max,d_max = np.amax([n,n_max]), np.amax([d,d_max])
         #n_min,d_min = np.amin([n,n_min]), np.amin([d,d_min])
-    nd = array(ns) / array(ds)
+    nd = np.array(ns) / np.array(ds)
     return dist_range(nd, frac)
 #   nd.sort()
 #   N = len(nd)
@@ -453,7 +455,7 @@ def kappa_profile_chi2(env, models, model0, frac='1sigma'):
         ns.append(n)
         ds.append(d)
 
-    nd = array(ns) / array(ds)
+    nd = np.array(ns) / np.array(ds)
     return dist_range(nd, frac)
 #   nd.sort()
 #   N = len(nd)

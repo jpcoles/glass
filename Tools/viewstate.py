@@ -4,6 +4,7 @@ glass_basis('glass.basis.pixels', solver=None)
 exclude_all_priors()
 
 import os
+from datetime import datetime
 
 #try:
 if 0:
@@ -24,7 +25,7 @@ def escape(s):
 def style_iterator(colors='gbrcm'):
     import matplotlib.lines as mpll
     from itertools import count
-    _linestyles = [k for k,v, in mpll.lineStyles.iteritems() if not v.endswith('nothing')]
+    _linestyles = [k for k,v, in mpll.lineStyles.items() if not v.endswith('nothing')]
     _linestyles.sort()
     for lw in count(1):
         for ls in _linestyles:
@@ -69,7 +70,15 @@ def PlotFigures():
     init_plots(4, [2,4])
     gcf().subplots_adjust(left=0.05, right=0.98)
 
-    gcf().suptitle('%s' % escape(os.path.splitext(os.path.basename(opts[1]))[0]))
+    info = """\
+    Input: %(fname)s
+    Created: %(date)s
+    """ % dict(date=datetime.now().strftime("%d-%b-%Y, %H:%M:%S"),
+               fname=escape(os.path.splitext(os.path.basename(opts[1]))[0]))
+
+    #pl.text(0,1,info, transform=pl.gcf().transFigure, fontsize=3)
+    #pl.text(0,1,info, transform=pl.gcf().transAxes, fontsize=3)
+
 
 #   for g in gls:
 #       for i,o in enumerate(g.objects):
@@ -114,7 +123,7 @@ def PlotFigures():
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
-            lw,ls,clr = si.next()
+            lw,ls,clr = next(si)
             g.glerrorplot('kappa(R)', ['R', 'arcsec'], yscale='linear')
         end_plot()
 
@@ -122,7 +131,7 @@ def PlotFigures():
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
-            lw,ls,clr = si.next()
+            lw,ls,clr = next(si)
             g.glerrorplot('kappa(<R)', ['R', 'arcsec'])
         end_plot()
 
@@ -130,7 +139,7 @@ def PlotFigures():
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
-            lw,ls,clr = si.next()
+            lw,ls,clr = next(si)
             g.glerrorplot('M(<R)', ['R', 'kpc'], yscale='linear')
         end_plot()
 
@@ -138,7 +147,7 @@ def PlotFigures():
         begin_plot()
         si = style_iterator(colors)
         for g in gls:
-            lw,ls,clr = si.next()
+            lw,ls,clr = next(si)
             g.glerrorplot('Sigma(R)', ['R', 'kpc'], yscale='linear')
         end_plot()
 
@@ -231,7 +240,7 @@ else:
 try:
     show()
 except:
-    print "Couldn't display. No graphics enabled?"
+    print("Couldn't display. No graphics enabled?")
 
 #try:
 #except:

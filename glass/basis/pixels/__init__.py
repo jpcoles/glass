@@ -3,7 +3,7 @@
 from numpy import mean, zeros, argwhere
 from .priors import include_prior, exclude_prior, \
                    def_priors, all_priors, inc_priors, exc_priors, acc_objpriors, acc_enspriors
-from glass.log import log as Log
+from glass.log import log as Log, dlog as DLog
 from glass.environment import env, Environment
 from glass.command import command
 from glass.scales import convert
@@ -20,19 +20,25 @@ opts = env().basis_options
 if 'solver' in opts and opts['solver'] is None:
     pass
 elif 'solver' not in opts or opts['solver'] == 'rwalk':
-    from glass.solvers.rwalk.samplex import Samplex
+    from glass.solvers.rwalk.samplex import Samplex as Solver
     import glass.solvers.rwalk.glcmds 
+elif 'solver' not in opts or opts['solver'] == 'hitandrun':
+    from glass.solvers.hitandrun.samplex import Samplex as Solver
+    import glass.solvers.hitandrun.glcmds 
+elif 'solver' not in opts or opts['solver'] == 'pwalk':
+    from glass.solvers.pwalk.pwalk_solver import PWalk as Solver
+    import glass.solvers.pwalk.glcmds 
 elif 'solver' in opts and opts['solver'] == 'samplex':
-    from glass.solvers.samplex.samplex import Samplex
+    from glass.solvers.samplex.samplex import Samplex as Solver
     import glass.solvers.samplex.glcmds 
 elif 'solver' in opts and opts['solver'] == 'lpsolve':
-    from glass.solvers.lpsolve.samplex import Samplex
+    from glass.solvers.lpsolve.samplex import Samplex as Solver
     import glass.solvers.lpsolve.glcmds 
 elif 'solver' in opts and opts['solver'] == 'samplexsimple':
-    from glass.solvers.samplexsimple.samplex import Samplex
+    from glass.solvers.samplexsimple.samplex import Samplex as Solver
     import glass.solvers.samplexsimple.glcmds 
 elif 'solver' in opts and opts['solver'] == 'samplexsimple2':
-    from glass.solvers.samplexsimple.samplex2 import Samplex
+    from glass.solvers.samplexsimple.samplex2 import Samplex as Solver
     import glass.solvers.samplexsimple.glcmds 
 else:
     assert 0, 'Unknown solver %s' % opts['solver']
@@ -117,7 +123,7 @@ def _expand_array(nvars, offs, f, symm=None):
        of the solver matrix that is just for the same object."""
     def work(eq):
         if symm is not None: eq = symm(eq)
-        new_eq = zeros(nvars+1, order='Fortran')
+        new_eq = zeros(nvars+1, order='F')
         new_eq[0] = eq[0]
         new_eq[offs:offs+len(eq)-1] = eq[1:]
         f(new_eq)
@@ -133,7 +139,7 @@ def init_model_generator(env, nmodels, regenerate=False):
     # ------------- 
 
     nvars = reduce(lambda s,o: s+o.basis.nvar_symm, objs, 0)
-    Log( "Number of variables (nvars) = %i" % nvars )
+    DLog( 1, "Number of variables (nvars) = %i" % nvars )
 
 
     offs = 1 # Reserve an index for the constant in the constraint
@@ -166,8 +172,8 @@ def init_model_generator(env, nmodels, regenerate=False):
 
 
     Log( 'Priors:' )
-    for p in all_priors:
-        Log( '%10s %s' % ('[EXCLUDED]' if p not in priors else '', p.f.__name__) )
+    for p in sorted(all_priors, key=lambda x: x.f.__name__.upper()):
+        Log( '%10s %s' % ('[ACTIVE]' if p in priors else '', p.f.__name__) )
 
     lp = [x for x in priors if x.where == 'object_prior']
     gp = [x for x in priors if x.where == 'ensemble_prior']
@@ -180,7 +186,7 @@ def init_model_generator(env, nmodels, regenerate=False):
     if 'nthreads' not in opts: opts['nthreads'] = Environment.global_opts['ncpus']
 
     #mg = env.model_gen = env.model_gen_factory(env.model_gen_options)
-    mg = env.model_gen = Samplex(**env.model_gen_options)
+    mg = env.model_gen = Solver(**env.model_gen_options)
 
     #---------------------------------------------------------------------------
     # Apply the object priors
@@ -188,7 +194,7 @@ def init_model_generator(env, nmodels, regenerate=False):
     Log( 'Applying Priors:' )
     for o in objs:
         offs = o.basis.array_offset
-        Log( 'array offset %i' % offs )
+        DLog( 1, 'array offset %i' % offs )
         if o.symm:
             symm = lambda x: symm_fold(o,x)
         else:

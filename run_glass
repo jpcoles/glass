@@ -5,6 +5,11 @@ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PLATDIR=`$PYTHON -c "import distutils.util, sys; print('lib.%s-%s' % (distutils.util.get_platform(), sys.version[0:3]))"`
 GLASS="$PYTHON $ROOT/build/$PLATDIR/glass.py"
 
+#export MKL_NUM_THREADS=10
+#export NUMEXPR_NUM_THREADS=1
+#export OMP_NUM_THREADS=1
+#export MKL_VERBOSE=0 
+
 export LD_LIBRARY_PATH=$ROOT/build/glpk_build/lib:$LD_LIBRARY_PATH
 export PYTHONPATH=.:$PYTHONPATH
 export PYTHONPATH=$ROOT/build/python-glpk/$PLATDIR/glpk/:$PYTHONPATH

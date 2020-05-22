@@ -5,7 +5,7 @@ if __name__ != '__main__':
     from glass.shear import Shear
     from glass.exmass import ExternalMass
     
-    from glass.log import log as Log
+    from glass.log import log as Log, dlog as DLog
     from glass.scales import convert
     from . basis import neighbors, irrhistogram2d
     from . potential import poten, poten_dx, poten_dy, poten_dxdx, poten_dydy, maginv, maginv_new, poten_dxdy, maginv_new4, maginv_new5
@@ -494,7 +494,7 @@ def hubble_constant(o, leq, eq, geq):
         Log( "[DISABLED] Hubble Constant")
         return
 
-    Log( indent + "Hubble Constant" + str(env().nu))
+    Log( indent + "Hubble Constant " + str(env().nu))
 
     nu = 1+o.basis.H0
 
@@ -971,7 +971,7 @@ def profile_steepness(o, leq, eq, geq):
                     c += 1
             c += 1
 
-    Log( 2*indent + "# eqs = %i" % c )
+    DLog( 1, 2*indent + "# eqs = %i" % c )
 
 @default_prior
 @object_prior
@@ -1338,8 +1338,8 @@ def J3gradient(o, leq, eq, geq):
                 geq(row)
                 c += 1
 
-    Log( 2*indent + "gradient eqs = %i" % c )
-    Log( 2*indent + "sn=%g" % sn )
+    DLog( 1, 2*indent + "gradient eqs = %i" % c )
+    DLog( 1, 2*indent + "sn=%g" % sn )
 
 #@default_prior
 @object_prior
@@ -1623,7 +1623,7 @@ def PLsmoothness3(o, leq, eq, geq):
         geq(row)
         c += 1
 
-    Log( 2*indent + "# eqs = %i" % c )
+    DLog( 1, 2*indent + "# eqs = %i" % c )
 
 #@default_prior
 @object_prior

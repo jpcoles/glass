@@ -113,7 +113,7 @@ class Samplex:
         Log( "L = %i" % self.nLeft )
         Log( "R = %i" % self.nRight )
         Log( "S = %i" % self.nSlack )
-        self.data = zeros((self.nLeft+1, self.nRight+1), order='Fortran', dtype=numpy.float64)
+        self.data = zeros((self.nLeft+1, self.nRight+1), order='F', dtype=numpy.float64)
 
         self.nLeft = 0
         self.nSlack = 0

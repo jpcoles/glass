@@ -1,7 +1,10 @@
+import os, platform, time
+import textwrap
 from glass.log import log as Log
-from  glass.cosmo import angdist
+from glass.cosmo import angdist
 from glass.scales import convert
 from glass.environment import Environment
+
 
 def str_range(v, fmt):
     def tostr(v):
@@ -24,6 +27,44 @@ def pp(str, units, width=80):
     return str + (' '*(width-ulen-slen)) + units
 
 def report(env):
+    banner=r'''  
+                 ██████╗ ██╗      █████╗ ███████╗███████╗
+                ██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝
+                ██║  ███╗██║     ███████║███████╗███████╗
+                ██║   ██║██║     ██╔══██║╚════██║╚════██║
+                ╚██████╔╝███████╗██║  ██║███████║███████║
+                 ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
+                                                   v1.0
+
+                 Gravitational Lensing AnalysiS Software 
+
+                        Written by Jonathan Coles
+
+                   See AUTHORS for additional credits.
+         '''
+    Log( textwrap.indent(textwrap.dedent(banner), ' '*20) )
+    Log(  )
+    Log( '=' * 80 )
+    Log( 'CONFIGURATION' )
+    Log( '=' * 80 )
+    Log( 'Date           : %s' % time.asctime() )
+    Log( 'Input file     : %s' % Environment.global_opts['argv'][0] )
+    Log( 'Hostname       : %s' % platform.node())
+    if 'SLURM_JOB_NAME' in os.environ:
+        Log( 'SLURM job name : %s' % os.environ['SLURM_JOB_NAME'] )
+    if 'SLURM_JOB_ID' in os.environ:
+        Log( 'SLURM job id   : %s' % os.environ['SLURM_JOB_ID'] )
+    Log( 'GLASS version  : 1.0' )
+    Log( 'CPUs detected  : %i' % Environment.global_opts['ncpus_detected'] )
+    Log( 'CPUs used (-t) : %i' % Environment.global_opts['ncpus'] )
+    Log( 'Graphics %s' % ('enabled' if Environment.global_opts['withgfx'] else 'disabled') )
+    oo = Environment.global_opts['omp_opts']
+    if oo:
+        Log( 'OpenMP supported. Compiling with "%s"' % ' '.join(oo['extra_compile_args'] + oo['extra_link_args']) )
+    else:
+        Log( 'OpenMP not supported.' )
+    Log(  )
+
     Log( '=' * 80 )
     Log( 'COSMOLOGY' )
     Log( '=' * 80 )
@@ -70,22 +111,6 @@ def report(env):
             #    Log( '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' 
             #        % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2]) )
 
-    Log(  )
-    Log( '=' * 80 )
-    Log( 'MISCELLANEOUS' )
-    Log( '=' * 80 )
-    Log( 'Graphics %s' % ('enabled' if Environment.global_opts['withgfx'] else 'disabled') )
-    Log(  )
-    Log( '=' * 80 )
-    Log( 'SYSTEM' )
-    Log( '=' * 80 )
-    Log( 'Number of CPUs detected = %i' % Environment.global_opts['ncpus_detected'] )
-    Log( 'Number of CPUs used     = %i' % Environment.global_opts['ncpus'] )
-    oo = Environment.global_opts['omp_opts']
-    if oo:
-        Log( 'OpenMP supported. Compiling with "%s"' % ' '.join(oo['extra_compile_args'] + oo['extra_link_args']) )
-    else:
-        Log( 'OpenMP not supported.' )
     Log( )
 
 
