@@ -34,7 +34,7 @@ def report(env):
                 ██║   ██║██║     ██╔══██║╚════██║╚════██║
                 ╚██████╔╝███████╗██║  ██║███████║███████║
                  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
-                                                   v1.0
+                                                   v1.1
 
                  Gravitational Lensing AnalysiS Software 
 
@@ -54,7 +54,7 @@ def report(env):
         Log( 'SLURM job name : %s' % os.environ['SLURM_JOB_NAME'] )
     if 'SLURM_JOB_ID' in os.environ:
         Log( 'SLURM job id   : %s' % os.environ['SLURM_JOB_ID'] )
-    Log( 'GLASS version  : 1.0' )
+    Log( 'GLASS version  : 1.1' )
     Log( 'CPUs detected  : %i' % Environment.global_opts['ncpus_detected'] )
     Log( 'CPUs used (-t) : %i' % Environment.global_opts['ncpus'] )
     Log( 'Graphics %s' % ('enabled' if Environment.global_opts['withgfx'] else 'disabled') )
