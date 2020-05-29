@@ -802,8 +802,8 @@ class PixelBasis(object):
         Log( '    Map extent           = %.4f [arcsec]  (%3.4f [kpc])  Distance to outer edge of outer pixel.' % arcsec_kpc_pair(self.mapextent) )
         Log( '    Pixel size           = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(self.top_level_cell_size) )
         Log( '    Hires pixel size     = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(obj.basis.cell_size[0]) )      if self.hires_levels else 0 
+        Log( '    Hires division       = %i'                           % self.hires_levels )                       if self.hires_levels else 0
         Log( '    Pixel map radius     = %-6i [pixels]  -> %i rings'  % (self.pixrad, len(self.rings)) )
-        Log( '    Hires division       = %i'                           % len(self.hires_levels) )                       if self.hires_levels else 0
 
         #Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
         #Log( '    Map extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
