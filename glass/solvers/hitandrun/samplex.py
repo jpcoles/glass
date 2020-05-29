@@ -376,11 +376,13 @@ class Samplex:
             else:
                 Log( '%3i%%] %6i/%i models remaining.' % ((j*100)//nmodels, nmodels-j, nmodels), overwritable=False)
 
-        def status_burn(j,nmodels,t):
+        def status_burn(j,nburn,nmodels,t):
             if mt > 0:
-                Log( '%3i%% - burn] %6i/%i models remaining.  %.3f s/model.  ETA %s.' % ((j*100)//nmodels, nmodels-j, nmodels, mt, timestr(mt*(nmodels-j))), overwritable=False)
+                Log( '%3i%% - (%3i%% burn)] %6i/%i models remaining.  %.3f s/model.  ETA %s.' % 
+                        ((j*100)//nmodels, (j*100)//nburn, nmodels-j, nmodels, mt, timestr(mt*(nmodels-j))), overwritable=False)
             else:
-                Log( '%3i%% - burn] %6i/%i models remaining.' % ((j*100)//nmodels, nmodels-j, nmodels), overwritable=False)
+                Log( '%3i%% - (%3i%% burn)] %6i/%i models remaining.' % 
+                        ((j*100)//nmodels, (j*100)//nburn, nmodels-j, nmodels), overwritable=False)
 
 
         #-----------------------------------------------------------------------
@@ -389,24 +391,22 @@ class Samplex:
  
         time_get_models = dict(start=time.perf_counter(), end=None)
         t0,t1 = 0,0
-        j = 0
         for i in range(nmodels+burn):
             k,vec,phase = q.get()
 
             if i in [0,burn]:
-                j,nt,mt,dt,t0 = 0,0,0,0,time.perf_counter()
+                nt,mt,dt,t0 = 0,0,0,time.perf_counter()
 
             t1 = time.perf_counter()
             dt = t1-t0
             nt += 1
-            j += 1
 
             if dt >= 5:
                 mt = dt/nt
                 nt = 0
                 t0 = time.perf_counter()
-                if i >  burn: status_walk(j,nmodels,mt)
-                if i <= burn: status_burn(j,burn,mt)
+                if i >  burn: status_walk(i,nmodels+burn,mt)
+                if i <= burn: status_burn(i,burn,nmodels+burn,mt)
 
             if phase == 'burn': continue
 
@@ -418,7 +418,7 @@ class Samplex:
             mt = dt/nt
             nt = 0
             t0 = time.perf_counter()
-            status_walk(j,nmodels,mt)
+            status_walk(i,nmodels+burn,mt)
 
         for thr in threads:
             thr.terminate()

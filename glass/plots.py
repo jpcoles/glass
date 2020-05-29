@@ -786,7 +786,7 @@ def _data_plot(models, X,Y, **kwargs):
 
 def _axis_label(data, units):
     label = '%s' % data.symbol
-    if units is not None: label += ' (%s)' % data.label(units)
+    if units is not None: label += ' [%s]' % data.label(units)
     return label
 
 def _data_error_plot(models, X,Y, **kwargs):
@@ -1342,7 +1342,7 @@ def _hist(env, data_key, **kwargs):
                         **kw)
             else:
                 ax.hist(d, 
-                        edgecolor=s['c'] if color is None else color, 
+                        #edgecolor=s['c'] if color is None else color, 
                         zorder=s['z'], 
                         label=s['label'] if label is None else label, 
                         **kw)

@@ -164,7 +164,7 @@ def xy_list(L, R=0, refine=1):
         #for i,v in enumerate(abs(xy) < R):
         for i,v in enumerate(np.logical_and(abs(xy.real) < R, abs(xy.imag) < R)):
             if v:
-                for y in linspace(-(refine//2), refine//2, refine): # 'extra' parens are important 
+                for y in linspace(-(refine//2), refine//2, refine):     # 'extra' parens are important 
                     for x in linspace(-(refine//2), refine//2, refine): # because of integer rounding
                         t = xy[i] + f * complex(x,y)
                         if 1: #abs(t) < .8*R: #-0.5:
@@ -790,21 +790,34 @@ class PixelBasis(object):
 
         obj = self.myobject
 
-        H0inv_ref_as_nu = convert('H0^-1 in Gyr to nu', Environment.H0inv_ref)
+        H0_ref = Environment.H0inv_ref
+        nu_ref = convert('H0^-1 in Gyr to nu', H0_ref)
+        tokpc = lambda arcsec: convert('arcsec to kpc', arcsec, obj.dL, nu_ref)
+
+        arcsec_kpc_pair = lambda x: (x,tokpc(x))
+
         Log( 'Pixel basis for %s' % obj.name)
-        Log( '    Pixel map radius     = %-6i [pixels]'  % self.pixrad )
-        Log( '    Pixel size           = %.4f [arcsec]'  % self.top_level_cell_size )
-        Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
-        Log( '    Map extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
-        Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref))
-        Log( '    Map extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
-        Log( '    Pixel size           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, H0inv_ref_as_nu), Environment.H0inv_ref ))
-        Log( '    Number of rings      = %i'    % len(self.rings) )
+        Log( '    -- All kpc units assume reference 1/H0=%.1f --' % H0_ref )
+        Log( '    Map radius           = %.4f [arcsec]  (%3.4f [kpc])  Distance to center of outer pixel.' % arcsec_kpc_pair(self.maprad) )
+        Log( '    Map extent           = %.4f [arcsec]  (%3.4f [kpc])  Distance to outer edge of outer pixel.' % arcsec_kpc_pair(self.mapextent) )
+        Log( '    Pixel size           = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(self.top_level_cell_size) )
+        Log( '    Hires pixel size     = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(obj.basis.cell_size[0]) )      if self.hires_levels else 0 
+        Log( '    Pixel map radius     = %-6i [pixels]  -> %i rings'  % (self.pixrad, len(self.rings)) )
+        Log( '    Hires division       = %i'                           % len(self.hires_levels) )                       if self.hires_levels else 0
+
+        #Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
+        #Log( '    Map extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
+        #Log( '    Map radius           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.maprad, obj.dL, nu_ref), Environment.H0inv_ref))
+        #Log( '    Map extent           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.mapextent, obj.dL, nu_ref), Environment.H0inv_ref ))
+        #Log( '    Pixel size           = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', self.top_level_cell_size, obj.dL, nu_ref), Environment.H0inv_ref ))
+        #if self.hires_levels:
+            #Log( '    Hires pixel size     = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', obj.basis.cell_size[0], obj.dL, nu_ref), Environment.H0inv_ref ))
+            #Log( '    Hires division       = %i'    % len(self.hires_levels) )
         Log( '    Number of pixels     = %i'    % len(self.int_ploc) )
         Log( '    Number of variables  = %i'    % self.nvar )
-        Log( '    Central pixel at     = pix %i'% self.central_pixel )
+        DLog(1, '    Center pix          = pixel offset %i'       % self.central_pixel )
         Log( '    Offsets        % 5s  % 5s' % ('Start', 'End') )
-        Log( '        H0         % 5i'       % (self.H0) )
+        Log( '        H0         % 5i'       % self.H0 )
         Log( '        pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
 
         if self.offs_srcpos[0] == self.offs_srcpos[1]:
