@@ -33,11 +33,35 @@ class PixelLensModel(LensModel):
     def kappa(self):
         return self['kappa DM'] + self['kappa star']
 
+    @prop('kappa_inf(R)')
+    def kappa_inf_R(self, component=[]):
+        k = ' '.join(['kappa'] + component)
+        return DArray([self.mean_kappa(self[k],r) for r in self.obj.basis.rings],
+                       r'$\langle\kappa_\infty(R)\rangle$', {'kappa': [1, None]})
+    @prop('kappa_inf(<R)')
+    def kappa_inf_ltR(self, component=[]):
+        k = ' '.join(['kappa'] + component)
+        M = np.cumsum([np.sum(self[k][r]*self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings]) 
+        V = np.cumsum([np.sum(self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings])
+        return DArray(M/V, r'$\kappa_\infty(<R)$', {'kappa': [1, None]})
+
     @prop('kappa(R)')
     def kappa_R(self, component=[]):
         k = ' '.join(['kappa'] + component)
-        return DArray([self.mean_kappa(self[k],r) for r in self.obj.basis.rings],
-                       r'$\langle\kappa(R)\rangle$', {'$\kappa$': [1, None]})
+        mk = np.array([self.mean_kappa(self[k],r) for r in self.obj.basis.rings])
+        one_src = lambda zcap: DArray(mk / zcap,
+                                r'$\langle\kappa(R)\rangle$', {'kappa': [1, None]})
+        return [one_src(s.zcap) for s in self.obj.sources]
+
+    @prop('kappa(<R)')
+    def kappa_ltR(self, component=[]):
+        k = ' '.join(['kappa'] + component)
+        M = np.cumsum([np.sum(self[k][r]*self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings]) 
+        V = np.cumsum([np.sum(self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings])
+        M_V = M/V
+        one_src = lambda zcap: DArray(M_V / zcap,
+                                r'$\kappa(<R)$', {'kappa': [1, None]})
+        return [one_src(s.zcap) for s in self.obj.sources]
 
     @prop('M(<R)')
     def M_ltR(self, component=[]):
@@ -53,12 +77,6 @@ class PixelLensModel(LensModel):
         dscale2 = convert('kappa to Msun/kpc^2',    1, self.obj.dL, self['nu'])
         return DArray([self.mean_kappa(self[k],r)*dscale2 for r in self.obj.basis.rings],
                        r'$\Sigma$', {'Msun/kpc^2': [1, r'$M_\odot/\mathrm{kpc}^2$']})
-    @prop('kappa(<R)')
-    def kappa_ltR(self, component=[]):
-        k = ' '.join(['kappa'] + component)
-        M = np.cumsum([np.sum(self[k][r]*self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings]) 
-        V = np.cumsum([np.sum(self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings])
-        return DArray(M/V, r'$\kappa(<R)$', {'kappa': [1, None]})
 
     @prop('R')
     def R(self):

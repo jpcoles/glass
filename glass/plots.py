@@ -790,6 +790,8 @@ def _axis_label(data, units):
     return label
 
 def _data_error_plot(models, X,Y, **kwargs):
+    import types
+
     with_legend = False
     use = [0,0,0]
 
@@ -843,25 +845,31 @@ def _data_error_plot(models, X,Y, **kwargs):
 
             try:
                 xs = data[x_prop][x_units]
-                ys = data[y_prop][y_units]
+                ys_list = data[y_prop]
 
-                xlabel = _axis_label(xs, x_units) if not xlabel else xlabel
-                ylabel = _axis_label(ys, y_units) if not ylabel else ylabel
+                if not isinstance(ys_list, (list,tuple)):
+                    ys_list = [ys_list]
 
-                objplot[obj].setdefault(tag, {'ys':[], 'xs':None})
-                objplot[obj][tag]['ys'].append(ys)
-                objplot[obj][tag]['xs'] = xs
+                for Ys in ys_list:
+                    ys = Ys[y_units]
 
-                #objplot[obj].setdefault('%s:xs'%tag, xs)
-                #objplot[obj].setdefault('%s:ymax'%tag, ys)
-                #objplot[obj].setdefault('%s:ymin'%tag, ys)
-                #objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
-                #objplot[obj].setdefault('%s:count'%tag, 0)
+                    xlabel = _axis_label(xs, x_units) if not xlabel else xlabel
+                    ylabel = _axis_label(ys, y_units) if not ylabel else ylabel
 
-                #objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
-                #objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
-                #objplot[obj]['%s:ysum'%tag] += ys
-                #objplot[obj]['%s:count'%tag] += 1
+                    objplot[obj].setdefault(tag, {'ys':[], 'xs':None})
+                    objplot[obj][tag]['ys'].append(ys)
+                    objplot[obj][tag]['xs'] = xs
+
+                    #objplot[obj].setdefault('%s:xs'%tag, xs)
+                    #objplot[obj].setdefault('%s:ymax'%tag, ys)
+                    #objplot[obj].setdefault('%s:ymin'%tag, ys)
+                    #objplot[obj].setdefault('%s:ysum'%tag, np.zeros_like(ys))
+                    #objplot[obj].setdefault('%s:count'%tag, 0)
+
+                    #objplot[obj]['%s:ymax'%tag]  = np.amax((objplot[obj]['%s:ymax'%tag], ys), axis=0)
+                    #objplot[obj]['%s:ymin'%tag]  = np.amin((objplot[obj]['%s:ymin'%tag], ys), axis=0)
+                    #objplot[obj]['%s:ysum'%tag] += ys
+                    #objplot[obj]['%s:count'%tag] += 1
 
                 if mark_images:
                     for i,src in enumerate(obj.sources):
