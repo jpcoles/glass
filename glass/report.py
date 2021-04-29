@@ -1,7 +1,7 @@
 import os, platform, time
 import textwrap
 from glass.log import log as Log
-from glass.cosmo import angdist
+from glass.cosmo import angdist, cosmo_params
 from glass.scales import convert
 from glass.environment import Environment
 
@@ -42,6 +42,11 @@ def pp(str, width=80):
         t[i] += ' '
     return (' '*q).join(t)
 
+def section(text):
+    Log( '=' * 80 )
+    Log( text.center(80) )
+    Log( '=' * 80 )
+
 def report(env):
     banner=r'''  
                  ██████╗ ██╗      █████╗ ███████╗███████╗
@@ -60,19 +65,17 @@ def report(env):
          '''
     Log( textwrap.indent(textwrap.dedent(banner), ' '*20) )
     Log(  )
-    Log( '=' * 80 )
-    Log( 'CONFIGURATION' )
-    Log( '=' * 80 )
-    Log( 'Date           : %s' % time.asctime() )
-    Log( 'Input file     : %s' % Environment.global_opts['argv'][0] )
-    Log( 'Hostname       : %s' % platform.node())
-    if 'SLURM_JOB_NAME' in os.environ:
-        Log( 'SLURM job name : %s' % os.environ['SLURM_JOB_NAME'] )
-    if 'SLURM_JOB_ID' in os.environ:
-        Log( 'SLURM job id   : %s' % os.environ['SLURM_JOB_ID'] )
-    Log( 'GLASS version  : 1.1' )
-    Log( 'CPUs detected  : %i' % Environment.global_opts['ncpus_detected'] )
-    Log( 'CPUs used (-t) : %i' % Environment.global_opts['ncpus'] )
+
+    section( 'CONFIGURATION' )
+    Log( 'Date              : %s' % time.asctime() )
+    Log( 'Input file        : %s' % Environment.global_opts['argv'][0] )
+    Log( 'Hostname          : %s' % platform.node())
+    Log( 'SLURM job name    : %s' % os.environ['SLURM_JOB_NAME'] ) if 'SLURM_JOB_NAME' in os.environ else 0
+    Log( 'SLURM job id      : %s' % os.environ['SLURM_JOB_ID']   ) if 'SLURM_JOB_ID'   in os.environ else 0
+    Log( 'GLASS version     : 1.1' )
+    Log( 'CPUs detected     : %i' % Environment.global_opts['ncpus_detected'] )
+    Log( 'CPUs used         : %i' % Environment.global_opts['ncpus'] )
+    Log( 'Threads used (-t) : %i' % Environment.global_opts['nthreads'] )
     Log( 'Graphics %s' % ('enabled' if Environment.global_opts['withgfx'] else 'disabled') )
     oo = Environment.global_opts['omp_opts']
     if oo:
@@ -81,20 +84,19 @@ def report(env):
         Log( 'OpenMP not supported.' )
     Log(  )
 
-    Log( '=' * 80 )
-    Log( 'COSMOLOGY' )
-    Log( '=' * 80 )
-    Log( pp('Omega Matter = %.4g' % env.omega_matter) )
-    Log( pp('Omega Lambda = %.4g' % env.omega_lambda) )
+    section( 'COSMOLOGY' )
+    cp = cosmo_params(env)
+    Log( pp('Omega Matter = %.4g' % cp['M']) )
+    Log( pp('Omega Lambda = %.4g' % cp['L']) )
+    Log( pp('%s universe (k=%i)' % ({0: 'Flat', 1: 'Open', '-1': 'Closed'}[cp['k']], cp['k']) ))
+    Log( pp('filled_beam  = %s' % cp['filled_beam']) )
     Log( pp('1/H0         = %s & [Gyr]'      % str_range(convert('nu to H0^-1 in Gyr',env.nu), '%.4g')) ) if env.nu is not None else 0 
     Log( pp('H0           = %s & [km/s/Mpc]' % str_range(convert('nu to H0 in km/s/Mpc',env.nu), '%.4g')) ) if env.nu is not None else 0 
     Log( pp('1/H0 ref     = %s & [Gyr]'      % str_range(env.H0inv_ref, '%.4g')) )
-    Log( pp('H0 ref       = %s & [km/s/Mpc]' % str_range(1./env.H0inv_ref, '%.4g')) )
-    Log( pp('filled_beam  = %s' % env.filled_beam) )
+    Log( pp('H0 ref       = %s & [km/s/Mpc]' % str_range(1000./env.H0inv_ref, '%.4g')) )
     Log(  )
-    Log( '=' * 80 )
-    Log( 'OBJECTS' )
-    Log( '=' * 80 )
+
+    section( 'OBJECTS' )
     ref_nu = convert('H0^-1 in Gyr to nu', env.H0inv_ref)
     for i,o in enumerate(env.objects):
         Log( pp('%i. %s at z=%.4g  Distance(Obs->Lens) = %.4f' % (i+1, o.name, o.z, angdist(env, 0,o.z))) )
@@ -127,6 +129,9 @@ def report(env):
             #for img in src.images: 
             #    Log( '        Image at (% .3f,% .3f) : angle=% 8.3f parity=%s elongation=[%.4g,%.4g,%.4g]' 
             #        % (img.pos.real, img.pos.imag, img.angle, img.parity_name, img.elongation[0], img.elongation[1], img.elongation[2]) )
+
+        Log( )
+        o.basis.report()
 
     Log( )
 

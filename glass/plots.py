@@ -67,8 +67,8 @@ def default_kw(R, kwargs=None):
     kw.setdefault('interpolation', 'nearest')
     kw.setdefault('aspect', 'equal')
     kw.setdefault('origin', 'upper')
-    kw.setdefault('fignum', False)
-    kw.setdefault('cmap', cm.bone)
+    #kw.setdefault('fignum', False)
+    #kw.setdefault('cmap', cm.bone)
     #if vmin is not None: kw['vmin'] = vmin
     #if vmax is not None: kw['vmax'] = vmax
     return kw
@@ -79,8 +79,8 @@ def index_to_slice(i):
     else:
         return slice(i,i+1)
 
-def glscolorbar():
-    rows,cols,_ = pl.gca().get_geometry()
+def glscolorbar(ax):
+    rows,cols,_ = ax.get_geometry()
     x,y = pl.gcf().get_size_inches()
     pars = pl.gcf().subplotpars
     left = pars.left
@@ -104,19 +104,20 @@ def show_plots(env):
 @command
 def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, with_guide=False, tight=False):
 
-    obj_index = kwargs.pop('obj_index', 0)
-    src_index = kwargs.pop('src_index', None)
-    tight     = kwargs.pop('tight', False)
-    with_guide = kwargs.pop('with_guide', False)
-    label_parity = kwargs.pop('label_parity', False)
-    color = kwargs.pop('color', None)
-    with_maximum = kwargs.pop('with_maximum', True)
+    obj_index       = kwargs.pop('obj_index', 0)
+    src_index       = kwargs.pop('src_index', None)
+    tight           = kwargs.pop('tight', False)
+    with_guide      = kwargs.pop('with_guide', False)
+    label_parity    = kwargs.pop('label_parity', False)
+    color           = kwargs.pop('color', None)
+    with_maximum    = kwargs.pop('with_maximum', True)
+    ax              = kwargs.pop('axis', pl.gca())
 
     #src_index = np.atleast_1d(src_index)
 
     obj = env.objects[obj_index]
 
-    oxlim, oylim = pl.xlim(), pl.ylim()
+    oxlim, oylim = ax.set_xlim(), ax.set_ylim()
 
     rmax = 0
     si = style_iterator()
@@ -143,26 +144,25 @@ def img_plot(env, **kwargs): #src_index=None, with_maximum=True, color=None, wit
 
         if xs and ys:
             #pl.over(pl.scatter,xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
-            pl.scatter(xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
+            ax.scatter(xs, ys, s=80, c=cs, zorder=1000, alpha=1.0)
             if with_guide or tight:
-                a = pl.gca()
                 for x,y in zip(xs,ys):
                     r = np.sqrt(x**2 + y**2)
                     rmax = np.amax([r,rmax])
                     if with_guide:
-                        a.add_artist(Circle((0,0),r, fill=False,color='lightgrey'))
+                        ax.add_artist(Circle((0,0),r, fill=False,color='lightgrey'))
 
             if label_parity:
                 for img in src.images:
                     if not with_maximum and img.parity_name == 'max': continue
-                    pl.text(img.pos.real, img.pos.imag, img.parity_name)
+                    ax.text(img.pos.real, img.pos.imag, img.parity_name)
 
-    pl.xlim(oxlim); pl.ylim(oylim)
+    ax.set_xlim(oxlim); ax.set_ylim(oylim)
 
     if tight and rmax > 0:
         #rmax *= 1.01
-        pl.gca().set_xlim(-rmax, rmax)
-        pl.gca().set_ylim(-rmax, rmax)
+        ax.set_xlim(-rmax, rmax)
+        ax.set_ylim(-rmax, rmax)
 
 @command
 def external_mass_plot(env, obj_index=0, with_maximum=True, color=None, with_guide=False, tight=False):
@@ -338,6 +338,12 @@ def kappa_plot(env, model, obj_index, **kwargs):
     subtract        = kwargs.pop('subtract', 0)
     xlabel          = kwargs.pop('xlabel', r'arcsec')
     ylabel          = kwargs.pop('ylabel', r'arcsec')
+    ax              = kwargs.pop('axis', pl.gca())
+    scale           = kwargs.pop('scale', 1)
+    kappa           = kwargs.pop('kappa', None)
+
+    if kappa is None:
+        kappa = data['kappa']
 
 #   print pl.gca()
 #   print pl.gca().get_frame()
@@ -354,24 +360,24 @@ def kappa_plot(env, model, obj_index, **kwargs):
     R = obj.basis.mapextent
     kw = default_kw(R, kwargs)
 
-    #grid = obj.basis.kappa_grid(data)
-    #print data['kappa'].shape
-    #print subtract
-    grid = obj.basis._to_grid(data['kappa']-subtract,1)
+    kappa = kappa-subtract # This makes a copy so we don't modify the original
+    kappa *= scale
+    grid = obj.basis._to_grid(kappa,1)
     if vmin is None:
-        w = data['kappa'] != 0
-        if not np.any(w):
-            vmin = -15
-            grid += 10**vmin
+        w = kappa != 0
+        if np.any(w):
+            vmin = np.amin(kappa[w])
         else:
-            vmin = np.log10(np.amin(data['kappa'][w]))
-        #print 'min?', np.amin(data['kappa'] != 0)
-        kw.setdefault('vmin', vmin)
+            vmin = 1e-15
+            grid += 10**vmin
+
+    kw.setdefault('vmin', np.log10(vmin))
+
 
     if vmax is not None:
-        kw.setdefault('vmax', vmax)
+        kw.setdefault('vmax', np.log10(vmax))
 
-    grid = np.log10(grid.copy()) # + 1e-15)
+    lggrid = np.log10(grid) # + 1e-15)
 #   grid2 = grid.copy() 
 #   for i in xrange(grid.shape[0]):
 #       for j in xrange(grid.shape[1]):
@@ -382,29 +388,157 @@ def kappa_plot(env, model, obj_index, **kwargs):
 
 
     if not only_contours:
+        ax.set_xlim(-R,R)
+        ax.set_ylim(-R,R)
+        ax.imshow(lggrid, **kw)
+        #if with_colorbar: 
+            #glscolorbar(ax)
+
+#   if only_contours or with_contours:
+#       #if 'colors' in kw and 'cmap' in kw:
+#           #kw.pop('cmap')
+
+#       kw.setdefault('colors', 'w')
+#       kw.setdefault('extend', 'both')
+#       kw.setdefault('alpha', 0.7)
+#       kw.pop('cmap')
+#       #kw.pop('colors')
+#       C = ax.contour(grid, clevels, **kw)
+#       if label_contours:
+#           ax.clabel(C, inline=1, fontsize=10)
+#       ax.set_aspect('equal')
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return grid
+
+@command
+def kappa_plot3dx(env, model, obj_index, **kwargs):
+    from mpl_toolkits.mplot3d import Axes3D
+
+    obj, data = model['obj,data'][obj_index]
+    if not data: return
+
+    with_contours   = kwargs.pop('with_contours', False)
+    only_contours   = kwargs.pop('only_contours', False)
+    label_contours  = kwargs.pop('label_contours', False)
+    clevels         = kwargs.pop('clevels', 30)
+    with_colorbar   = kwargs.pop('with_colorbar', True)
+    vmin            = kwargs.pop('vmin', None)
+    vmax            = kwargs.pop('vmax', None)
+    subtract        = kwargs.pop('subtract', 0)
+    xlabel          = kwargs.pop('xlabel', r'arcsec')
+    ylabel          = kwargs.pop('ylabel', r'arcsec')
+    ax              = kwargs.pop('axis', pl.gca())
+    scale           = kwargs.pop('scale', 1)
+    style           = kwargs.pop('style', 'bar')
+
+    #ax.__class__ = Axes3D(pl.gcf())
+
+#   print pl.gca()
+#   print pl.gca().get_frame()
+#   print pl.gca().get_frame().get_bbox()
+#   print pl.gca().get_geometry()
+#   print pl.gca().get_position()
+#   print pl.gca().get_window_extent()
+#   l= pl.gca().get_axes_locator()
+#   print l
+#   help(l)
+#   #help(pl.gca())
+#   assert 0
+
+    R = obj.basis.mapextent
+    L = obj.basis.pixrad
+    mr = obj.basis.maprad
+    S = obj.basis.subdivision
+    kw = default_kw(R, kwargs)
+
+    #grid = obj.basis.kappa_grid(data)
+    #print data['kappa'].shape
+    #print subtract
+    data = scale*(data['kappa']-subtract)
+    grid = obj.basis._to_grid(data,1)
+    if vmin is None:
+        w = data != 0
+        if not np.any(w):
+            vmin = -15
+            grid += 10**vmin
+        else:
+            vmin = np.log10(np.amin(data[w]))
+        #print 'min?', np.amin(data['kappa'] != 0)
+        kw.setdefault('vmin', vmin)
+
+    if vmax is not None:
+        kw.setdefault('vmax', vmax)
+
+    G = grid.copy()
+    G[G == 0] = np.amin(G[G>0]/2.)
+    G = np.log10(G)
+
+#   print(grid)
+#   print(G)
+
+#   grid2 = grid.copy() 
+#   for i in xrange(grid.shape[0]):
+#       for j in xrange(grid.shape[1]):
+#           grid[i,j] = abs(grid2[grid.shape[0]-i-1, grid.shape[1]-j-1] - grid[i,j]) / grid[i,j]
+#   grid = grid.copy() + 1e-4
+
+    #grid[grid >= 1] = 0
+
+    if not only_contours:
         #pl.matshow(np.log10(grid), **kw)
-        pl.matshow(grid, **kw)
+        #ax.matshow(grid, **kw)
+
+        from matplotlib import cm
+        #ax.set_xlim(-R,R)
+        #ax.set_ylim(-R,R)
+        X = np.linspace(-mr,mr,G.shape[0])
+        Y = np.linspace(-mr,mr,G.shape[1])
+        #X = np.arange(G.shape[0])
+        #Y = np.arange(G.shape[1])
+        X, Y = np.meshgrid(X,Y)
+        norm = pl.Normalize()
+        colors = pl.cm.viridis(norm(G))
+
+        ax.bar3d
+
+        if style == 'bar':
+            dx=obj.basis.pixsize*0.80
+            X,Y = X.ravel(),Y.ravel()
+            mn = np.full_like(X, np.amin(G)).ravel()
+            ax.bar3d(X,Y,mn,dx,dx,(G.ravel()-mn),color=colors.reshape(colors.shape[0]*colors.shape[1],colors.shape[2]))
+        else:
+            ax.plot_surface(X,Y,G, 
+                    rcount=G.shape[0], ccount=G.shape[0],
+                    cmap=cm.viridis,
+                    antialiased=False,
+                    facecolors=colors
+                    ) #, extent=[-R,R,-R,R], interpolation='nearest')
+
+        #ax.set_aspect('equal')
         #imshow(grid, fignum=False, **kw)
         #pl.matshow(grid, fignum=False, **kw)
-        if with_colorbar: 
-            glscolorbar()
+        #if with_colorbar: 
+            #glscolorbar(ax)
 
-    if only_contours or with_contours:
-        #if 'colors' in kw and 'cmap' in kw:
-            #kw.pop('cmap')
+#   if only_contours or with_contours:
+#       #if 'colors' in kw and 'cmap' in kw:
+#           #kw.pop('cmap')
 
-        kw.setdefault('colors', 'w')
-        kw.setdefault('extend', 'both')
-        kw.setdefault('alpha', 0.7)
-        kw.pop('cmap')
-        #kw.pop('colors')
-        C = pl.contour(grid, clevels, **kw)
-        if label_contours:
-            pl.clabel(C, inline=1, fontsize=10)
-        pl.gca().set_aspect('equal')
+#       kw.setdefault('colors', 'w')
+#       kw.setdefault('extend', 'both')
+#       kw.setdefault('alpha', 0.7)
+#       kw.pop('cmap')
+#       #kw.pop('colors')
+#       C = ax.contour(grid, clevels, **kw)
+#       if label_contours:
+#           ax.clabel(C, inline=1, fontsize=10)
+#       ax.set_aspect('equal')
 
-    pl.xlabel(xlabel)
-    pl.ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
 @command
 def grad_kappa_plot(env, model, obj_index, which='x', with_contours=False, only_contours=False, clevels=30, with_colorbar=True):
@@ -479,6 +613,7 @@ def arrival_plot(env, model, **kwargs):
     with_colorbar   = kwargs.pop('with_colorbar', False)
     xlabel          = kwargs.pop('xlabel', r'arcsec')
     ylabel          = kwargs.pop('ylabel', r'arcsec')
+    ax              = kwargs.pop('axis', pl.gca())
 
     obj_slice = slice(None) if obj_index is None else obj_index
 
@@ -493,7 +628,7 @@ def arrival_plot(env, model, **kwargs):
         #loglev = logspace(1, log(amax(g)-amin(g)), 20, base=math.e) + amin(g)
         if not only_contours:
             kw.update({'zorder':-100})
-            pl.matshow(np.log10(g), **kw)
+            ax.matshow(np.log10(g), **kw)
             if with_colorbar: glspl.colorbar()
 
         if 'cmap' in kw: kw.pop('cmap')
@@ -503,19 +638,19 @@ def arrival_plot(env, model, **kwargs):
             #loglev = 1 / logspace(1/ log(amax(g)-amin(g)), 1, clevels, base=math.e) + amin(g)
             #loglev = 1 / logspace(1/ log10(amax(g)-amin(g)), 1, clevels) + amin(g)
             kw.update({'zorder':-1000})
-            pl.contour(g, loglev, **kw)
+            ax.contour(g, loglev, **kw)
         if lev:
             kw.update({'zorder':1000})
             kw.update({'colors': 'k', 'linewidths':2, 'cmap':None})
             #kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
-            pl.contour(g, lev, **kw)
+            ax.contour(g, lev, **kw)
 
     for i,[obj,data] in enumerate(model['obj,data'][obj_slice]):
         if not data: continue
 
-        print(len(obj.sources[src_slice]))
+        #print(len(obj.sources[src_slice]))
         lev = obj.basis.arrival_contour_levels(data)
-        print(len(lev))
+        #print(len(lev))
         arrival_grid = obj.basis.arrival_grid(data)
         for i,src in enumerate(obj.sources[src_slice]):
 
@@ -532,12 +667,12 @@ def arrival_plot(env, model, **kwargs):
             kw.setdefault('cmap', None)
 
             plot_one(obj,data,src.index,g,levels,kw)
-            pl.xlim(-obj.basis.mapextent, obj.basis.mapextent)
-            pl.ylim(-obj.basis.mapextent, obj.basis.mapextent)
+            ax.set_xlim(-obj.basis.mapextent, obj.basis.mapextent)
+            ax.set_ylim(-obj.basis.mapextent, obj.basis.mapextent)
 
-    pl.gca().set_aspect('equal')
-    pl.xlabel(xlabel)
-    pl.ylabel(ylabel)
+    ax.set_aspect('equal')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
 @command
 def srcdiff_plot(env, model, **kwargs):
@@ -893,8 +1028,9 @@ def _data_error_plot(models, X,Y, **kwargs):
             #if not v.has_key('%s:count'%tag): break
 
             avg, errp, errm = dist_range(v[tag]['ys'], sigma=sigma)
-            errp = errp - avg
-            errm = avg - errm
+            errp -= avg
+            errm -= avg
+            errm *= -1
             #s = np.sort(v[tag]['ys'], axis=0)
             #avg = s[len(s)//2] if len(s)%2==1 else (s[len(s)//2] + s[len(s)//2+1])/2
             #print s
@@ -929,6 +1065,19 @@ def _data_error_plot(models, X,Y, **kwargs):
             if tag == 'rejected':
                 ax.errorbar(xs, avg, yerr=yerr, c=_styles[0]['c'], zorder=_styles[0]['z'])
             else:
+                if len(xs) != len(avg):
+                    print('1', xs.shape)
+                    print('2', avg.shape)
+                if len(xs) != len(yerr[0]):
+                    print('3', xs.shape)
+                    print('4', avg.shape)
+                    print('5', yerr[0].shape)
+                    print('6', yerr[1].shape)
+                if len(xs) != len(yerr[1]):
+                    print('7', xs.shape)
+                    print('8', avg.shape)
+                    print('9', yerr[0].shape)
+                    print('A', yerr[1].shape)
                 ax.errorbar(xs, avg, yerr=yerr, **kwargs)
 
 #   return

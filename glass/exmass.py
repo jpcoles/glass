@@ -73,9 +73,9 @@ class PowerLawMass(ExternalMass):
 
         kappa = (xx+yy)/2
         gamma = (xx-yy)/2
-        return array([    0 - sn*gamma + cs*delta,
+        return array([[    0 - sn*gamma + cs*delta,
                       kappa + cs*gamma + sn*delta,
-                      kappa - cs*gamma - sn*delta])
+                      kappa - cs*gamma - sn*delta]])
 
 class Isothermal(PowerLawMass):
 

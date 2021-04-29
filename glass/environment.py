@@ -112,7 +112,7 @@ class Environment:
 
     H0inv_ref    = 13.7
     H0inv_ref    = 13.57
-    global_opts = {}
+    global_opts = dict(withgfx=False)
 
     def __init__(self):
         self.objects = []
@@ -131,6 +131,7 @@ class Environment:
         self.omega_lambda = 0.72
 
         self.nu           = None
+        self.hubble_args  = None
         self.filled_beam  = True
 
         #self.ncpus_detected = _detect_cpus()

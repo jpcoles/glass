@@ -491,10 +491,11 @@ def hubble_constant(o, leq, eq, geq):
     """This requires a particular hubble constant for the object."""
 
     if env().nu is None:
-        Log( "[DISABLED] Hubble Constant")
+        Log( "[DISABLED] Hubble Constraint")
         return
 
-    Log( indent + "Hubble Constant " + str(env().nu))
+    Log( indent + "Hubble Constraint " + str(env().hubble_args) )
+    Log( indent + "                nu=" + str(env().nu) )
 
     nu = 1+o.basis.H0
 
@@ -804,10 +805,11 @@ def external_shear(o, leq, eq, geq):
 
     if on is None:
         on = '[DISABLED]'
+        Log( "%10s External Shear" % on)
     else:
         on = ''
+        Log( "%10s External Shear (%.4g)" % (on,v))
 
-    Log( "%10s External Shear" % on)
 
 @default_prior
 @object_prior
@@ -822,7 +824,8 @@ def external_mass(o, leq, eq, geq):
     for e,[start, end] in zip(o.extra_potentials, o.basis.extra_potentials_array_offsets):
         if not (hasattr(e.__class__, '__bases__') and ExternalMass in e.__class__.__bases__): continue
         min,max = o.prior_options['external mass'][e]
-        print(indent + 'External mass %s  %g-%g' % (e.name, min, max))
+        #print(indent + 'External mass %s  %g-%g' % (e.name, min, max))
+        print(indent + 'External mass %s' % (e.name))
         for s in range(1+start, 1+end):
             if min == max and min is not None:
                 row = new_row(o)
@@ -941,22 +944,15 @@ def profile_steepness(o, leq, eq, geq):
 
             #print R0,R1, o.basis.radial_cell_size[l], o.basis.radial_cell_size[l+1]
 
-            #R0 = l
-            #R1 = l+1
-
-            #if l == 0:
-                #R0,R1 = 1,1
-
-            #print o.basis.cell_size[r0]
             w0 = o.basis.cell_size[r0]**2 / np.sum(o.basis.cell_size[r0]**2)
             w1 = o.basis.cell_size[r1]**2 / np.sum(o.basis.cell_size[r1]**2)
 
             row = new_row(o)
-            row[pix_start+r0] =  w0 #* R0**minsteep
-            row[pix_start+r1] = -w1 #* R1**minsteep
-            #print row[pix_start+r0]
-            #print row[pix_start+r1]
-            #print 
+            #row[pix_start+r0] =  w0 #* R0**minsteep
+            #row[pix_start+r1] = -w1 #* R1**minsteep
+
+            row[pix_start+r0] =  w0 * R1**(-minsteep)
+            row[pix_start+r1] = -w1 * R0**(-minsteep)
 
             if minsteep == maxsteep:
                 eq(row)
@@ -965,8 +961,8 @@ def profile_steepness(o, leq, eq, geq):
 
                 if l > 0 and maxsteep is not None:
                     row = new_row(o)
-                    row[pix_start+r0] =  w0 * R0**maxsteep
-                    row[pix_start+r1] = -w1 * R1**maxsteep
+                    row[pix_start+r0] =  w0 * R1**(-maxsteep)
+                    row[pix_start+r1] = -w1 * R0**(-maxsteep)
                     leq(row)
                     c += 1
             c += 1
@@ -1630,21 +1626,26 @@ def PLsmoothness3(o, leq, eq, geq):
 def PLsmoothnessExp(o, leq, eq, geq):
     """A pixel cannot be more that twice the average of the neighbouring pixels."""
 
+    from scipy import ndimage 
     smth = o.prior_options.get('smoothness', {'factor': 2, 'include_central_pixel': True})
     if not smth:
-        Log( "[DISABLED] PLSmoothness3" )
+        Log( "[DISABLED] PLSmoothnessExp" )
         return
 
     pix_start, pix_end    = 1+o.basis.offs_pix
     smoothness_factor     = smth.get('factor', 2)
     include_central_pixel = smth.get('include_central_pixel', True)
 
-    Log( indent + "PLSmoothness3 (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
+    Log( indent + "PLSmoothnessExp (factor=%.1f include_central_pixel=%s)" % (smoothness_factor, include_central_pixel) )
 
     c=0
     #wght = lambda x: 1.0 / len(x) if len(x) else 0
     wght = lambda x: o.basis.cell_size[x]**2 / sum(o.basis.cell_size[x]**2)
     nbr_list = o.basis.nbrs
+
+    krnl = np.zeros([3,3])
+    krnl[1,1] = 1
+    krnl = ndimage.gaussian_filter(krnl,sigma=1)
 
     #print 'In smooth!'
 
@@ -1660,21 +1661,36 @@ def PLsmoothnessExp(o, leq, eq, geq):
 
         W = 0
         for d in nbr_list[i][2]:
-            #if d == o.basis.central_pixel: continue
-            #print len(o.basis.nbrs3[i][2])
-            #print i, o.basis.nbrs3[i][2]
-            #row[pix_start + d] = 1. / 8
-            w = np.exp(-(abs(o.basis.ploc[d] - r)/o.basis.top_level_cell_size)/2.)
+            if not d: continue # neighbor past the outer boundary
+            offs = o.basis.int_ploc[d] - o.basis.int_ploc[i]
+            #print(offs, o.basis.int_ploc[d], o.basis.int_ploc[i], d)
+            kc,kr = 1+int(offs.real), 1+int(offs.imag)
+            w = krnl[kr,kc]
+            #print(offs)
+            #print(kc,kr)
+            #print(w)
+            #w = np.exp(-(abs(o.basis.int_ploc[d] - r))/(2.))
+            #print(i,d,w, abs(o.basis.int_ploc[d] - r))
+            #print('!', o.basis.int_ploc[d], r, o.basis.top_level_cell_size)
             W += 1 #np.sum(w)
             row[pix_start + d] = w * wght(d)
 
-        row[pix_start + i] = -W / smoothness_factor
+        #row[pix_start + i] = -W / smoothness_factor
+        #row[pix_start + i] = -1.0 / (smoothness_factor-1)
+
+        # s(a+b+c+d) >= d
+        # s(a+b+c) + sd-d >= 0
+        # s(a+b+c) + d(s-1) >= 0
+        # (a+b+c) + d(s-1)/s >= 0
+        row[pix_start + i] = (smoothness_factor-1) / smoothness_factor
+
+        #(a+b+c) + ((n-1)/n)*d>= 0
 
         #print 'PLs', row[row != 0]
         geq(row)
         c += 1
 
-    Log( 2*indent + "# eqs = %i" % c )
+    DLog( 1, 2*indent + "# eqs = %i" % c )
 
 @object_prior
 def pixel_smoothness(o, leq, eq, geq):
@@ -1787,6 +1803,123 @@ def shared_h(objs, nvars, leq, eq, geq):
         Log( "[DISABLED] Shared h" )
     else:
         Log( indent + "Shared h" )
+
+#@default_prior
+@ensemble_prior
+def shared_last_kappa(objs, nvars, leq, eq, geq):
+    """This requires that all objects shared the same average kappa at the radius of the smallest maprad."""
+    on = False
+
+    nrings = list(map(lambda o: len(o.basis.rings), objs))
+#   minr = np.amin(nrings)-1
+#   minr = 0
+
+    o1 = objs[np.argmin(nrings)]
+
+    pix_start1,pix_end1 = o1.basis.offs_pix
+
+    for o2 in objs:
+        if o2 is o1: continue
+        offs1 = o1.basis.array_offset
+        offs2 = o2.basis.array_offset
+        pix_start2,pix_end2 = o2.basis.offs_pix
+
+        #
+        # This doesn't work with symmetry enable, because the rows are already
+        # in a folded state that has dropped symmetric pixels However, the
+        # rings we are using are still in non-symmetric form and therefore
+        # reference pixels that have been dropped.
+        #
+
+        r1 = o1.basis.rings[-2]
+        r2 = o2.basis.rings[-1]
+        w1 = o1.basis.cell_size[r1]**2 / np.sum(o1.basis.cell_size[r1]**2)
+        w2 = o2.basis.cell_size[r2]**2 / np.sum(o2.basis.cell_size[r2]**2)
+
+        row = zeros(1+nvars)
+        row[offs1+(pix_start1)+r1] =  w1
+        row[offs2+(pix_start2)+r2] = -w2
+        eq(row) 
+
+        #
+        # This DOES work with symmetry enable, because there is only one
+        # central pixel.
+        #
+
+        r1 = o1.basis.rings[0]
+        r2 = o2.basis.rings[0]
+        w1 = o1.basis.cell_size[r1]**2 / np.sum(o1.basis.cell_size[r1]**2)
+        w2 = o2.basis.cell_size[r2]**2 / np.sum(o2.basis.cell_size[r2]**2)
+
+        row = zeros(1+nvars)
+        row[offs1+(pix_start1)+r1] =  w1
+        row[offs2+(pix_start2)+r2] = -w2
+        eq(row) 
+
+        on = True
+
+    if not on: 
+        Log( "[DISABLED] Shared last kappa" )
+    else:
+        Log( indent + "Shared last kappa" )
+
+#@default_prior
+@ensemble_prior
+def shared_kappa_enc(objs, nvars, leq, eq, geq):
+    """This requires that all objects shared the same enclosed kappa at some radii."""
+    on = False
+
+    nrings = list(map(lambda o: len(o.basis.rings), objs))
+
+    o1    = objs[np.argmin(nrings)]
+    offs1 = o1.basis.array_offset
+    pix_start1,pix_end1 = o1.basis.offs_pix
+
+    for o2 in objs:
+        if o2 is o1: continue
+
+        offs2 = o2.basis.array_offset
+        pix_start2,pix_end2 = o2.basis.offs_pix
+
+        #
+        # This doesn't work with symmetry enable, because the rows are already
+        # in a folded state that has dropped symmetric pixels However, the
+        # rings we are using are still in non-symmetric form and therefore
+        # reference pixels that have been dropped.
+        #
+
+        def flatten(lol):
+            import itertools
+            if isinstance(lol, np.ndarray): return np.array(lol)
+            return np.array(list(itertools.chain.from_iterable(lol)))
+
+        r1 = flatten(o1.basis.rings[:-2])
+        r2 = flatten(o2.basis.rings[:-2])
+        w1 = o1.basis.cell_size[r1]**2
+        w2 = o2.basis.cell_size[r2]**2
+
+        row = zeros(1+nvars)
+        row[offs1+(pix_start1)+r1] =  w1
+        row[offs2+(pix_start2)+r2] = -w2
+        eq(row) 
+
+
+        r1 = flatten( o1.basis.rings[0] )
+        r2 = flatten( o2.basis.rings[:2] )
+        w1 = o1.basis.cell_size[r1]**2
+        w2 = o2.basis.cell_size[r2]**2
+
+        row = zeros(1+nvars)
+        row[offs1+(pix_start1)+r1] =  w1
+        row[offs2+(pix_start2)+r2] = -w2
+        eq(row) 
+
+        on = True
+
+    if not on: 
+        Log( "[DISABLED] Shared enclosed kappa" )
+    else:
+        Log( indent + "Shared enclosed kappa" )
 
 
 @object_prior

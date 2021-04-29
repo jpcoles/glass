@@ -12,22 +12,31 @@ def age_factor(env):
     return q
 
 def angdist(env, zi, zf):
-    return _angdist(zi,zf, env.omega_matter, env.omega_lambda, env.filled_beam)
+    return _angdist(env, zi,zf)
 
-def _angdist(zi, zf, M,L, filled_beam, tol=1e-4):
-
-    if zf < zi:
-        zi,zf = zf,zi
-
+def cosmo_params(env, tol=1e-4):
+    M,L,filled_beam = env.omega_matter, env.omega_lambda, env.filled_beam
+    tol = 1e-4
     #---------------------------------------------------------------------------
     # Curvature of the universe.
     #---------------------------------------------------------------------------
-    tol = 1e-4
     k = 0
     if M+L+tol < 1:
         k = -1
     elif M+L-tol > 1:
         k = 1
+    return dict(M=M,L=L,filled_beam=filled_beam, k=k)
+
+def _angdist(env, zi, zf, tol=1e-4):
+
+    if zf < zi:
+        zi,zf = zf,zi
+
+    cp = cosmo_params(env, tol=tol)
+    M = cp['M']
+    L = cp['L']
+    k = cp['k']
+    filled_beam = cp['filled_beam']
 
     if filled_beam:
         f = lambda z: 1. / sqrt(M * (z+1)**3 + (1-M-L) * (z+1)**2 + L)

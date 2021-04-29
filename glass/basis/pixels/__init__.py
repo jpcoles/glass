@@ -9,6 +9,7 @@ from glass.command import command
 from glass.scales import convert
 
 from glass.solvers.error import GlassSolverError
+from glass.report import section
 
 from . import glcmds
 from . import funcs
@@ -149,9 +150,7 @@ def init_model_generator(env, nmodels, regenerate=False):
 
     # ------------- 
 
-    Log( '=' * 80 )
-    Log( 'PIXEL BASIS MODEL GENERATOR' )
-    Log( '=' * 80 )
+    section( 'PIXEL BASIS MODEL GENERATOR' )
 #   if nmodels == 0:
 #       Log( "No models requested." )
 #       return
@@ -183,7 +182,7 @@ def init_model_generator(env, nmodels, regenerate=False):
     #---------------------------------------------------------------------------
     opts = env.model_gen_options
     opts['ncols'] = nvars
-    if 'nthreads' not in opts: opts['nthreads'] = Environment.global_opts['ncpus']
+    if 'nthreads' not in opts: opts['nthreads'] = Environment.global_opts['nthreads']
 
     #mg = env.model_gen = env.model_gen_factory(env.model_gen_options)
     mg = env.model_gen = Solver(**env.model_gen_options)
@@ -204,6 +203,8 @@ def init_model_generator(env, nmodels, regenerate=False):
             eq  = _expand_array(nvars, offs, mg.eq,  symm)
             geq = _expand_array(nvars, offs, mg.geq, symm)
             p.f(o, leq, eq, geq)
+
+    Log( )
 
     #---------------------------------------------------------------------------
     # Apply the ensemble priors

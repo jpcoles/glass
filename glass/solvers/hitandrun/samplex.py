@@ -14,6 +14,7 @@ import multiprocessing as MP
 from queue import Empty as QueueEmpty
 
 from glass.solvers.error import GlassSolverError
+from glass.report import section
 
 if 0:
     from pylab import figimage, show, imshow, hist, matshow, figure
@@ -117,7 +118,7 @@ def distance_to_plane_faster(pt,dir,p0,p):
 
     return dist
 
-def rwalk(id, nmodels, burn, thin, S, q, rng):
+def rwalk(id, nmodels, burn, thin, S, q, rng, selection=['uniform']):
 
     #-----------------------------------------------------------------------
     # Find a point that is completely inside the simplex
@@ -144,7 +145,11 @@ def rwalk(id, nmodels, burn, thin, S, q, rng):
             i += 1
 
         #t0 = time.perf_counter()
-        rs = rng.random(thin)
+        if selection == 'uniform':
+            rs = rng.random(size=thin)
+        elif selection == 'beta':
+            rs = rng.beta(2,2,size=thin)
+
         for k in range(thin):
             d0 = new_dir(
                     ip, 
@@ -191,6 +196,7 @@ class Samplex:
         self.burnin_factor = kw.get('burnin factor', 1)
         self.thin_len      = kw.get('thin', 1000)
         self.nsteps_inner  = kw.get('nsteps inner pt', 10)
+        self.selection     = kw.get('selection', 'uniform')
 
         self.nVars = ncols
 
@@ -262,9 +268,7 @@ class Samplex:
 
     def next(self, nsolutions=None):
 
-        Log( '=' * 80 )
-        Log( '%s  v%s' % (self.name, self.ver) )
-        Log( '=' * 80 )
+        section( '%s  v%s' % (self.name, self.ver) )
 
         Log( "%8i equations" % len(self.eq_list) )
         Log( "%8i variables" % (self.nVars) )
@@ -304,12 +308,16 @@ class Samplex:
         self.dist_eqs = [self.dist_eqs[:,0], self.dist_eqs[:,1:].T]
 
         #Log( 'Using lpsolve %s' % lpsolve('lp_solve_version') )
-        Log( "random seed    = %s"        % self.random_seed  )
-        Log( "processes      = %s"        % self.nthreads     )
-        Log( "dof            = %s"        % self.dof          )
-        Log( "inner pt steps = %s"        % self.nsteps_inner )
-        Log( "burn-in length = %s models" % self.burnin_len   )
-        Log( "thinning       = %s models" % self.thin_len     )
+        Log( "random seed      = %i"        % self.random_seed          )
+        Log( "n threads        = %i"        % self.nthreads             )
+        Log( "model sampling   = %s distribution" % self.selection      )
+        Log( "dof              = %i"        % self.dof                  )
+        Log( "inner pt steps   = %i"        % self.nsteps_inner         )
+        Log( "thinning         = %i models" % self.thin_len             )
+        Log( "burn-in length   = %i models" % self.burnin_len           )
+        Log( "requested models = %i" % nmodels                   )
+        Log( "total models     = %i" % (nmodels+self.burnin_len)   )
+        Log( "total MC steps   = %i" % ((nmodels+self.burnin_len)*self.thin_len) )
 
         #-----------------------------------------------------------------------
         # Create pseudo inverse matrix to reproject samples back into the
@@ -335,6 +343,7 @@ class Samplex:
         #-----------------------------------------------------------------------
 
         burn, thin = self.burnin_len, self.thin_len
+        selection = self.selection
 
         q = MP.Manager().Queue()
 
@@ -357,7 +366,7 @@ class Samplex:
 
 
             thr = MP.Process(target=rwalk, 
-                             args=(id, n, burn, thin, self, q, default_rng(child_seeds[id])))
+                             args=(id, n, burn, thin, self, q, default_rng(child_seeds[id]), selection))
             threads.append(thr)
             N += n
             id += 1

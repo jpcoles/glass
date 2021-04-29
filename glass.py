@@ -1,5 +1,6 @@
 
 import sys, getopt, os, traceback
+import builtins
 
 from glass.environment import env, Environment
 from glass.command import command, Commands
@@ -28,6 +29,7 @@ def _detect_cpus():
         ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
         if ncpus > 0:
             return ncpus
+
     return 1 # Default
 
 _omp_opts = None
@@ -45,6 +47,12 @@ def _detect_omp():
     _omp_opts = kw
     return kw
 
+def _detect_omp_threads():
+    return max(1,
+               int(os.environ.get('MKL_NUM_THREADS',        0)),
+               int(os.environ.get('NUMEXPR_NUM_THREADS',    0)),
+               int(os.environ.get('OMP_NUM_THREADS',        0)))
+
 def Ximport_functions(pkg):
     f = __import__(pkg, globals(), locals())
     #print f.__dict__
@@ -61,10 +69,10 @@ def glass_basis(env, name, **kwargs):
     env.basis_options = kwargs
     f = __import__(name, globals(), locals())
     for name,[f,g,help_text] in Commands.glass_command_list.items():
-        if name in __builtins__.__dict__:
-            print('WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, __builtins__.__dict__[name]))
-        __builtins__.__dict__[name] = g
-
+        #if name in __builtins__.__dict__:
+        if name in builtins.__dict__:
+            print('WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, builtins.__dict__[name]))
+        builtins.__dict__[name] = g
 
 def help():
     print("Usage: glass.py <input>", file=sys.stderr)
@@ -75,10 +83,11 @@ if __name__ == "__main__":
     if len(sys.argv) < 2: help()
 
     Environment.global_opts['ncpus_detected'] = _detect_cpus()
-    Environment.global_opts['ncpus'] = 1
+    Environment.global_opts['ncpus'] = _detect_omp_threads()
     Environment.global_opts['omp_opts'] = _detect_omp()
     Environment.global_opts['withgfx'] = True
     Environment.global_opts['debug level'] = 0
+    Environment.global_opts['nthreads'] = 1
 
     Commands.set_env(Environment())
 
@@ -88,11 +97,11 @@ if __name__ == "__main__":
         if   opt[0] == '-h':
             help()
         elif opt[0] == '-t':
-            ncpus = int(opt[1])
-            assert ncpus > 0
-            #Commands.get_env().ncpus = ncpus
-            Environment.global_opts['ncpus'] = ncpus
-            if ncpus > 1:
+            nthreads = int(opt[1])
+            assert nthreads > 0
+            #Commands.get_env().nthreads = nthreads
+            Environment.global_opts['nthreads'] = nthreads
+            if nthreads > 1:
                 print('*** It is currently recommended NOT to create multiple processes with -t. ***')
                 print('*** Consider setting OMP_NUM_THREADS for better performance.              ***')
         elif opt[0] == '--nw':

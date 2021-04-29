@@ -527,20 +527,21 @@ class PixelBasis(object):
             self.mapextent = self.top_level_cell_size * (L - 0.5)
         else:
             if self.pixsize is not None:
-                pr = int(ceil(self.maprad / self.pixsize)) + 1
+                pr = int(ceil(self.maprad / self.pixsize)) 
                 assert (self.pixrad is None or pr == self.pixrad), 'pixrad is incompatible with maprad and pixsize settings'
                 self.pixrad = pr
                 L = self.pixrad
                 # If pixsize has been set, then that will take precedence over maprad.
                 # Here we simply ensure that at least maprad is covered although the 
                 # maprad we adopt now could be larger.
-                self.maprad = (L-1.0) * self.pixsize
+                self.maprad = L * float(self.pixsize)
 
                 self.top_level_cell_size = self.pixsize
-                self.mapextent = self.top_level_cell_size * (L - 0.5)
+                self.mapextent = self.top_level_cell_size * (L + 0.5)
             else:
-                self.top_level_cell_size = self.maprad / (L-1.0)
-                self.mapextent = self.top_level_cell_size * (L - 0.5)
+                self.pixsize = self.maprad / L
+                self.top_level_cell_size = self.pixsize
+                self.mapextent = self.top_level_cell_size * (L + 0.5)
 
 
         self.map_shift = self.maprad        # [arcsec]
@@ -563,8 +564,8 @@ class PixelBasis(object):
         mags = abs(self.xy)
         #insideL  = self.insideL  = argwhere(mags <  ((2*L+1)//2)).T[0]
         #outsideL = self.outsideL = argwhere(mags >= ((2*L+1)//2)).T[0]
-        insideL  = self.insideL  = argwhere(mags <  L).T[0]
-        outsideL = self.outsideL = argwhere(mags >= L).T[0]
+        insideL  = self.insideL  = argwhere(mags <  L+0.5).T[0]
+        outsideL = self.outsideL = argwhere(mags >= L+0.5).T[0]
         self.int_ploc      = self.xy[insideL]
         self.int_cell_size = self.int_cell_size[insideL]
 
@@ -788,6 +789,7 @@ class PixelBasis(object):
 
     def report(self):
 
+        ii = ' '*4
         obj = self.myobject
 
         H0_ref = Environment.H0inv_ref
@@ -796,14 +798,15 @@ class PixelBasis(object):
 
         arcsec_kpc_pair = lambda x: (x,tokpc(x))
 
-        Log( 'Pixel basis for %s' % obj.name)
-        Log( '    -- All kpc units assume reference 1/H0=%.1f --' % H0_ref )
-        Log( '    Map radius           = %.4f [arcsec]  (%3.4f [kpc])  Distance to center of outer pixel.' % arcsec_kpc_pair(self.maprad) )
-        Log( '    Map extent           = %.4f [arcsec]  (%3.4f [kpc])  Distance to outer edge of outer pixel.' % arcsec_kpc_pair(self.mapextent) )
-        Log( '    Pixel size           = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(self.top_level_cell_size) )
-        Log( '    Hires pixel size     = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(obj.basis.cell_size[0]) )      if self.hires_levels else 0 
-        Log( '    Hires division       = %i'                           % self.hires_levels )                       if self.hires_levels else 0
-        Log( '    Pixel map radius     = %-6i [pixels]  -> %i rings'  % (self.pixrad, len(self.rings)) )
+        #Log( 'Pixel basis for %s' % obj.name)
+        Log( ii+'Pixel basis')
+        Log( ii+'    -- All kpc units assume reference 1/H0=%.1f --' % H0_ref )
+        Log( ii+'    Map radius           = %.4f [arcsec]  (%3.4f [kpc])  Distance to center of outer pixel.' % arcsec_kpc_pair(self.maprad) )
+        Log( ii+'    Map extent           = %.4f [arcsec]  (%3.4f [kpc])  Distance to outer edge of outer pixel.' % arcsec_kpc_pair(self.mapextent) )
+        Log( ii+'    Pixel size           = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(self.top_level_cell_size) )
+        Log( ii+'    Hires pixel size     = %.4f [arcsec]  (%3.4f [kpc])' % arcsec_kpc_pair(obj.basis.cell_size[0]) )      if self.hires_levels else 0 
+        Log( ii+'    Hires division       = %i'                           % self.hires_levels )                       if self.hires_levels else 0
+        Log( ii+'    Pixel map radius     = %-6i [pixels]  -> %i rings'  % (self.pixrad, len(self.rings)) )
 
         #Log( '    Map radius           = %.4f [arcsec] %s' % (self.maprad, 'Distance to center of outer pixel.') )
         #Log( '    Map extent           = %.4f [arcsec] %s' % (self.mapextent, 'Distance to outer edge of outer pixel.') )
@@ -813,20 +816,20 @@ class PixelBasis(object):
         #if self.hires_levels:
             #Log( '    Hires pixel size     = %3.4f [kpc]    H0inv=%.1f' % (convert('arcsec to kpc', obj.basis.cell_size[0], obj.dL, nu_ref), Environment.H0inv_ref ))
             #Log( '    Hires division       = %i'    % len(self.hires_levels) )
-        Log( '    Number of pixels     = %i'    % len(self.int_ploc) )
-        Log( '    Number of variables  = %i'    % self.nvar )
-        DLog(1, '    Center pix          = pixel offset %i'       % self.central_pixel )
-        Log( '    Offsets        % 5s  % 5s' % ('Start', 'End') )
-        Log( '        H0         % 5i'       % self.H0 )
-        Log( '        pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
+        Log( ii+'    Number of pixels     = %i'    % len(self.int_ploc) )
+        Log( ii+'    Number of variables  = %i'    % self.nvar )
+        DLog(1, ii+'    Center pix          = pixel offset %i'       % self.central_pixel )
+        Log( ii+'    Offsets        % 5s  % 5s' % ('Start', 'End') )
+        Log( ii+'        H0         % 5i'       % self.H0 )
+        Log( ii+'        pix        % 5i  % 5i' % (self.offs_pix[0], self.offs_pix[1]) )
 
         if self.offs_srcpos[0] == self.offs_srcpos[1]:
-            Log( '        srcpos          %s' % 'None')
+            Log( ii+'        srcpos          %s' % 'None')
         else:
-            Log( '        srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
+            Log( ii+'        srcpos     % 5i  % 5i' % (self.offs_srcpos[0], self.offs_srcpos[1]) )
 
         for e,[start,end] in zip(obj.extra_potentials, self.extra_potentials_array_offsets):
-            Log( '        %-10s % 5i  % 5i' % (e.name, start, end) )
+            Log( ii+'        %-10s % 5i  % 5i' % (e.name, start, end) )
 
 #       xy    = self.refined_xy_grid({})
 

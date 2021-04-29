@@ -20,3 +20,7 @@ def samplex_thin(env, thin):
     if thin < 1000:
         Log('*** Samplex: The current "thinning" value is %i. It is recommended to be at least 1000. ***' % thin)
     env.model_gen_options['thin'] = thin
+
+@command
+def samplex_selection(env, selection):
+    env.model_gen_options['selection'] = selection

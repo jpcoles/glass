@@ -55,9 +55,9 @@ class PixelLensModel(LensModel):
 
     @prop('kappa(<R)')
     def kappa_ltR(self, component=[]):
-        k = ' '.join(['kappa'] + component)
-        M = np.cumsum([np.sum(self[k][r]*self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings]) 
-        V = np.cumsum([np.sum(self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings])
+        k = self[ ' '.join(['kappa'] + component) ]
+        M = np.cumsum([np.sum(k[r]*self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings]) 
+        V = np.cumsum([np.sum(     self.obj.basis.cell_size[r]**2) for r in self.obj.basis.rings])
         M_V = M/V
         one_src = lambda zcap: DArray(M_V / zcap,
                                 r'$\kappa(<R)$', {'kappa': [1, None]})
@@ -80,6 +80,13 @@ class PixelLensModel(LensModel):
 
     @prop('R')
     def R(self):
+        rscale = convert('arcsec to kpc', 1, self.obj.dL, self['nu'])
+        return DArray(self.obj.basis.rs,
+                      r'$R$', {'arcsec': [1, r'$\mathrm{arcsec}$'],
+                               'kpc':    [rscale, r'$\mathrm{kpc}$']})
+
+    @prop('<R')
+    def ltR(self):
         rscale = convert('arcsec to kpc', 1, self.obj.dL, self['nu'])
         return DArray(self.obj.basis.rs + self.obj.basis.radial_cell_size / 2,
                       r'$R$', {'arcsec': [1, r'$\mathrm{arcsec}$'],

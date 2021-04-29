@@ -15,6 +15,16 @@ from glass.log import log as Log, setup_log
 from glass.exceptions import GLInputError
 from glass.utils import dist_range
 
+#@command('Load a glass basis set')
+#def glass_basis(env, name, **kwargs):
+#    env.basis_options = kwargs
+#    f = __import__(name, globals(), locals())
+#    for name,[f,g,help_text] in Commands.glass_command_list.items():
+#        #if name in __builtins__.__dict__:
+#        if name in builtins.__dict__:
+#            print('WARNING: Glass command %s (%s) overrides previous function %s' % (name, f, builtins.__dict__[name]))
+#        builtins.__dict__[name] = g
+
 @command
 def ptmass(xc, yc, mmin, mmax): raise GLInputError("ptmass not supported. Use external_mass().")
 @command
@@ -154,6 +164,7 @@ def universe_age(env, *args):
     if len(env.objects) != 0: raise GLInputError('universe_age() must be used before any objects are created.')
     nu       = convert('age in Gyr to nu', np.array(args), glass.cosmo.age_factor(env))
     env.nu = np.array([nu[-1], nu[0]])
+    env.hubble_args = args
 
 @command
 def hubble_time(env, *args):
@@ -162,12 +173,14 @@ def hubble_time(env, *args):
     if len(env.objects) != 0: raise GLInputError('hubble_time() must be used before any objects are created.')
     nu       = convert('H0^-1 in Gyr to nu', np.array(args))
     env.nu = np.array([nu[-1], nu[0]])
+    env.hubble_args = args
 
 @command
 def hubble_constant(env, *args):
     """Set H0 (or a range) in km/s/Mpc"""
     if len(env.objects) != 0: raise GLInputError('hubble_constant() must be used before any objects are created.')
     env.nu      = convert('H0 in km/s/Mpc to nu', np.array(args))
+    env.hubble_args = args
 
 @command
 def maprad(env, r,units='arcsec'):
@@ -253,11 +266,11 @@ def model(env, nmodels=None, *args, **kwargs):
 
     report(env)
 
-    Log( '=' * 80 )
-    Log( 'OBJECT BASIS REPORT' )
-    Log( '=' * 80 )
-    for o in env.objects:
-        o.basis.report()
+    #Log( '=' * 80 )
+    #Log( 'OBJECT BASIS REPORT' )
+    #Log( '=' * 80 )
+    #for o in env.objects:
+    #    o.basis.report()
 
     #init_model_generator(nmodels)
 
@@ -274,8 +287,13 @@ def model(env, nmodels=None, *args, **kwargs):
              'tagged':  False}
         models.append(m)
     else:
+        t0 = time.perf_counter()
         for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
-            Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
+            t1 = time.perf_counter()
+            if (t1-t0) > 5:
+                Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
+                t0 = time.perf_counter()
+
             models.append(m)
             solutions.append(m['sol'])
             #print 'glcmds.py:model ???', id(m['sol'])
