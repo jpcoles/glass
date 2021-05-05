@@ -184,7 +184,7 @@ def PlotFigures():
 #               #cx,cy = -1.875, 0.08
 #               cx,cy=0,0
 #               g.image_plot(g.meta_info['image'], R, [cx,cy])
-            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=20) #, vmax=1, colors='r'); #Re_plot(env().ensemble_average,0)
+            g.kappa_plot(g.ensemble_average, 0, with_contours=True, clevels=10) #, vmax=1, colors='r'); #Re_plot(env().ensemble_average,0)
             #g.kappa_plot(g.ensemble_average, 0, with_contours=False, vmax=1); #Re_plot(env().ensemble_average,0)
             #g.gradient_plot(g.ensemble_average, 0)
             end_plot()
@@ -199,10 +199,16 @@ def PlotFigures():
             #g.glhist('N5', label='N5', color='c', xlabel=r'$\theta_E$')
             end_plot()
 
-    if 1:
+    if 0:
         for g in gls:
             begin_plot()
             g.shear_plot2d()
+            end_plot()
+
+    if 1:
+        for g in gls:
+            begin_plot()
+            g.coefficient_plot()
             end_plot()
 
     if 0:

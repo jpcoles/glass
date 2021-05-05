@@ -109,7 +109,7 @@ setup(name = 'Glass',
                   'glass.solvers.pwalk',
                   'glass.solvers.samplex',
                   'glass.solvers.samplexsimple',
-                  'glass.basis', 'glass.basis.pixels', 'glass.basis.bessel',
+                  'glass.basis', 'glass.basis.pixels', 'glass.basis.bessel', 'glass.basis.bernstein', 'glass.basis.rbf',
                   'glass.massmodel', 'glass.misc'],
       ext_modules = [crwalk, samplex, samplexsimple])
 

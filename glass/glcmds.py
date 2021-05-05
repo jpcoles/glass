@@ -1,4 +1,4 @@
-
+import sys
 import time
 import numpy as np
 from numpy import arctan2, pi
@@ -14,6 +14,7 @@ from glass.scales import convert
 from glass.log import log as Log, setup_log
 from glass.exceptions import GLInputError
 from glass.utils import dist_range
+from glass.solvers.error import GlassSolverError
 
 #@command('Load a glass basis set')
 #def glass_basis(env, name, **kwargs):
@@ -101,7 +102,8 @@ def source(env, zsrc, img0=None, img0parity=None, *imgs, **kwargs):
 
     if 'position' in kwargs and kwargs['position'] is not None:
         if not prior_included('source_position'): raise GLInputError("The 'source_position' prior must be included when using the position keyword.")
-        src.pos = complex(kwargs['position'][0], kwargs['position'][1])
+        #src.pos = complex(kwargs['position'][0], kwargs['position'][1])
+        src.pos = complex(*kwargs['position'])
         if len(kwargs['position']) == 3:
             src.pos_tol = kwargs['position'][2]
 
@@ -288,18 +290,23 @@ def model(env, nmodels=None, *args, **kwargs):
         models.append(m)
     else:
         t0 = time.perf_counter()
-        for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
-            t1 = time.perf_counter()
-            if (t1-t0) > 5:
-                Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
-                t0 = time.perf_counter()
+        try:
+            for i,m in enumerate(generate_models(env.objects, nmodels, *args, **kwargs)):
+                t1 = time.perf_counter()
+                if (t1-t0) > 5:
+                    Log( 'Model %i/%i complete.' % (i+1, nmodels), overwritable=True)
+                    t0 = time.perf_counter()
 
-            models.append(m)
-            solutions.append(m['sol'])
-            #print 'glcmds.py:model ???', id(m['sol'])
+                models.append(m)
+                solutions.append(m['sol'])
+                #print 'glcmds.py:model ???', id(m['sol'])
 
-        Log( 'Generated %i model(s).' % len(models) )
-        _post_process(models)
+            Log( 'Generated %i model(s).' % len(models) )
+            _post_process(models)
+        except GlassSolverError as e:
+            Log( repr(e) )
+            sys.exit(1)
+
 
     env.models.extend(models)
     env.solutions.extend(solutions)

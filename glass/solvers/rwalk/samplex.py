@@ -91,7 +91,7 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
     #csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
     csamplex.set_rwalk_seed(1 + seed)
 
-    log_time = time.clock()
+    log_time = time.perf_counter()
 
     #t0=0
     #t1=time.clock()
@@ -171,10 +171,10 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
                     twiddle = max(1e-14,twiddle)
                     state = 'R' + state
 
-                if time.clock() - log_time > 3:
+                if time.perf_counter() - log_time > 3:
                     msg = 'THREAD %3i]  %i/%i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs backlog %i' % (id, i, burnin_len, 100*r, Naccepted, Nrejected, twiddle, t, len(lclq))
                     Log( offs + '% 2s %s' % (state, msg), overwritable=True )
-                    log_time = time.clock()
+                    log_time = time.perf_counter()
 
                 #print ' '*36, '% 2s %s' % (state, msg)
 
@@ -203,10 +203,10 @@ def rwalk_burnin(id, nmodels, burnin_len, samplex, q, cmdq, ackq, vec, twiddle, 
 
 
 
-    time_begin = time.clock()
+    time_begin = time.perf_counter()
     if cmd[0] == 'RWALK':
         rwalk(id, nmodels, samplex, q, cmdq, vec, twiddle, eval, evec, seed=None)
-    time_end = time.clock()
+    time_end = time.perf_counter()
 
     cmd = cmdq.get()
     assert cmd[0] == 'STOP', cmd[0]
@@ -233,7 +233,7 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec,seed):
     #csamplex.set_rwalk_seed(1 + id + samplex.random_seed)
     if seed is not None: csamplex.set_rwalk_seed(1 + seed)
 
-    log_time = time.clock()
+    log_time = time.perf_counter()
 
     offs = ' '*36
     state = ''
@@ -250,9 +250,9 @@ def rwalk(id, nmodels, samplex, q, cmdq, vec,twiddle, eval,evec,seed):
 
         r = accepted / (accepted + rejected)
 
-        if time.clock() - log_time > 3:
+        if time.perf_counter() - log_time > 3:
             Log( offs + '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i), overwritable=True )
-            log_time = time.clock()
+            log_time = time.perf_counter()
 
         #print ' '*36, '% 2s THREAD %3i  %i  %4.1f%% accepted  (%6i/%6i Acc/Rej)  twiddle %5.2f  time %5.3fs  %i left.' % (state, id, i, 100*r, accepted, rejected, twiddle, t, nmodels-i)
         assert np.all(vec >= 0), vec[vec < 0]
@@ -417,7 +417,7 @@ class Samplex:
         Log( "starting twiddle = %s" % self.twiddle )
         Log( "burn-in length = %s" % burnin_len )
 
-        time_begin_next = time.clock()
+        time_begin_next = time.perf_counter()
 
         #-----------------------------------------------------------------------
         # Create pseudo inverse matrix to reproject samples back into the
@@ -445,9 +445,9 @@ class Samplex:
         # Find a point that is completely inside the simplex
         #-----------------------------------------------------------------------
         Log('Finding first inner point')
-        time_begin_inner_point = time.clock()
+        time_begin_inner_point = time.perf_counter()
         self.inner_point(newp)
-        time_end_inner_point = time.clock()
+        time_end_inner_point = time.perf_counter()
         ok,fail_count = self.in_simplex(newp, eq_tol=1e-12, tol=0, verbose=1)
         assert ok
 
@@ -483,9 +483,9 @@ class Samplex:
         # Estimate the eigenvectors of the simplex
         #-----------------------------------------------------------------------
         Log('Estimating eigenvectors')
-        time_begin_est_eigenvectors = time.clock()
+        time_begin_est_eigenvectors = time.perf_counter()
         self.measured_ev(newp, ev, eval, evec)
-        time_end_est_eigenvectors = time.clock()
+        time_end_est_eigenvectors = time.perf_counter()
 
         #-----------------------------------------------------------------------
         # Now we can start the random walk
@@ -558,7 +558,7 @@ class Samplex:
         #-----------------------------------------------------------------------
         # Burn-in
         #-----------------------------------------------------------------------
-        time_begin_burnin = time.clock()
+        time_begin_burnin = time.perf_counter()
         compute_eval_window = 2 * self.dof
         j = 0
         k = -1
@@ -582,12 +582,12 @@ class Samplex:
             if j != 0 and len(threads) < compute_eval_window:
                 threads[k][1].put(['CONT'])
 
-        time_end_burnin = time.clock()
+        time_end_burnin = time.perf_counter()
 
         #-----------------------------------------------------------------------
         # Actual random walk
         #-----------------------------------------------------------------------
-        time_begin_get_models = time.clock()
+        time_begin_get_models = time.perf_counter()
         adjust_threads(burnin_len, 'RWALK')
         i=0
         while i < nmodels:
@@ -599,7 +599,7 @@ class Samplex:
             Log( '%i models left to generate' % (nmodels-i), overwritable=True)
             yield t
 
-        time_end_get_models = time.clock()
+        time_end_get_models = time.perf_counter()
 
         #-----------------------------------------------------------------------
         # Stop the threads and get their running times.
@@ -612,7 +612,7 @@ class Samplex:
             time_threads.append(t)
             #thr.terminate()
 
-        time_end_next = time.clock()
+        time_end_next = time.perf_counter()
 
         max_time_threads = np.amax(time_threads) if time_threads else 0
         avg_time_threads = np.mean(time_threads) if time_threads else 0

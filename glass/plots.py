@@ -394,19 +394,19 @@ def kappa_plot(env, model, obj_index, **kwargs):
         #if with_colorbar: 
             #glscolorbar(ax)
 
-#   if only_contours or with_contours:
-#       #if 'colors' in kw and 'cmap' in kw:
-#           #kw.pop('cmap')
+    if only_contours or with_contours:
+        #if 'colors' in kw and 'cmap' in kw:
+            #kw.pop('cmap')
 
-#       kw.setdefault('colors', 'w')
-#       kw.setdefault('extend', 'both')
-#       kw.setdefault('alpha', 0.7)
-#       kw.pop('cmap')
-#       #kw.pop('colors')
-#       C = ax.contour(grid, clevels, **kw)
-#       if label_contours:
-#           ax.clabel(C, inline=1, fontsize=10)
-#       ax.set_aspect('equal')
+        kw.setdefault('colors', 'w')
+        kw.setdefault('extend', 'both')
+        kw.setdefault('alpha', 0.7)
+        #kw.pop('cmap')
+        #kw.pop('colors')
+        C = ax.contour(lggrid, clevels, **kw)
+        if label_contours:
+            ax.clabel(C, inline=1, fontsize=10)
+        ax.set_aspect('equal')
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -644,6 +644,7 @@ def arrival_plot(env, model, **kwargs):
             kw.update({'colors': 'k', 'linewidths':2, 'cmap':None})
             #kw.update({'colors':system_color(src_index), 'linewidths':3, 'cmap':None})
             ax.contour(g, lev, **kw)
+            #ax.contour(g, **kw)
 
     for i,[obj,data] in enumerate(model['obj,data'][obj_slice]):
         if not data: continue
@@ -1532,3 +1533,21 @@ def _hist(env, data_key, **kwargs):
 
     #ax.set_xlim(xmax=pl.xlim()[1] + 0.01*(pl.xlim()[1] - pl.xlim()[0]))
     #ax.set_ylim(ymax=pl.ylim()[1] + 0.01*(pl.ylim()[1] - pl.ylim()[0]))
+
+_coeffs_xlabel = r'Coefficient Index'
+@command
+def coefficient_plot(env, **kwargs):
+
+    models = kwargs.pop('models', env.models)
+    obj_index = kwargs.pop('obj_index', 0)
+    model_index = kwargs.pop('model_index', None)
+
+    M = models if model_index is None else [models[model_index]]
+
+    for m in M:
+        obj,data = m['obj,data'][obj_index]
+        t0 = data['bcoeffs']
+        pl.plot(t0, lw=0.5)
+
+    pl.xlabel(_coeffs_xlabel)
+    pl.ylabel(r'Coefficient')

@@ -30,19 +30,19 @@ np.set_printoptions(linewidth=10000000, precision=20, threshold=2000)
 
 class SamplexUnboundedError(GlassSolverError):
     def __init__(self, *args, **kwargs):
-        GlassSolverError.__init__(self, 'Constraints are not strong enough to form a closed solution volume.', *args, **kwargs)
+        GlassSolverError.__init__(self, 'Constraints are not strong enough to form a closed solution volume.')
 
 class SamplexNoSolutionError(GlassSolverError):
     def __init__(self, *args, **kwargs):
-        GlassSolverError.__init__(self, 'Constraints are too strong and no solution exists.', *args, **kwargs)
+        GlassSolverError.__init__(self, 'Constraints are too strong and no solution exists.')
 
 class SamplexNumericalError(GlassSolverError):
     def __init__(self, *args, **kwargs):
-        GlassSolverError.__init__(self, 'A numerical error occured and a starting solution could not be found.', *args, **kwargs)
+        GlassSolverError.__init__(self, 'A numerical error occured and a starting solution could not be found.')
 
 class SamplexUnexpectedError(GlassSolverError):
     def __init__(self, *args, **kwargs):
-        GlassSolverError.__init__(self, 'An unexpected error happened.', *args, **kwargs)
+        GlassSolverError.__init__(self, 'An unexpected error happened.')
 
 class SamplexSolution:
     def __init__(self):
@@ -125,7 +125,12 @@ def rwalk(id, nmodels, burn, thin, S, q, rng, selection=['uniform']):
     #-----------------------------------------------------------------------
 
     if id == 0: Log('Finding first inner point')
-    ip = S.inner_point(S.nsteps_inner,id)
+    try:
+        ip = S.inner_point(S.nsteps_inner,id)
+    except Exception as e:
+        q.put([e,None,'exception'])
+        return
+
 
     ok,fail_count = S.in_simplex(ip, eq_tol=1e-12, tol=0, verbose=0)
     assert ok
@@ -145,9 +150,9 @@ def rwalk(id, nmodels, burn, thin, S, q, rng, selection=['uniform']):
             i += 1
 
         #t0 = time.perf_counter()
-        if selection == 'uniform':
+        if selection[0] == 'uniform':
             rs = rng.random(size=thin)
-        elif selection == 'beta':
+        elif selection[0] == 'beta':
             rs = rng.beta(2,2,size=thin)
 
         for k in range(thin):
@@ -196,7 +201,7 @@ class Samplex:
         self.burnin_factor = kw.get('burnin factor', 1)
         self.thin_len      = kw.get('thin', 1000)
         self.nsteps_inner  = kw.get('nsteps inner pt', 10)
-        self.selection     = kw.get('selection', 'uniform')
+        self.selection     = kw.get('selection', ['uniform'])
 
         self.nVars = ncols
 
@@ -367,6 +372,7 @@ class Samplex:
 
             thr = MP.Process(target=rwalk, 
                              args=(id, n, burn, thin, self, q, default_rng(child_seeds[id]), selection))
+
             threads.append(thr)
             N += n
             id += 1
@@ -403,6 +409,9 @@ class Samplex:
         for i in range(nmodels+burn):
             k,vec,phase = q.get()
 
+            if phase == 'exception':
+                break
+
             if i in [0,burn]:
                 nt,mt,dt,t0 = 0,0,0,time.perf_counter()
 
@@ -423,14 +432,17 @@ class Samplex:
 
         time_get_models['end'] = time.perf_counter()
 
+        for thr in threads:
+            thr.terminate()
+
+        if phase == 'exception':
+            raise k
+
         if nt:
             mt = dt/nt
             nt = 0
             t0 = time.perf_counter()
             status_walk(i,nmodels+burn,mt)
-
-        for thr in threads:
-            thr.terminate()
 
 #       #-----------------------------------------------------------------------
 #       # Stop the threads and get their running times.
